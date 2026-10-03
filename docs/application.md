@@ -24,7 +24,8 @@ end to end. It is not a complete product.
 | Cedar authorization (L4) | ✅ **Implemented.** Policies in `policies/attest.cedar`, evaluated in-process |
 | Persistence | ✅ **PostgreSQL adapter with Row-Level Security**, plus a portable in-memory default |
 | Object storage | ✅ **Three adapters — in-memory, filesystem, and S3-compatible** — all passing one contract |
-| Customer-facing features | ❌ None |
+| **The admin console** | ✅ **Server-rendered**, OIDC code flow with server-side sessions |
+| Customer-facing features | ❌ None beyond the console |
 
 **The API surface today:**
 
@@ -189,7 +190,7 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**171 tests** across eight files, all passing (4 skipped, with stated reasons).
+**182 tests** across nine files, all passing (4 skipped, with stated reasons).
 
 | File | Tests | What it covers |
 |---|---|---|
@@ -198,6 +199,7 @@ npm test --workspace @attest/api
 | `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
 | `postgres.test.ts` | 10 | The RLS boundary, with a superuser negative control and a connection-reuse check |
 | `object-storage.test.ts` | 32 | **All three adapters** against one contract: tenancy, traversal, integrity |
+| `console.test.ts` | 15 | The OIDC flow, session cookies, CSRF, and escaping — against a listening API |
 | `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
 | `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
@@ -416,12 +418,76 @@ over:
 > nothing but the traversal defence stands between the caller and the bytes. With both defences
 > removed it now fails, as it should.
 
-## 11. What is not built
+## 11. The admin console
+
+Server-rendered HTML, no frontend framework. It reuses the same TypeScript codebase, needs no
+bundler or dev server, and the console is forms and tables — the kind of UI where a framework earns
+nothing.
+
+**It is a CLIENT of the API, not a privileged path into it.** Every page is rendered from data
+fetched over HTTP with the user's own access token, so the same `authenticate` → `authorize` chain
+runs as for any other caller. Reading the repository directly would have been far easier — the code
+is right there — and that is precisely how an admin console becomes a bypass: a second path to the
+data that does not pass through the checks. The cost is a loopback HTTP call per page, and it is
+worth paying, because the alternative is a second authorization implementation.
+
+### Where the tokens live
+
+**In neither the browser nor a cookie.** The console completes the authorization code flow on the
+server and keeps the tokens in a server-side session. The browser receives only an **opaque session
+id** in an HttpOnly cookie. An access token in `localStorage` is readable by any injected script, and
+so is one in a non-HttpOnly cookie; the strongest version is that **the browser never holds one at
+all**.
+
+| Cookie | Holds | Flags |
+|---|---|---|
+| `attest_session` | an opaque 32-byte session id | HttpOnly, SameSite=Lax, Secure, **Path=/console** |
+| `attest_flow` | `state` and `nonce` for one sign-in | HttpOnly, SameSite=Lax, Secure, short-lived |
+
+`Path=/console` so the session is not sent to the API. The session id is **not a JWT** — there are no
+claims inside it for a signature to protect, and a signed cookie invites putting data in it, which is
+how sessions become tokens.
+
+### The trade-off, stated rather than glossed
+
+**The console's tokens are not DPoP-bound**, and this is a direct consequence of being
+server-rendered. DPoP binds a token to a private key the *client* holds; for the console to present a
+proof per request, that key would have to live in the browser — which reintroduces exactly the
+problem the session store exists to remove. So the console authenticates with a **client secret**
+over TLS on the back channel.
+
+What is unchanged: **the user's login is still a passkey**, WebAuthn, origin-bound — which is what S9
+proved. What is lost: the tokens are not sender-constrained, so token theft *from the server* is not
+detectable the way it is at the API. The mitigation is that the tokens never reach the browser.
+
+**A future browser-side console would use DPoP and hold its own key.** That is the honest alternative,
+and it is the same S4 work already done.
+
+### Two protections that are not decoration
+
+**`state`** protects the *redirect*. Without it an attacker can make a victim's browser complete a
+flow the victim never started — login CSRF, where the victim ends up signed in as the attacker and
+then does work inside the attacker's account. It is single-use: the cookie is cleared on return, so a
+replayable `state` is not a state check.
+
+**`nonce`** protects the *ID token*, so a token issued for a different flow cannot be substituted into
+this one. The ID token's **signature** is deliberately not the concern: it arrives over back-channel
+TLS directly from the token endpoint in response to a request this server made with its own secret.
+There is no untrusted hop for a signature to protect against. What a signature cannot catch is
+substitution, and that is what `nonce` catches.
+
+**CSRF is checked explicitly** on sign-out. `SameSite=Lax` is not sufficient alone — it is a browser
+behaviour rather than a server-side check, and a browser that ignored it would silently lose the
+protection with nothing in the logs to say so. The comparison is constant-time.
+
+## 12. What is not built
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **The admin console.** The domain has a working API and no product surface. This is the largest
-  remaining gap between "verified system" and "usable product".
+- **Evidence upload in the console.** The API accepts artifacts; the console only lists and reads
+  them.
+- **No way to create evidence from the console.** Records must be seeded.
+- **No pagination controls, no search, no audit view.** It is a console, not yet a product.
 - **No migrations tooling.** The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.
 - **Four routes.** Still no product surface a customer would recognise.
@@ -432,7 +498,7 @@ Stated plainly, because this list is as useful as the rest of the page:
 
 ---
 
-## 12. Extending it
+## 13. Extending it
 
 The pattern is the same for every capability that varies by environment:
 

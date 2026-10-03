@@ -1,4 +1,6 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import cookie from "@fastify/cookie";
+import formbody from "@fastify/formbody";
 
 import type { AppConfig } from "./config.ts";
 import { TokenVerificationError } from "./errors.ts";
@@ -11,6 +13,7 @@ import type { ReplayCache } from "./ports/replay-cache.ts";
 import type { PolicyDecisionPoint, PolicyRequest, TenantScope } from "./ports/policy.ts";
 import type { EvidenceRepository } from "./ports/repository.ts";
 import type { ObjectStorage } from "./ports/object-storage.ts";
+import { registerConsole, type ConsoleDeps } from "./console/routes.ts";
 
 /**
  * The API as a running service — the policy *enforcement point*.
@@ -45,6 +48,18 @@ export interface ServerDeps {
   readonly evidence: EvidenceRepository;
   /** Artifact bytes, tenant-scoped, with integrity verified on read. */
   readonly artifacts: ObjectStorage;
+  /**
+   * The admin console, when configured.
+   *
+   * Optional so the API runs without it — and note that the console is registered
+   * as an ordinary set of routes. It gets no privileged access to the repository or
+   * the policy engine; it calls the API over HTTP with the user's own token, which
+   * is why there is no bypass to forget about.
+   */
+  readonly console?: Omit<ConsoleDeps, "apiBaseUrl" | "consoleBaseUrl"> & {
+    readonly apiBaseUrl: string;
+    readonly consoleBaseUrl: string;
+  };
 }
 
 /** Attached to the request by `authenticate`, for handlers to read. */
@@ -92,6 +107,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     disableRequestLogging: false,
     bodyLimit: 1024 * 1024,
   });
+
+  // Cookies carry the console's opaque session id and nothing else. The signing
+  // secret is deliberately absent: the session id is a 32-byte random value with no
+  // claims inside it, so there is nothing for a signature to protect. A signed
+  // cookie would invite putting data in it, which is how sessions become tokens.
+  app.register(cookie);
+  // The console's sign-out is a form POST, so that a link or an image cannot end a
+  // session as a side effect of being loaded.
+  app.register(formbody);
 
   // Evidence artifacts are arbitrary bytes with arbitrary content types. Fastify has
   // no parser for text/plain or application/octet-stream by default, so a perfectly
@@ -462,6 +486,17 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const page = await deps.evidence.list(tenant, { limit: 50 });
     return { items: page.items.map((r) => ({ id: r.id, control: r.control })) };
   });
+
+  // ---------------------------------------------------------------- console
+  if (deps.console) {
+    registerConsole(app, {
+      sessions: deps.console.sessions,
+      oidc: deps.console.oidc,
+      apiBaseUrl: deps.console.apiBaseUrl,
+      consoleBaseUrl: deps.console.consoleBaseUrl,
+      ...(deps.console.sessionTtlMs !== undefined ? { sessionTtlMs: deps.console.sessionTtlMs } : {}),
+    });
+  }
 
   return app;
 }

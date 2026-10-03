@@ -79,8 +79,12 @@
 <li><a href="#8-l4-authorization">8. L4 — authorization</a></li>
 <li><a href="#9-l5-the-tenant-boundary-enforced-by-the-database">9. L5 — the tenant boundary, enforced by the database</a></li>
 <li><a href="#10-l6-evidence-artifacts">10. L6 — evidence artifacts</a></li>
-<li><a href="#11-what-is-not-built">11. What is not built</a></li>
-<li><a href="#12-extending-it">12. Extending it</a></li>
+<li><a href="#11-the-admin-console">11. The admin console</a></li>
+<li class="lvl3"><a href="#where-the-tokens-live">Where the tokens live</a></li>
+<li class="lvl3"><a href="#the-trade-off-stated-rather-than-glossed">The trade-off, stated rather than glossed</a></li>
+<li class="lvl3"><a href="#two-protections-that-are-not-decoration">Two protections that are not decoration</a></li>
+<li><a href="#12-what-is-not-built">12. What is not built</a></li>
+<li><a href="#13-extending-it">13. Extending it</a></li>
 </ul></div>
   </aside>
 
@@ -144,8 +148,12 @@ end to end. It is not a complete product.</p>
 <td>✅ <strong>Three adapters — in-memory, filesystem, and S3-compatible</strong> — all passing one contract</td>
 </tr>
 <tr>
+<td><strong>The admin console</strong></td>
+<td>✅ <strong>Server-rendered</strong>, OIDC code flow with server-side sessions</td>
+</tr>
+<tr>
 <td>Customer-facing features</td>
-<td>❌ None</td>
+<td>❌ None beyond the console</td>
 </tr>
 </tbody>
 </table></div>
@@ -437,7 +445,7 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>171 tests</strong> across eight files, all passing (4 skipped, with stated reasons).</p>
+<p><strong>182 tests</strong> across nine files, all passing (4 skipped, with stated reasons).</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -471,6 +479,11 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 <td><code>object-storage.test.ts</code></td>
 <td>32</td>
 <td><strong>All three adapters</strong> against one contract: tenancy, traversal, integrity</td>
+</tr>
+<tr>
+<td><code>console.test.ts</code></td>
+<td>15</td>
+<td>The OIDC flow, session cookies, CSRF, and escaping — against a listening API</td>
 </tr>
 <tr>
 <td><code>pdp.test.ts</code></td>
@@ -675,11 +688,78 @@ nothing but the traversal defence stands between the caller and the bytes. With 
 removed it now fails, as it should.</p>
 </blockquote>
 </section>
-<section id="11-what-is-not-built"><h2>11. What is not built</h2>
+<section id="11-the-admin-console"><h2>11. The admin console</h2>
+<p>Server-rendered HTML, no frontend framework. It reuses the same TypeScript codebase, needs no
+bundler or dev server, and the console is forms and tables — the kind of UI where a framework earns
+nothing.</p>
+<p><strong>It is a CLIENT of the API, not a privileged path into it.</strong> Every page is rendered from data
+fetched over HTTP with the user&rsquo;s own access token, so the same <code>authenticate</code> → <code>authorize</code> chain
+runs as for any other caller. Reading the repository directly would have been far easier — the code
+is right there — and that is precisely how an admin console becomes a bypass: a second path to the
+data that does not pass through the checks. The cost is a loopback HTTP call per page, and it is
+worth paying, because the alternative is a second authorization implementation.</p>
+<h3 id="where-the-tokens-live">Where the tokens live</h3>
+<p><strong>In neither the browser nor a cookie.</strong> The console completes the authorization code flow on the
+server and keeps the tokens in a server-side session. The browser receives only an <strong>opaque session
+id</strong> in an HttpOnly cookie. An access token in <code>localStorage</code> is readable by any injected script, and
+so is one in a non-HttpOnly cookie; the strongest version is that <strong>the browser never holds one at
+all</strong>.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Cookie</th>
+<th>Holds</th>
+<th>Flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attest_session</code></td>
+<td>an opaque 32-byte session id</td>
+<td>HttpOnly, SameSite=Lax, Secure, <strong>Path=/console</strong></td>
+</tr>
+<tr>
+<td><code>attest_flow</code></td>
+<td><code>state</code> and <code>nonce</code> for one sign-in</td>
+<td>HttpOnly, SameSite=Lax, Secure, short-lived</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>Path=/console</code> so the session is not sent to the API. The session id is <strong>not a JWT</strong> — there are no
+claims inside it for a signature to protect, and a signed cookie invites putting data in it, which is
+how sessions become tokens.</p>
+<h3 id="the-trade-off-stated-rather-than-glossed">The trade-off, stated rather than glossed</h3>
+<p><strong>The console&rsquo;s tokens are not DPoP-bound</strong>, and this is a direct consequence of being
+server-rendered. DPoP binds a token to a private key the <em>client</em> holds; for the console to present a
+proof per request, that key would have to live in the browser — which reintroduces exactly the
+problem the session store exists to remove. So the console authenticates with a <strong>client secret</strong>
+over TLS on the back channel.</p>
+<p>What is unchanged: <strong>the user&rsquo;s login is still a passkey</strong>, WebAuthn, origin-bound — which is what S9
+proved. What is lost: the tokens are not sender-constrained, so token theft <em>from the server</em> is not
+detectable the way it is at the API. The mitigation is that the tokens never reach the browser.</p>
+<p><strong>A future browser-side console would use DPoP and hold its own key.</strong> That is the honest alternative,
+and it is the same S4 work already done.</p>
+<h3 id="two-protections-that-are-not-decoration">Two protections that are not decoration</h3>
+<p><strong><code>state</code></strong> protects the <em>redirect</em>. Without it an attacker can make a victim&rsquo;s browser complete a
+flow the victim never started — login CSRF, where the victim ends up signed in as the attacker and
+then does work inside the attacker&rsquo;s account. It is single-use: the cookie is cleared on return, so a
+replayable <code>state</code> is not a state check.</p>
+<p><strong><code>nonce</code></strong> protects the <em>ID token</em>, so a token issued for a different flow cannot be substituted into
+this one. The ID token&rsquo;s <strong>signature</strong> is deliberately not the concern: it arrives over back-channel
+TLS directly from the token endpoint in response to a request this server made with its own secret.
+There is no untrusted hop for a signature to protect against. What a signature cannot catch is
+substitution, and that is what <code>nonce</code> catches.</p>
+<p><strong>CSRF is checked explicitly</strong> on sign-out. <code>SameSite=Lax</code> is not sufficient alone — it is a browser
+behaviour rather than a server-side check, and a browser that ignored it would silently lose the
+protection with nothing in the logs to say so. The comparison is constant-time.</p>
+</section>
+<section id="12-what-is-not-built"><h2>12. What is not built</h2>
 <p>Stated plainly, because this list is as useful as the rest of the page:</p>
 <ul>
-<li><strong>The admin console.</strong> The domain has a working API and no product surface. This is the largest
-  remaining gap between &ldquo;verified system&rdquo; and &ldquo;usable product&rdquo;.</li>
+<li><strong>Evidence upload in the console.</strong> The API accepts artifacts; the console only lists and reads
+  them.</li>
+<li><strong>No way to create evidence from the console.</strong> Records must be seeded.</li>
+<li><strong>No pagination controls, no search, no audit view.</strong> It is a console, not yet a product.</li>
 <li><strong>No migrations tooling.</strong> The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.</li>
 <li><strong>Four routes.</strong> Still no product surface a customer would recognise.</li>
@@ -690,7 +770,7 @@ removed it now fails, as it should.</p>
 </ul>
 <hr>
 </section>
-<section id="12-extending-it"><h2>12. Extending it</h2>
+<section id="13-extending-it"><h2>13. Extending it</h2>
 <p>The pattern is the same for every capability that varies by environment:</p>
 <ol>
 <li><strong>Declare the need as a port</strong> in <code>src/ports/</code> — an interface, with a contract written as

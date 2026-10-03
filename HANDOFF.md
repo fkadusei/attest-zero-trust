@@ -222,6 +222,17 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A server-rendered console CANNOT use DPoP, and that is a consequence, not a preference.** DPoP
+  binds a token to a key the CLIENT holds; for a server-rendered console to prove possession per
+  request, the key would have to live in the browser — reintroducing the problem the server-side
+  session exists to remove. The console therefore authenticates with a client secret and its tokens
+  are NOT sender-constrained. **The user's login is still a passkey**; what is lost is detectable
+  token theft at the API for these tokens. A browser-side console would use DPoP.
+- **The console must be a CLIENT of the API, never a privileged path into it.** Every page is rendered
+  from data fetched over HTTP with the user's own token, so the same `authenticate` → `authorize`
+  chain runs. Reading the repository directly would be easier and is exactly how an admin console
+  becomes a bypass. **This means the console test must run against a LISTENING server** — `inject`
+  opens no socket, so a stub cannot satisfy the console's own HTTP calls.
 - **MinIO no longer publishes to Docker Hub.** It moved to quay.io, which the registry proxy on this
   machine refuses with `401 Unauthorized`. `adobe/s3mock` is on Docker Hub, speaks the S3 API, and is
   built for exactly this. Checked by trying four images rather than assuming the first choice would
