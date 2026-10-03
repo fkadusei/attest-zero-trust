@@ -94,6 +94,8 @@ PAGES: list[Page] = [
     # --- Reference: the engineering documents, rendered from source ---------
     Page("plan", "docs/PLAN.md", "Reference", "Architecture and plan",
          "Phases, acceptance criteria, cost drivers and the risk register."),
+    Page("application", "docs/application.md", "Reference", "The application",
+         "What has actually been built, what it enforces, and what does not exist yet."),
     Page("identity", "docs/identity-and-passkeys.md", "Reference", "Identity in detail",
          "Realm configuration, exact WebAuthn policy settings, enrolment and recovery."),
     Page("authorization", "docs/authorization-and-sessions.md", "Reference", "Sessions and authorization",

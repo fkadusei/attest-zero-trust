@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The application — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="What has actually been built, what it enforces, and what does not exist yet." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="evidence.html">Evidence register</a></li>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="application.html" class="current">The application</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
+<li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
+<li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
+<li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-broad-rpid.html">Lab results: when it breaks</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-status-read-this-first">1. Status: read this first</a></li>
+<li><a href="#2-how-it-is-structured">2. How it is structured</a></li>
+<li><a href="#3-l1-verifying-an-access-token">3. L1 — verifying an access token</a></li>
+<li><a href="#4-l2-verifying-a-dpop-proof">4. L2 — verifying a DPoP proof</a></li>
+<li><a href="#5-configuration">5. Configuration</a></li>
+<li><a href="#6-testing">6. Testing</a></li>
+<li class="lvl3"><a href="#three-habits-this-suite-follows-deliberately">Three habits this suite follows deliberately</a></li>
+<li class="lvl3"><a href="#two-failure-modes-the-suite-itself-fell-into">Two failure modes the suite itself fell into</a></li>
+<li><a href="#7-what-is-not-built">7. What is not built</a></li>
+<li><a href="#8-extending-it">8. Extending it</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>The application</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>The application</h1>
+        <p class="blurb">What has actually been built, what it enforces, and what does not exist yet.</p>
+      </header>
+      <section id="overview"><p>What has actually been built, what it enforces, and — just as importantly — <strong>what does not exist yet</strong>.</p>
+<p>This page is about the code in <code>apps/</code>, as distinct from the design in
+<a href="plan.html">Architecture and plan</a> and the experiments in the lab results. Those describe what we
+intended and what we verified. This describes what is running.</p>
+<hr></section>
+<section id="1-status-read-this-first"><h2>1. Status: read this first</h2>
+<p><strong>The application is a set of verified libraries. It is not yet a running service.</strong></p>
+<p>That distinction matters more than it might sound, and it is stated up front because a reader who
+skims the rest of this page could reasonably assume otherwise.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token verification (L1)</td>
+<td>✅ Implemented, tested against real Keycloak</td>
+</tr>
+<tr>
+<td>DPoP proof verification (L2)</td>
+<td>✅ Implemented, tested against real bound tokens</td>
+</tr>
+<tr>
+<td>Configuration</td>
+<td>✅ Implemented and validated</td>
+</tr>
+<tr>
+<td><strong>An HTTP server</strong></td>
+<td>❌ <strong>Does not exist.</strong> Nothing listens on a port.</td>
+</tr>
+<tr>
+<td><strong>Wiring L1 + L2 into a request path</strong></td>
+<td>❌ <strong>Does not exist.</strong></td>
+</tr>
+<tr>
+<td>Cedar authorization (L3)</td>
+<td>❌ Not started — the port is declared, nothing implements it</td>
+</tr>
+<tr>
+<td>Persistence, object storage</td>
+<td>❌ Interfaces only — no implementation</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Two consequences a reader should carry away:</strong></p>
+<ol>
+<li><strong>There is no end-to-end test</strong>, because there is no end-to-end path. Every test exercises a
+   function, not a request.</li>
+<li><strong>DPoP downgrade protection is available but not enforced.</strong>
+   <code>assertNotDowngraded</code> in <code>src/verify.ts</code> exists and is tested — but <strong>no production code calls
+   it</strong>, because there is no production code path to call it from. A control that nothing invokes is
+   a control that is not protecting anything yet.</li>
+</ol>
+<p>Both are closed by L3, which turns these libraries into a service.</p>
+<hr>
+</section>
+<section id="2-how-it-is-structured"><h2>2. How it is structured</h2>
+<p>The layout follows <a href="adr.html">ADR-015</a> — ports and adapters. The rule is simple: <strong>the domain
+does not know which cloud it runs on, or whether it runs on one at all.</strong></p>
+<div class="codehilite"><pre><span></span><code>apps/api/src/
+├── config.ts          environment-driven configuration, validated at startup
+├── errors.ts          failure reasons — internal only, never returned to a caller
+├── verify.ts          L1: access token verification
+├── dpop.ts            L2: DPoP proof verification
+├── jwks.ts            the provider's signing keys, cached and rotated
+└── ports/             what the domain needs, declared but not implemented
+    ├── clock.ts           time, injectable so tests can control it
+    ├── policy.ts          the policy decision point (Cedar)
+    ├── repository.ts      persistence, tenant-scoped by construction
+    ├── object-storage.ts  evidence artifacts
+    └── replay-cache.ts    single-use claim tracking
+</code></pre></div>
+
+<p><code>ports/</code> holds <strong>interfaces</strong>. <code>replay-cache.ts</code> and <code>clock.ts</code> also ship working implementations for
+single-process use; <code>policy.ts</code>, <code>repository.ts</code> and <code>object-storage.ts</code> are declarations only, with
+no implementation and no test. They are included because the boundaries are worth fixing before
+anything is written against them — not because they do something.</p>
+<hr>
+</section>
+<section id="3-l1-verifying-an-access-token"><h2>3. L1 — verifying an access token</h2>
+<p><code>verify.ts</code>. Answers: <em>was this token issued by our identity provider, for this API, and is it
+intact?</em></p>
+<p>Every check exists because the loose version is exploitable:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why it is there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Algorithm allowlist</strong></td>
+<td>The token&rsquo;s own <code>alg</code> header is never trusted to decide what is acceptable. Honouring it accepts <code>none</code>, or an HMAC signature computed using the public key as the secret. Both are old, both still ship.</td>
+</tr>
+<tr>
+<td><strong>Exact issuer match</strong></td>
+<td>Not a prefix or substring. A <code>startsWith</code> check on an issuer is a bypass waiting for a cleverly-named host.</td>
+</tr>
+<tr>
+<td><strong>Audience</strong></td>
+<td>The token must have been issued for <em>this</em> API, not merely by our provider.</td>
+</tr>
+<tr>
+<td><strong>Token type, in the payload</strong></td>
+<td>Keycloak marks access tokens <code>typ: "Bearer"</code> and ID tokens <code>typ: "ID"</code> <strong>in the payload claim</strong>. The JOSE <em>header</em> <code>typ</code> is <code>"JWT"</code> for both, so checking the header cannot distinguish them — see below.</td>
+</tr>
+<tr>
+<td><strong><code>sub</code> and <code>exp</code> present</strong></td>
+<td>A token without them is malformed and is refused.</td>
+</tr>
+<tr>
+<td><strong>Fail closed</strong></td>
+<td>There is no boolean return and no warning branch. Verified, or throws.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>A finding worth reading.</strong> The first version of this file checked the header&rsquo;s <code>typ</code> and expected
+<code>"Bearer"</code>. Measured against the live provider, Keycloak does this:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>header <code>typ</code></th>
+<th>payload <code>typ</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>access token</td>
+<td><code>"JWT"</code></td>
+<td><code>"Bearer"</code></td>
+</tr>
+<tr>
+<td>ID token</td>
+<td><code>"JWT"</code></td>
+<td><code>"ID"</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>The header is identical for both. <strong>The tempting fix — expect <code>"JWT"</code> — would have made the test pass
+while the check protected nothing.</strong> Only the payload claim distinguishes the two, and it can be
+trusted only <em>after</em> the signature verifies. This is why the test suite asserts the <strong>reason</strong> for
+every rejection rather than settling for &ldquo;it failed&rdquo;: a reason assertion caught it, an exit-code
+assertion would have hidden it.</p>
+<p><strong>The tenant rule.</strong> <code>requireTenant(token, claimName)</code> reads the tenant from verified claims and
+nowhere else — never a header, path segment, query parameter or body field. A missing claim is a hard
+failure. There is no default tenant, because a defaulted tenant is how one customer&rsquo;s request reads
+another customer&rsquo;s data (<a href="adr.html">ADR-006</a>).</p>
+<hr>
+</section>
+<section id="4-l2-verifying-a-dpop-proof"><h2>4. L2 — verifying a DPoP proof</h2>
+<p><code>dpop.ts</code>. Answers a different question: <em>does this caller actually hold the private key the token is
+bound to?</em></p>
+<p>An access token is a <strong>bearer</strong> credential — whoever holds the bytes can use it. DPoP
+(<a href="https://www.rfc-editor.org/rfc/rfc9449.html">RFC 9449</a>) binds the token to a key pair the client
+generates and never transmits. The provider records the public key&rsquo;s fingerprint in the token as
+<code>cnf.jkt</code>, and every request must carry a proof signed by the matching private key.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why it is there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>typ</code> is <code>dpop+jwt</code></td>
+<td>Otherwise a token-endpoint artifact can be replayed as a proof.</td>
+</tr>
+<tr>
+<td><strong>Asymmetric algorithms only</strong></td>
+<td>The proof <strong>embeds its own public key</strong>. Accepting <code>HS256</code> would let anyone sign using that public key as the shared secret — an attack DPoP&rsquo;s own design makes possible.</td>
+</tr>
+<tr>
+<td><strong>No private key material</strong></td>
+<td>An honest client never sends a private member. Its presence is refused.</td>
+</tr>
+<tr>
+<td>Signature, before any claim is read</td>
+<td>Nothing inside an unverified payload is trusted.</td>
+</tr>
+<tr>
+<td><code>htm</code> and <code>htu</code></td>
+<td>A proof captured for one endpoint cannot be re-aimed at another. <code>htu</code> is compared <strong>without query and fragment</strong>, exactly as the RFC specifies.</td>
+</tr>
+<tr>
+<td><code>iat</code> within a window</td>
+<td>A proof is a one-shot artifact; a long window is a long replay opportunity.</td>
+</tr>
+<tr>
+<td><strong><code>ath</code> is mandatory</strong></td>
+<td>Base64url of the SHA-256 of the access token. Without it, a proof for one endpoint works against another with the same token.</td>
+</tr>
+<tr>
+<td><strong>The key is the bound key</strong></td>
+<td>The proof key&rsquo;s RFC 7638 thumbprint must equal the token&rsquo;s <code>cnf.jkt</code>. <strong>This is what turns a valid signature into a specific credential.</strong></td>
+</tr>
+<tr>
+<td><code>jti</code> used exactly once</td>
+<td>The only stateful check — and the only thing between a captured proof and a replay.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Two things that are easy to get wrong, and are not:</strong></p>
+<ul>
+<li><strong>The replay check runs last.</strong> Consuming a <code>jti</code> before the other checks lets a malformed proof
+  burn an identifier a legitimate request might need. And <code>consume()</code> must be <strong>atomic</strong>: a
+  check-then-set is a race that two concurrent replays both win.</li>
+<li><strong>The expected request URI comes from trusted configuration, never from <code>X-Forwarded-Proto</code> or
+  <code>Host</code>.</strong> Deriving it from headers lets the attacker choose the value the proof is compared
+  against, which makes every <code>htu</code> check vacuous while still appearing to be present.</li>
+</ul>
+<p><strong>What L2 needs that L1 does not:</strong> a place to remember <code>jti</code> values. That is the <code>ReplayCache</code> port.
+The in-memory implementation shipped here is correct for one process and <strong>explicitly wrong for a
+fleet</strong> — each replica would keep its own map, and a proof replayed to a different replica would look
+fresh. Swapping it is a deployment decision, not a code change.</p>
+<hr>
+</section>
+<section id="5-configuration"><h2>5. Configuration</h2>
+<p>Everything comes from the environment and is validated at startup. Reading it makes no network calls
+and contacts no metadata service, so the same image boots anywhere.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KEYCLOAK_ISSUER</code></td>
+<td>yes</td>
+<td>Exact expected <code>iss</code>.</td>
+</tr>
+<tr>
+<td><code>API_AUDIENCE</code></td>
+<td>yes</td>
+<td>This API&rsquo;s client id.</td>
+</tr>
+<tr>
+<td><code>KEYCLOAK_JWKS_URI</code></td>
+<td>no</td>
+<td>Derived from the issuer. Overridable only for split-horizon DNS.</td>
+</tr>
+<tr>
+<td><code>TENANT_CLAIM</code></td>
+<td>no</td>
+<td>Defaults to <code>tenant_id</code>.</td>
+</tr>
+<tr>
+<td><code>CLOCK_TOLERANCE_SEC</code></td>
+<td>no</td>
+<td>Default 5, bounded 0–120.</td>
+</tr>
+<tr>
+<td><code>HTTP_HOST</code>, <code>HTTP_PORT</code></td>
+<td>no</td>
+<td>Defaults <code>0.0.0.0:3000</code>.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>There are no cloud-specific variables.</strong> No <code>AWS_REGION</code>, no bucket, no table name. Those belong to
+adapters, and a test asserts that supplying AWS settings changes nothing.</p>
+<p><strong>One check here is a security control, not a convenience.</strong> A plain-HTTP issuer is refused unless it
+is loopback, because off loopback tokens are interceptable in transit and every other control becomes
+decorative. <code>evil-localhost.example.com</code> is <strong>not</strong> accepted — an <code>includes()</code> check there would have
+been a bypass.</p>
+<hr>
+</section>
+<section id="6-testing"><h2>6. Testing</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># from the repository root, with the lab running</span>
+npm<span class="w"> </span>install
+npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> </span>--workspace<span class="w"> </span>@attest/api
+npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
+</code></pre></div>
+
+<p><strong>70 tests</strong> across three files, all passing:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Tests</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>verify.test.ts</code></td>
+<td>28</td>
+<td>L1, against real tokens from the running Keycloak</td>
+</tr>
+<tr>
+<td><code>dpop.test.ts</code></td>
+<td>26</td>
+<td>L2, against real DPoP-bound tokens</td>
+</tr>
+<tr>
+<td><code>config.test.ts</code></td>
+<td>16</td>
+<td>Configuration, including its two security checks</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="three-habits-this-suite-follows-deliberately">Three habits this suite follows deliberately</h3>
+<p><strong>Test against the real provider, not a mock.</strong> A verifier tested against hand-made tokens proves
+only that it agrees with our own idea of what a token looks like — and signature verification is
+precisely where that assumption is wrong. The suite obtains genuine tokens, and for L2 a genuine
+<code>cnf.jkt</code>-bound token, from a live Keycloak.</p>
+<p><strong>Assert the reason, not just the failure.</strong> &ldquo;It threw&rdquo; is satisfied by a verifier that throws at
+everything, including the valid token in the positive control. Every rejection is asserted against a
+specific reason.</p>
+<p><strong>Mutation-test the suite itself.</strong> A suite is only trustworthy if it goes <strong>red</strong> when the property
+breaks. Each enforcement point was removed one at a time: <strong>7 of 7</strong> in <code>verify.ts</code>, <strong>13 of 13</strong> in
+<code>dpop.ts</code>, <strong>6 of 6</strong> in <code>config.ts</code> — with the unmutated control green each time. One of these found
+a genuine gap: deleting the <code>sub</code> check went undetected, because Keycloak always issues one. A
+synthetic issuer now mints the shapes Keycloak will not.</p>
+<h3 id="two-failure-modes-the-suite-itself-fell-into">Two failure modes the suite itself fell into</h3>
+<p>Recorded because they are instructive, not embarrassing:</p>
+<ul>
+<li><strong>The first mutation harness reported every mutant as GREEN.</strong> It was not the mutants surviving: a
+  <code>grep</code> for the summary counts did not match, so the harness measured nothing. Measuring by exit
+  code fixed it. A harness that reports success when it did nothing is worse than no harness.</li>
+<li><strong>The L2 suite originally borrowed its fixtures instead of creating them.</strong> It passed locally only
+  because another suite had already created the realm in an earlier session. In CI, files run
+  alphabetically, <code>dpop</code> went first, and all 22 tests failed with <code>HTTP 404 "Realm not found"</code>. A
+  suite that passes only because another suite ran first is not passing.</li>
+</ul>
+<hr>
+</section>
+<section id="7-what-is-not-built"><h2>7. What is not built</h2>
+<p>Stated plainly, because this list is as useful as the rest of the page:</p>
+<ul>
+<li><strong>No HTTP server.</strong> The libraries are not reachable over the network.</li>
+<li><strong>No request path</strong>, so <code>assertNotDowngraded</code> is enforced by nothing.</li>
+<li><strong>No Cedar policy evaluation.</strong> The port exists; nothing implements it.</li>
+<li><strong>No persistence or storage.</strong> Interfaces only.</li>
+<li><strong>No admin console, no API surface, no customer-facing feature.</strong></li>
+<li><strong>No deployment.</strong> Running locally costs nothing; nothing is hosted anywhere.</li>
+<li><strong>Three ports are declarations</strong>, not working components.</li>
+</ul>
+<hr>
+</section>
+<section id="8-extending-it"><h2>8. Extending it</h2>
+<p>The pattern is the same for every capability that varies by environment:</p>
+<ol>
+<li><strong>Declare the need as a port</strong> in <code>src/ports/</code> — an interface, with a contract written as
+   obligations rather than a description of methods.</li>
+<li><strong>Ship a portable default.</strong> In-memory, local, or filesystem. This is what tests use, and it must
+   work on a laptop.</li>
+<li><strong>Add cloud adapters separately</strong>, behind the same interface, reading their own configuration.
+   Never let a cloud SDK into the domain.</li>
+</ol>
+<p>If a cloud concept appears in <code>src/config.ts</code>, the boundary has already leaked.</p>
+<hr>
+<p><strong>Related:</strong> <a href="adr.html">Decision register</a> · <a href="verification.html">What we tested</a> ·
+<a href="evidence.html">Evidence register</a> · <a href="plan.html">Architecture and plan</a></p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="plan.html"><span>Previous</span><b>Architecture and plan</b></a><a class="pn next" href="identity.html"><span>Next</span><b>Identity in detail</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>
