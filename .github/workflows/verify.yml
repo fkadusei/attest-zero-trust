@@ -202,7 +202,26 @@ jobs:
         #
         # This leaves the realm REVERTED on purpose, so the shared fixture stays
         # usable for the other jobs' expectations.
-        run: cd lab/keycloak && node scripts/spike5d-matrix.mjs
+        #
+        # The output is captured and echoed rather than streamed, because the
+        # GitHub log-download API returned "BlobNotFound" for this job and the
+        # failure was invisible. Embedding it in the step means the reason is
+        # always in the log, whatever happens to the log API.
+        run: |
+          echo "===== environment ====="
+          echo "python3 : $(which python3) $(python3 --version 2>&1)"
+          echo "node    : $(node --version)"
+          echo "chrome  : $(which google-chrome || echo 'not on PATH')"
+          curl -sf http://127.0.0.1:9222/json/version | head -c 80 || echo "cdp unreachable"
+          echo
+          echo "===== run ====="
+          cd lab/keycloak
+          set +e
+          node scripts/spike5d-matrix.mjs > /tmp/s5d.log 2>&1
+          code=$?
+          cat /tmp/s5d.log
+          echo "===== end of S5d output (exit $code) ====="
+          exit $code
 
       - name: Show logs on failure
         if: failure()
