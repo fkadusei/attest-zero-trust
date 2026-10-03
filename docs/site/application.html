@@ -141,7 +141,7 @@ end to end. It is not a complete product.</p>
 </tr>
 <tr>
 <td>Object storage</td>
-<td>✅ <strong>Filesystem adapter + in-memory default</strong>, integrity checked on read</td>
+<td>✅ <strong>Three adapters — in-memory, filesystem, and S3-compatible</strong> — all passing one contract</td>
 </tr>
 <tr>
 <td>Customer-facing features</td>
@@ -437,7 +437,7 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>159 tests</strong> across eight files, all passing (2 skipped, with reasons).</p>
+<p><strong>171 tests</strong> across eight files, all passing (4 skipped, with stated reasons).</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -469,8 +469,8 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 </tr>
 <tr>
 <td><code>object-storage.test.ts</code></td>
-<td>20</td>
-<td>Both adapters against one contract: tenancy, traversal, integrity</td>
+<td>32</td>
+<td><strong>All three adapters</strong> against one contract: tenancy, traversal, integrity</td>
 </tr>
 <tr>
 <td><code>pdp.test.ts</code></td>
@@ -638,9 +638,17 @@ project, so publishing there would have connected these tests to the wrong datab
 </section>
 <section id="10-l6-evidence-artifacts"><h2>10. L6 — evidence artifacts</h2>
 <p>Bytes now have somewhere to live, reached through the same authorized path as the metadata.</p>
-<p><strong>Two portable adapters</strong>, both needing no cloud: in-memory (the default, for tests and a laptop)
-and filesystem. An S3 or GCS adapter would implement the same port; which one is used is a deployment
-decision (ADR-015).</p>
+<p><strong>Three adapters, one contract.</strong> In-memory (the default, for tests and a laptop), filesystem, and
+<strong>S3-compatible</strong>. All three are run against the <em>same</em> contract suite, which is the evidence that
+ADR-015&rsquo;s promise is real: <strong>the domain did not change when the storage backend did.</strong></p>
+<p>The S3 adapter speaks to any S3-compatible endpoint — AWS S3, MinIO, Cloudflare R2, GCS
+interoperability mode, Ceph — so the endpoint is configured rather than assumed. Tests run it against
+<code>adobe/s3mock</code>, so the code path exercised is a genuine signed request to an S3 API.</p>
+<blockquote>
+<p><strong>MinIO was the first choice and is not used.</strong> MinIO removed its Docker Hub images in 2025 and moved
+to quay.io, which the registry proxy on this machine refuses with <code>401</code>. Checked, not assumed —
+three other S3-compatible images were tested and <code>adobe/s3mock</code> was the one that worked.</p>
+</blockquote>
 <p><strong>The digest recorded on the evidence comes from the bytes the storage actually holds</strong>, computed by
 the adapter — never from a value the caller supplied. A caller-supplied hash would let someone attest
 to content they never uploaded. On download the stored bytes are re-hashed and compared to the
@@ -670,8 +678,8 @@ removed it now fails, as it should.</p>
 <section id="11-what-is-not-built"><h2>11. What is not built</h2>
 <p>Stated plainly, because this list is as useful as the rest of the page:</p>
 <ul>
-<li><strong>No S3 or GCS adapter.</strong> Filesystem is persistent and portable; a cloud adapter is a deployment
-  choice, not a rewrite.</li>
+<li><strong>The admin console.</strong> The domain has a working API and no product surface. This is the largest
+  remaining gap between &ldquo;verified system&rdquo; and &ldquo;usable product&rdquo;.</li>
 <li><strong>No migrations tooling.</strong> The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.</li>
 <li><strong>Four routes.</strong> Still no product surface a customer would recognise.</li>

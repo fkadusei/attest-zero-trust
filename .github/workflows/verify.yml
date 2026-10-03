@@ -241,10 +241,11 @@ jobs:
       - name: Start the identity provider and its database
         run: docker compose -f lab/keycloak/compose.yaml up -d
 
-      - name: Start the application database
+      - name: Start the application backing services
         # Separate from the Keycloak database on purpose: different data, different
-        # blast radius. The schema it runs on first boot creates a NON-superuser
-        # application role and forces Row-Level Security — see lab/app/init.
+        # blast radius. Postgres runs an init script that creates a NON-superuser
+        # application role and forces Row-Level Security (see lab/app/init); s3mock
+        # provides an S3-compatible endpoint so the S3 adapter is tested for real.
         run: docker compose -f lab/app/compose.yaml up -d
 
       - name: Wait for readiness
@@ -256,10 +257,13 @@ jobs:
           docker compose -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
-      - name: Wait for the application database
+      - name: Wait for the application backing services
         run: |
           for i in $(seq 1 40); do
-            docker exec attest-app-postgres pg_isready -U attest_owner -d attest >/dev/null 2>&1 && exit 0
+            db=0; s3=0
+            docker exec attest-app-postgres pg_isready -U attest_owner -d attest >/dev/null 2>&1 && db=1
+            curl -sf -o /dev/null http://127.0.0.1:59090/ 2>/dev/null && s3=1
+            [ "$db" = "1" ] && [ "$s3" = "1" ] && exit 0
             sleep 3
           done
           docker compose -f lab/app/compose.yaml logs --tail 50

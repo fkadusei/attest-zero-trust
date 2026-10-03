@@ -23,7 +23,7 @@ end to end. It is not a complete product.
 | **End-to-end HTTP tests** | ✅ **17 of them**, through the real request path |
 | Cedar authorization (L4) | ✅ **Implemented.** Policies in `policies/attest.cedar`, evaluated in-process |
 | Persistence | ✅ **PostgreSQL adapter with Row-Level Security**, plus a portable in-memory default |
-| Object storage | ✅ **Filesystem adapter + in-memory default**, integrity checked on read |
+| Object storage | ✅ **Three adapters — in-memory, filesystem, and S3-compatible** — all passing one contract |
 | Customer-facing features | ❌ None |
 
 **The API surface today:**
@@ -189,7 +189,7 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**159 tests** across eight files, all passing (2 skipped, with reasons).
+**171 tests** across eight files, all passing (4 skipped, with stated reasons).
 
 | File | Tests | What it covers |
 |---|---|---|
@@ -197,7 +197,7 @@ npm test --workspace @attest/api
 | `dpop.test.ts` | 26 | L2, against real DPoP-bound tokens |
 | `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
 | `postgres.test.ts` | 10 | The RLS boundary, with a superuser negative control and a connection-reuse check |
-| `object-storage.test.ts` | 20 | Both adapters against one contract: tenancy, traversal, integrity |
+| `object-storage.test.ts` | 32 | **All three adapters** against one contract: tenancy, traversal, integrity |
 | `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
 | `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
@@ -378,9 +378,17 @@ project, so publishing there would have connected these tests to the wrong datab
 
 Bytes now have somewhere to live, reached through the same authorized path as the metadata.
 
-**Two portable adapters**, both needing no cloud: in-memory (the default, for tests and a laptop)
-and filesystem. An S3 or GCS adapter would implement the same port; which one is used is a deployment
-decision (ADR-015).
+**Three adapters, one contract.** In-memory (the default, for tests and a laptop), filesystem, and
+**S3-compatible**. All three are run against the *same* contract suite, which is the evidence that
+ADR-015's promise is real: **the domain did not change when the storage backend did.**
+
+The S3 adapter speaks to any S3-compatible endpoint — AWS S3, MinIO, Cloudflare R2, GCS
+interoperability mode, Ceph — so the endpoint is configured rather than assumed. Tests run it against
+`adobe/s3mock`, so the code path exercised is a genuine signed request to an S3 API.
+
+> **MinIO was the first choice and is not used.** MinIO removed its Docker Hub images in 2025 and moved
+> to quay.io, which the registry proxy on this machine refuses with `401`. Checked, not assumed —
+> three other S3-compatible images were tested and `adobe/s3mock` was the one that worked.
 
 **The digest recorded on the evidence comes from the bytes the storage actually holds**, computed by
 the adapter — never from a value the caller supplied. A caller-supplied hash would let someone attest
@@ -412,8 +420,8 @@ over:
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **No S3 or GCS adapter.** Filesystem is persistent and portable; a cloud adapter is a deployment
-  choice, not a rewrite.
+- **The admin console.** The domain has a working API and no product surface. This is the largest
+  remaining gap between "verified system" and "usable product".
 - **No migrations tooling.** The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.
 - **Four routes.** Still no product surface a customer would recognise.

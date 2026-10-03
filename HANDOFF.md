@@ -222,6 +222,13 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **MinIO no longer publishes to Docker Hub.** It moved to quay.io, which the registry proxy on this
+  machine refuses with `401 Unauthorized`. `adobe/s3mock` is on Docker Hub, speaks the S3 API, and is
+  built for exactly this. Checked by trying four images rather than assuming the first choice would
+  work.
+- **`adobe/s3mock` ignores `initialBuckets`.** The bucket must be created by the caller — which is the
+  standing rule anyway: **the harness creates its own fixtures.** Relying on the env var would have
+  made the suite environment-dependent.
 - **A test that passes because the target does not exist proves nothing.** The first traversal test
   asked for `/etc/passwd` and saw `undefined`, which looked like a refusal — but the adapter reads a
   `.meta` sidecar that `/etc/passwd` lacks, so the read failed for an unrelated reason. **Plant the

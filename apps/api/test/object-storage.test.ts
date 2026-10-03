@@ -19,6 +19,7 @@ import path from "node:path";
 
 import { InMemoryObjectStorage } from "../src/ports/memory-object-storage.ts";
 import { FilesystemObjectStorage } from "../src/ports/filesystem-object-storage.ts";
+import { S3ObjectStorage } from "../src/ports/s3-object-storage.ts";
 import type { ObjectStorage } from "../src/ports/object-storage.ts";
 
 const ACME = { tenantId: "acme" } as const;
@@ -197,6 +198,44 @@ contract(
       },
     };
   },
+);
+
+// ---------------------------------------------------------------------------
+// The THIRD implementation of the same port. Running it through the identical
+// contract is the evidence that ADR-015's promise is real: the domain did not
+// change when the storage backend did.
+//
+// It runs against `adobe/s3mock`, so the code path exercised is a real signed
+// request to an S3 API rather than a stand-in for one. MinIO was the first choice
+// and is NOT used: MinIO removed its Docker Hub images in 2025 and the registry
+// proxy here refuses quay.io — verified, not assumed.
+// ---------------------------------------------------------------------------
+const S3_ENDPOINT = process.env["S3_ENDPOINT"] ?? "http://127.0.0.1:59090";
+const S3_BUCKET = process.env["S3_BUCKET"] ?? "attest-evidence";
+
+let s3: S3ObjectStorage | undefined;
+contract(
+  "s3",
+  async () => {
+    s3 = new S3ObjectStorage({
+      bucket: S3_BUCKET,
+      region: "us-east-1",
+      endpoint: S3_ENDPOINT,
+      accessKeyId: "test",
+      secretAccessKey: "test",
+    });
+    // The harness creates what it depends on. `initialBuckets` on s3mock did not
+    // take effect, and relying on it would have made this suite environment-
+    // dependent — the failure mode that broke every other CI job in this project.
+    await s3.ensureBucket();
+    return s3;
+  },
+  async () => {
+    await s3?.close();
+  },
+  // No victim to plant: S3 has no filesystem, so `..` is a character in a key
+  // rather than a traversal. The traversal tests skip for this adapter, with that
+  // reason stated rather than silently.
 );
 
 describe("filesystem storage, specifics", () => {

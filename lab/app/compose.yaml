@@ -1,4 +1,4 @@
-# The APPLICATION's database — deliberately NOT the Keycloak lab's.
+# The APPLICATION's own backing services — deliberately NOT the Keycloak lab's.
 #
 # Two reasons for the separation:
 #   1. Different data with a different blast radius. Evidence for customers should
@@ -6,8 +6,17 @@
 #   2. Port 5432 on this host is already taken by another project's Postgres.
 #      Publishing there would have connected these tests to the wrong database.
 #
-# Port 55432 is chosen to make a collision obvious rather than silent.
+# Non-default ports (55432, 59090) are chosen so that a collision is obvious rather
+# than silent.
 services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL, with Row-Level Security doing the tenant isolation.
+  #
+  # The init script creates a NON-superuser application role and forces RLS. That
+  # matters more than it sounds: RLS is bypassed by superusers and by table owners,
+  # so an application connecting as either gets no row-level security at all,
+  # silently. See init/01-schema.sql.
+  # ---------------------------------------------------------------------------
   appdb:
     image: postgres:17-alpine
     container_name: attest-app-postgres
@@ -22,6 +31,29 @@ services:
       - appdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U attest_owner -d attest"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # ---------------------------------------------------------------------------
+  # An S3-COMPATIBLE object store, so the S3 adapter can be tested without a cloud.
+  #
+  # NOT MinIO. MinIO removed its Docker Hub images in 2025 and moved to quay.io,
+  # which the registry proxy on this machine refuses with 401 — verified, not
+  # assumed. `adobe/s3mock` is on Docker Hub and speaks the S3 API, so the adapter
+  # under test is the one that would run against AWS rather than a stand-in for it.
+  #
+  # It creates the bucket on boot, which is why there is no init container.
+  # ---------------------------------------------------------------------------
+  s3mock:
+    image: adobe/s3mock:latest
+    container_name: attest-app-s3mock
+    environment:
+      initialBuckets: attest-evidence
+    ports:
+      - "127.0.0.1:59090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9090/ || exit 1"]
       interval: 3s
       timeout: 3s
       retries: 30
