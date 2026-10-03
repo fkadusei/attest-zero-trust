@@ -85,6 +85,29 @@ def has_password(client: str, redirect: str) -> bool:
     return bool(re.search(r'type=["\']?password', auth_page(client, redirect), re.I))
 
 
+def auth_refusal_reason(client: str, redirect: str) -> str:
+    """WHY the auth request was refused, not merely THAT it was.
+
+    E1 originally asserted only "no password field appears". A disabled client
+    returns HTTP 400 with no password field either, so E1 passed whether the flow
+    was correctly closed OR completely broken. That is the exact flaw that led to
+    a wrong published conclusion in S5e: "denied" and "broken" looked identical.
+
+    This returns a reason string so the check can assert on the CAUSE.
+    """
+    b = Browser()
+    st, _, body = b.go(f"{KC}/realms/{REALM}/protocol/openid-connect/auth?" + urllib.parse.urlencode({
+        "client_id": client, "response_type": "code", "scope": "openid",
+        "redirect_uri": redirect, "state": "s5e"}))
+    text = re.sub(r"<[^>]+>", " ", re.sub(r"<script.*?</script>", " ", body, flags=re.S | re.I))
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    for marker, reason in (("client disabled", "client_disabled"),
+                           ("invalid username or password", "invalid_credentials")):
+        if marker in text:
+            return reason
+    return f"http_{st}" if st != 200 else "flow_rendered"
+
+
 def password_login_works(client: str, redirect: str, username: str) -> bool:
     """Actually sign in with a username and password through the browser flow.
 
@@ -122,6 +145,28 @@ def password_grant(client: str, username: str = USER) -> int:
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
+
+
+def client_enabled() -> bool:
+    """Read the client's REAL enabled state from the API."""
+    t = admin_token()
+    req = urllib.request.Request(f"{KC}/admin/realms/{REALM}/clients?clientId={CLIENT}")
+    req.add_header("Authorization", f"Bearer {t}")
+    with urllib.request.urlopen(req) as r:
+        return bool(json.load(r)[0].get("enabled"))
+
+
+def keycloak_events() -> int:
+    """How many authentication events KEYCLOAK recorded for the enrolment client.
+
+    Independent of our own JSON: this is the identity provider's own audit trail.
+    """
+    t = admin_token()
+    req = urllib.request.Request(
+        f"{KC}/admin/realms/{REALM}/events?client={CLIENT}&first=0&max=100")
+    req.add_header("Authorization", f"Bearer {t}")
+    with urllib.request.urlopen(req) as r:
+        return len(json.load(r))
 
 
 def admin_token() -> str:
@@ -208,7 +253,11 @@ def main() -> int:
     print("\n[E1-E3] closed by default")
     window("close")
     window("sweep")
-    check("E1 enrolment client offers no password when closed", has_password(CLIENT, ENR_REDIRECT), False)
+    # Assert the CAUSE. "No password field" alone is satisfied by a broken client.
+    reason = auth_refusal_reason(CLIENT, ENR_REDIRECT)
+    check("E1a closed window refuses for the RIGHT reason", reason, "client_disabled")
+    check("E1b enrolment client offers no password when closed",
+          has_password(CLIENT, ENR_REDIRECT), False)
     check("E2 password grant refused on the enrolment client",
           password_grant(CLIENT) in (400, 401, 403), True)
     check("E3 normal client unaffected (still passkey-only)",
@@ -259,15 +308,34 @@ def main() -> int:
     expired = "EXPIRED" in window("status")
     check("E7 the window reports itself expired", expired, True)
     out = window("sweep")
-    check("E8 the sweep closes the expired window", "EXPIRED and was closed" in out, True)
-    check("E9a password path gone after the sweep", has_password(CLIENT, ENR_REDIRECT), False)
-    check("E9b password grant refused again", password_grant(CLIENT) in (400, 401, 403), True)
+    check("E8a the sweep reported success", "EXPIRED and was closed" in out, True)
+    # Assert the STATE, not the tool's own message. A tool that prints success
+    # while leaving the client enabled would satisfy a message grep.
+    check("E8b the client is ACTUALLY disabled after the sweep", client_enabled(), False)
+    check("E8c no window is recorded any more",
+          "window                   : closed" in window("status"), True)
+    # E9a previously used has_password, which DISCARDS the HTTP status — so a
+    # broken request and a correctly-refused one looked identical.
+    check("E9a the post-sweep refusal has the right CAUSE",
+          auth_refusal_reason(CLIENT, ENR_REDIRECT), "client_disabled")
+    check("E9b it offers no password either", has_password(CLIENT, ENR_REDIRECT), False)
+    check("E9c password grant refused again", password_grant(CLIENT) in (400, 401, 403), True)
 
     # ---- E10-E11: the audit trail -------------------------------------------
     print("\n[E10-E11] the audit trail")
-    audit_out = window("audit")
-    check("E10 the window history records the open", "open" in audit_out and USER in audit_out, True)
-    check("E11 the sweep is recorded", "sweep-expired" in audit_out, True)
+    # E10/E11 originally read the tool's OWN stdout — it was vouching for itself.
+    # A local record is worth having, but the point of an AUDIT trail is that the
+    # identity provider recorded the authentication independently.
+    local = window("audit")
+    check("E10 the local record has the open", "open" in local and USER in local, True)
+    check("E11 the local record has the sweep", "sweep-expired" in local, True)
+
+    # Independent of our own bookkeeping: did KEYCLOAK log authentications
+    # through the enrolment client? (Events were switched on by this slice.)
+    events = keycloak_events()
+    check("E12 Keycloak itself logged events for the enrolment client",
+          events > 0, True)
+    print(f"       Keycloak auth events for '{CLIENT}': {events}")
 
     # ---- summary -------------------------------------------------------------
     # Leave the shared lab fixture as we found it: S3's matrix signs in with a

@@ -72,9 +72,17 @@ async function api(method, path, body) {
 }
 
 /** Bind the passkey-only flow, or the original one. Shells out to the Python tool. */
-function setFlow(mode) {
+async function setFlow(mode) {
   execFileSync(PY, [FLOW_TOOL, mode], { stdio: 'pipe' });
-  return mode === 'apply' ? 'browser-passkey-only' : 'browser';
+  // Read the ACTUAL bound flow back from the API.
+  //
+  // This used to `return mode === 'apply' ? 'browser-passkey-only' : 'browser'`
+  // — a constant derived from the argument. D1 then asserted that constant
+  // equalled a constant, so it could NEVER fail, whatever the realm actually
+  // did. A recovery test that cannot detect a failed recovery is worse than no
+  // test, because it is trusted.
+  const realm = await api('GET', `/${REALM}`);
+  return realm.body.browserFlow;
 }
 
 async function ensureUser(realm, username, { withRequiredAction = true } = {}) {
@@ -95,8 +103,16 @@ async function ensureUser(realm, username, { withRequiredAction = true } = {}) {
   }
   await api('PUT', `/${realm}/users/${user.id}/reset-password`,
     { type: 'password', value: TEST_PASSWORD, temporary: false });
+  // Always write the profile fields. A user created by another harness (S3 makes
+  // `spike-attest-users`) can lack them, and Keycloak then refuses a direct grant
+  // with "Account is not fully set up" — which is what broke the A' control.
+  const fresh = await api('GET', `/${realm}/users/${user.id}`);
   await api('PUT', `/${realm}/users/${user.id}`, {
-    ...user,
+    ...fresh.body,
+    firstName: fresh.body.firstName || 'Spike',
+    lastName: fresh.body.lastName || 'Lab',
+    email: fresh.body.email || `${username}@example.test`,
+    emailVerified: true,
     requiredActions: withRequiredAction ? ['webauthn-register-passwordless'] : [],
   });
   return user;
@@ -131,6 +147,71 @@ async function patchRealm(patch) {
   return res.status;
 }
 
+/**
+ * Classify what happens when credentials are submitted, using the REAL browser.
+ *
+ * Returns: 'authenticated' | 'rejected_password' | 'no_password_form'
+ *        | 'required_action' | 'other'
+ *
+ * Two mistakes were made getting here, in opposite directions, and both matter:
+ *
+ *  1. Looking for `code=` alone is wrong for Keycloak's `account` client — it
+ *     returns the account URL with `session_state` and no code, so a SUCCESSFUL
+ *     sign-in read as a failure.
+ *  2. Using Node's `fetch` cannot work for a multi-step login at all: it keeps no
+ *     cookies, so the POST arrives without the session the GET created. The
+ *     result is always "rejected" — which means a check asserting "rejected"
+ *     passes for entirely the wrong reason. That is the "denied vs broken"
+ *     collapse this audit exists to eliminate, and it was reintroduced here.
+ *
+ * The browser is used because it maintains cookies and follows the real flow.
+ */
+async function loginOutcome(client, page, authUrl, username, password, appUrlPrefix) {
+  // CLEAR COOKIES FIRST, ALWAYS.
+  //
+  // Without this, an earlier successful sign-in leaves a live session and
+  // `page.goto(authUrl)` short-circuits straight to the application — so a check
+  // for "this person cannot get in" reports success because SOMEONE is already
+  // signed in. Both C3 and D2 were measuring the session, not the behaviour under
+  // test. Clearing here makes the mistake impossible rather than remembering to
+  // clear it at each call site.
+  await client.send('Network.clearBrowserCookies').catch(() => {});
+  await page.goto(authUrl, { waitUntil: 'networkidle2', timeout: 40000 });
+  const url0 = page.url();
+  if (url0.includes('required-action')) return 'required_action';
+  if (appUrlPrefix && url0.startsWith(appUrlPrefix)) return 'authenticated';
+
+  const passwordField = await page.$('input[type=password]');
+  const usernameField = await page.$('#username');
+  if (!passwordField || !usernameField) return 'no_password_form';
+
+  await page.type('#username', username);
+  await page.type('#password', password);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }).catch(() => {}),
+    page.click('#kc-login'),
+  ]);
+  // Classify by WHERE WE ENDED UP, not by query markers.
+  //
+  // Keycloak's account console does a client-side redirect that strips
+  // `code`/`session_state` from the URL before we can read it, so a successful
+  // sign-in showed no markers at all and read as a failure. Reaching the
+  // application itself is the reliable signal: the account console requires
+  // authentication, so arriving there means the login worked.
+  const url1 = page.url();
+  if (url1.includes('required-action')) return 'required_action';
+  if (appUrlPrefix && url1.startsWith(appUrlPrefix)) return 'authenticated';
+  if (url1.includes('login-actions/authenticate')) return 'rejected_password';
+  return 'other';
+}
+
+/** Fetch a URL following redirects, and hand back the final HTML.
+ *  Used for checks that only need the rendered page, not a scripted browser. */
+async function fetchPage(url) {
+  const r = await fetch(url, { redirect: 'follow' });
+  return { status: r.status, html: await r.text() };
+}
+
 async function credentialCount(realm, userId) {
   const r = await api('GET', `/${realm}/users/${userId}/credentials`);
   return (r.body || []).filter(c => c.type.startsWith('webauthn')).length;
@@ -153,7 +234,7 @@ async function main() {
   // while a password is still usable, so the original flow is bound first.
   // =======================================================================
   console.log('\n[setup] bind the ORIGINAL flow, then register a passkey');
-  const bound0 = setFlow('revert');
+  const bound0 = await setFlow('revert');
   console.log(`  browserFlow = ${bound0}   (password available, for enrolment only)`);
 
   const user = await ensureUser(REALM, `spike-${REALM}`);
@@ -262,7 +343,7 @@ async function main() {
   // A — a password must not work through the browser flow
   // =======================================================================
   console.log('\n[A] password refused under the passkey-only flow');
-  const bound1 = setFlow('apply');
+  const bound1 = await setFlow('apply');
   console.log(`  browserFlow = ${bound1}`);
   await page.deleteCookie(...(await page.cookies()));
 
@@ -287,7 +368,48 @@ async function main() {
     }),
   });
   const directOk = direct.status === 200;
+
+  // POSITIVE CONTROL for A'. A test that only ever observes refusals proves
+  // nothing: the grant could be failing for a dozen unrelated reasons (wrong
+  // password, missing client, feature switched off). That is exactly how this
+  // check passed the FIRST time it was run — the password was unknown, so the
+  // "refusal" was a bad-credentials error wearing the same face.
+  //
+  // So: prove the probe CAN observe a successful direct grant, in a realm where
+  // one is legitimately enabled.
+  // withRequiredAction:false — the default ADDS a required action, and Keycloak
+  // refuses a direct grant for any user with one pending ("Account is not fully
+  // set up"). The control was failing because of its own setup.
+  const canaryUser = await ensureUser(OTHER_REALM, `spike-${OTHER_REALM}`,
+    { withRequiredAction: false });
+  const canary = await fetch(`${KC}/realms/${OTHER_REALM}/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password', client_id: 'admin-cli',
+      username: canaryUser.username, password: TEST_PASSWORD, scope: 'openid',
+    }),
+  });
+  check("A' control: a direct grant that SHOULD succeed does", canary.status, 200);
+  if (canary.status !== 200) {
+    console.log(`     control body: ${(await canary.text()).slice(0, 140)}`);
+    FINDINGS.push(
+      "The direct-grant probe cannot detect a SUCCESSFUL grant, so its refusal result "
+      + "in this realm proves nothing. Fix the control before trusting A'.");
+  }
+
   check("A' direct password grant refused", directOk, false);
+
+  // Enumerate EVERY client, not just the one probed. A different client with
+  // directAccessGrantsEnabled would leave the single-client check green.
+  const allClients = await api('GET', `/${REALM}/clients`);
+  const bypassClients = (allClients.body || [])
+    .filter(c => c.directAccessGrantsEnabled)
+    .map(c => c.clientId);
+  check("A'2 NO client in the realm accepts direct grants", bypassClients.length, 0);
+  if (bypassClients.length) {
+    FINDINGS.push(`Clients still accepting direct password grants: ${bypassClients.join(', ')}`);
+  }
   if (directOk) {
     FINDINGS.push(
       'A password grant at the token endpoint still succeeded. The browser flow being '
@@ -321,24 +443,71 @@ async function main() {
   // C — control: a user with no passkey cannot get in. This is the LOCKOUT, and
   //     it is the expected cost of the change rather than a defect.
   // =======================================================================
-  console.log('\n[C] control: a user with no passkey is locked out');
-  const pleb = await ensureUser(OTHER_REALM, 'spike-no-passkey', { withRequiredAction: false });
-  await api('PUT', `/${OTHER_REALM}/users/${pleb.id}`, { ...pleb, requiredActions: [] });
-  const creds = await api('GET', `/${OTHER_REALM}/users/${pleb.id}/credentials`);
-  const webauthn = (creds.body || []).filter(c => c.type.startsWith('webauthn'));
-  check('C1 the control user really has no passkey', webauthn.length, 0);
+  // C — a user with a password but NO passkey must be locked out.
+  //
+  // The first version of this check only verified the user HAD no passkey, and
+  // published it as "locked out — demonstrated rather than assumed". It was
+  // assumed, and the user was in a different realm. This does it properly:
+  // create the user in the realm under test, confirm the arming condition, then
+  // actually attempt a sign-in.
+  console.log('\n[C] a user with a password but no passkey is locked out');
+  const onlyPw = await ensureUser(REALM, 'spike-password-only', { withRequiredAction: false });
+  const pwCreds = await api('GET', `/${REALM}/users/${onlyPw.id}/credentials`);
+  const staleWa = (pwCreds.body || []).filter(c => c.type.startsWith('webauthn'));
+  for (const c of staleWa) {
+    await api('DELETE', `/${REALM}/users/${onlyPw.id}/credentials/${c.id}`);
+  }
+  const after = await api('GET', `/${REALM}/users/${onlyPw.id}/credentials`);
+  const kinds = (after.body || []).map(c => c.type);
+  check('C1 the lockout user has a password and NO passkey',
+    kinds.includes('password') && !kinds.some(k => k.startsWith('webauthn')), true);
+
+  // The actual claim: they cannot get in.
+  const lockoutPage = await fetchPage(`${KC}/realms/${REALM}/account/`);
+  // Assert the STATUS too. "No password field" is equally true of a broken or
+  // misconfigured page, which is the "denied vs broken" collapse this audit is
+  // about. The page must have actually rendered the sign-in flow.
+  check('C2a the sign-in flow rendered for them', lockoutPage.status, 200);
+  check('C2b no password field is offered to them',
+    /type=["']?password/i.test(lockoutPage.html), false);
+
+  const lockoutUrl = `${KC}/realms/${REALM}/protocol/openid-connect/auth?` + new URLSearchParams({
+    client_id: 'account', response_type: 'code', scope: 'openid',
+    redirect_uri: `${KC}/realms/${REALM}/account/`, state: 's5d-lockout',
+  });
+  const lockoutOutcome = await loginOutcome(client, page, lockoutUrl, onlyPw.username,
+    TEST_PASSWORD, `${KC}/realms/${REALM}/account/`);
+  check('C3 a password alone does NOT authenticate them',
+    lockoutOutcome !== 'authenticated', true);
+  console.log(`     (outcome: ${lockoutOutcome})`);
 
   // =======================================================================
   // D — recovery. A mistake here must be survivable.
   // =======================================================================
   console.log('\n[D] recovery: the original flow still works');
-  const bound2 = setFlow('revert');
+  const bound2 = await setFlow('revert');
   check('D1 rebinding restores the original flow', bound2, 'browser');
+
+  // D2 used to assert the URL contained `/auth` OR `/account` — one of which is
+  // true in essentially every outcome, including an error or a restart page. It
+  // now asserts two things that can actually be false: the password form is
+  // offered, AND a real sign-in completes with a code.
   await page.deleteCookie(...(await page.cookies()));
-  await page.goto(`${KC}/realms/${REALM}/account/`, { waitUntil: 'networkidle2', timeout: 40000 });
-  const recoveryWorks = page.url().includes('/protocol/openid-connect/auth')
-    || page.url().includes(`/realms/${REALM}/account`);
-  check('D2 password sign-in is available again', recoveryWorks, true);
+  // Ask the AUTHORIZATION ENDPOINT directly. Fetching the account console URL
+  // returns the SPA shell — the login form only appears after client-side JS
+  // runs — so the check failed against a healthy realm. (The original used the
+  // browser, which follows the JS redirect; this does the same thing explicitly.)
+  const recUrl = `${KC}/realms/${REALM}/protocol/openid-connect/auth?` + new URLSearchParams({
+    client_id: 'account', response_type: 'code', scope: 'openid',
+    redirect_uri: `${KC}/realms/${REALM}/account/`, state: 's5d-recovery',
+  });
+  const rec = await fetchPage(recUrl);
+  check('D2a the password form is offered again',
+    /type=["']?password/i.test(rec.html), true);
+
+  const recOutcome = await loginOutcome(client, page, recUrl, user.username,
+    TEST_PASSWORD, `${KC}/realms/${REALM}/account/`);
+  check('D2b a real password sign-in completes again', recOutcome, 'authenticated');
 
   await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }).catch(() => {});
   await page.close();

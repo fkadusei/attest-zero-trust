@@ -147,6 +147,45 @@
       "at": "2026-10-03T19:03:43+00:00",
       "action": "closed",
       "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T19:14:27+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T19:15:27+00:00"
+    },
+    {
+      "at": "2026-10-03T19:15:29+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T19:15:31+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T19:16:31+00:00"
+    },
+    {
+      "at": "2026-10-03T19:16:33+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T19:21:45+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T19:22:45+00:00"
+    },
+    {
+      "at": "2026-10-03T19:22:47+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
     }
   ]
 }

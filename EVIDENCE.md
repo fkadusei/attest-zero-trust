@@ -41,15 +41,15 @@ here, **this file is right and the other one is a bug.** Please report it.
 | **`prompt=login` forces a genuine ceremony** even with a live session | S5c T3a: the login form is demanded despite a valid session cookie | **Verified** |
 | Reusing a live session **does not** change `auth_time` | S5c T2b — the control that makes the next row meaningful | **Verified** |
 | `auth_time` **advances** on re-authentication | S5c T3c: advanced by exactly the deliberate 3-second wait | **Verified** |
-| An old token **keeps its old `auth_time`** and does not retroactively update | S5c T4a — otherwise freshness would be faked, not measured | **Verified** |
+| An old token **does not gain freshness** from a later re-authentication | S5c T4/T4b — the old token is refused by a window the new token passes. **The first version of this re-parsed the same token and compared it to itself, which could not fail** | **Verified** |
 | `max_age` is honoured **conditionally and correctly** | S5c T5a/T5b: `3600` reuses a 2s-old session; `0` re-authenticates it | **Verified** |
 | A freshness policy **refuses** stale tokens | S5c T6b | **Verified** |
 | A freshness policy **refuses a token with no `auth_time`** — fail closed | S5c T6c | **Verified** |
 | A freshness policy **refuses a future `auth_time`** | S5c T6d | **Verified** |
 | A passkey-only browser flow leaves **no password field** and no username field | S5d A1/A2 — the flow is usernameless | **Verified** |
 | **A passkey signs in successfully** against the passkey-only flow | S5d B2 — the positive case that makes "refused" meaningful | **Verified** |
-| A user with **no passkey is locked out** | S5d C1 — the expected cost, demonstrated | **Verified** |
-| Recovery from a broken flow is **one API call** | S5d D1/D2 — the original flow is never edited, only unbound | **Verified** |
+| A user with a password but **no passkey is locked out** | S5d C1-C3, **corrected**: the original C1 only counted credentials, and its control user was in `attest-users` — a realm that is not passkey-only. An independent reviewer signed in as that user and got a token while C1 reported PASS. Now a real sign-in is attempted in the correct realm | **Verified** |
+| Recovery from a broken flow is **one API call** | S5d D1/D2a/D2b, **corrected**: `D1` used to compare a hard-coded constant against itself and could not fail; `D2` accepted a URL that is true in almost any outcome. D1 now reads the realm's real binding and D2 completes a real sign-in | **Verified** |
 | The `flow_tool` backup/restore **detects a broken flow and restores it** | Tested in a scratch realm: passes untouched, detects damage, restores exactly | **Verified** |
 | **A passkey-only browser flow does NOT stop direct password grants** | S5d A′ — `admin-cli` had `directAccessGrantsEnabled: true`, so a password still bought a token despite the login page refusing one | **Verified** |
 | A bound **client** can use a different flow from the realm default | S5e — the `enrolment` client accepts a password while normal clients stay passkey-only, verified every run as a control | **Verified** |
@@ -69,6 +69,54 @@ here, **this file is right and the other one is a bug.** Please report it.
 | **CVE-2026-97176** exists: a user with a low-level session can obtain a token asserting a higher level than they performed | Red Hat record, NVD entry, upstream GHSA-5jw9-cc9v-8h8r, OpenCVE — all four read directly | **Corroborated** |
 | The CVE has **no fix and no available mitigation** | Red Hat `FixState: Affected` + mitigation "not available"; upstream advisory lists **no patched version** | **Corroborated** |
 | The vulnerable classes are **in the artifact we run** | Extracted `keycloak-services-26.8.0.jar` and found `ConditionalLoaAuthenticator.class`, `...Factory.class`, `LoAUtil.class` | **Verified** (class presence) |
+
+## 2a. The audit that corrected this register
+
+This register previously overstated its own confidence. An independent adversarial review — plus a
+re-run of every suite — found **the same class of defect in five more places**: checks that could not
+fail, or that were satisfied by a state other than the one they claimed to test.
+
+That class is now named, because it keeps recurring:
+
+| The defect | How it hides |
+|---|---|
+| **A check that cannot fail** | Compares a constant to itself; re-reads the same value; asserts something true in every outcome |
+| **"Denied" vs "broken"** | An absent field, a 400, or a refusal looks identical whether the control worked or the client was disabled |
+| **The wrong subject** | The check examines something real, but not the thing the claim names — a different realm, a bygone flow, a session left over from an earlier step |
+| **A test of a mock** | The assertion is about a function defined inside the test file, not about any deployed control |
+| **Self-vouching** | The tool's own success message is the evidence that it succeeded |
+
+### What changed as a result
+
+- **S5c T4** was a tautology; it now refuses the old token by a window the new token passes.
+- **S5c T6** tested a prototype; it is relabelled, not deleted.
+- **S5d C1** counted credentials in the wrong realm; it now attempts a real sign-in in the right one.
+- **S5d D1** compared a constant to itself; it now reads the realm's actual binding.
+- **S5d D2** accepted almost any URL; it now completes a real sign-in.
+- **S5d `loginOutcome`** was rewritten twice: first because a successful sign-in for Keycloak's
+  `account` client carries **no `code=`**, then because Node's `fetch` keeps no cookies, so a
+  multi-step login *always* looked rejected — which made a "must be refused" check pass for the wrong
+  reason. It now drives the real browser and clears cookies before every attempt.
+- **S5c T7** hard-coded a flow alias and counted a **DISABLED** password form as a live one — so its
+  finding was emitted even after the flow had been made passkey-only, and could never be cleared.
+- **S5e E1/E9a** discarded the HTTP status; they now assert the **cause** of a refusal, not merely the
+  absence of a field.
+- **S5e E8** grepped the tool's own success message; it now asserts the client is actually disabled.
+- **S5e E10/E11** were self-vouching; **E12** additionally requires Keycloak's own event log to contain
+  authentications through the client.
+
+### The standing rule this produced
+
+> **Every suite must include a negative meta-test: deliberately break the property, and confirm the
+> suite goes RED.**
+
+Observing a green run proves nothing about whether a check can fail. S5d's meta-test was performed by
+neutering the enforcement and re-running: `A'` and `A'2` both went red and the suite exited 1. Three of
+the checks above would have been caught immediately by this habit.
+
+**A note on the S5d meta-test itself:** the first attempt re-enabled direct grants and the suite still
+passed — because the suite's own setup re-closed them. That is the setup enforcing the property, not
+the check failing. The check was validated by breaking the *enforcement*, not the *property*.
 
 ## 3. Documented — believed, not tested by us
 
@@ -258,6 +306,20 @@ them on every push.
 
 **An unexpected side benefit:** the S3 matrix passed on **Linux**, having been developed on macOS. The
 hardware-key findings are therefore not an artifact of one platform.
+
+## 6c. Counts, and why they are not the headline
+
+"12/12" and "14/14" invite the reader to divide one number by another and feel reassured. That is
+misleading, and the audit showed it:
+
+- **S5d** reports 18/18, but several are setup scaffolding; the load-bearing enforcement evidence is
+  `A'`/`A'2` (direct-grant bypass), `B2` (a passkey really signs in), `C3` (a password really does not),
+  and `D2b` (recovery really works).
+- **S5c** reports 15/15; six of those are unit tests of a prototype policy.
+- **S5e** reports 19/19; `E1`/`E2` and `E9` are the same observation before and after a state change.
+
+**Read the claim, not the ratio.** A suite of nineteen checks of which four are load-bearing is a suite
+of four checks with fifteen guards around them — useful, but not nineteen independent findings.
 
 ## 7. What would most likely invalidate this work
 

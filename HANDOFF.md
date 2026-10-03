@@ -50,6 +50,10 @@ replacement, one proved the privileged realm passkey-only — finding a password
 bounded and audited the enrolment window, finding that its per-user restriction does not work.**
 No production code has been written yet.
 
+**The register was audited and corrected.** An independent adversarial review plus a full re-run found
+the "denied vs broken" defect in five more places. Every suite now has stronger assertions, and the
+standing rule is a **negative meta-test per suite**. See `EVIDENCE.md` §2a for the full list.
+
 **The most serious open item:** a passkey-only browser flow does not make a realm passkey-only.
 Direct grants bypass the flow entirely, and `admin-cli` — created by Keycloak in **every** realm and
 public — accepts them by default. Closed in `attest-privileged` (S5d); **`attest-users` has not been
@@ -222,7 +226,24 @@ documentation implies.
   still return the *previous* commit's run for a minute or so. Reading that as "the fix did not work"
   sent this session chasing a solved problem and adding an unnecessary diagnostic step. Always compare
   `headSha` against what was just pushed.
-- **A test that cannot tell "denied" from "broken" is not a test.** S5e concluded, and briefly
+- **A test that cannot tell "denied" from "broken" is not a test.** An independent adversarial audit
+  found this same defect in **five more places**, three of them rows the register called *Verified*:
+  a check comparing a constant to itself (S5d D1); a check re-parsing the same token and comparing it
+  to itself (S5c T4); a "lockout" check that only counted credentials, whose control user lived in a
+  realm that is not even passkey-only — the reviewer **signed in as that user and got a token** while
+  the check reported PASS.
+- **Run a NEGATIVE META-TEST on every suite: deliberately break the property, and confirm the suite
+  goes RED.** A green run proves nothing about whether a check can fail. Note the trap: the first
+  attempt at S5d's meta-test re-enabled direct grants and the suite still passed, because the suite's
+  own setup re-closed them. Break the *enforcement*, not the *property*, or you are testing the setup.
+- **Check what the subject of a test actually IS.** The audit found checks inspecting a different
+  realm, a hard-coded flow alias, and a **DISABLED** execution counted as a live one — the last made a
+  finding uncleareable, emitted even after the flow had been fixed.
+- **A check that reads the tool's own success message is self-vouching.** S5e's sweep printed "closed"
+  whether or not it had closed anything, and the test grepped for that string. Assert the *state*.
+- **The counts are not the headline.** S5d reports 18/18; about four are load-bearing. Read the claim,
+  not the ratio — see `EVIDENCE.md` §6c.
+- **A test that cannot tell "denied" from "broken" is not a test (original note).** S5e concluded, and briefly
   published, that Keycloak's `conditional-user-role` "never gated". Both halves of that test were
   broken: the **client was disabled**, so every request returned HTTP 400 `"Client disabled."`, and
   the probe **read only the first page**, whereas with identity-first login the condition is evaluated

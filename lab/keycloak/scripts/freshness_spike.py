@@ -298,9 +298,28 @@ def main() -> int:
     # If the old token's auth_time moved, freshness would be being faked rather
     # than measured — the same class of failure as the CVE we just rejected.
     # =======================================================================
-    print("\n[T4] control: the earlier token must still report its ORIGINAL auth_time")
-    c1_again = claims(t1["id_token"])
-    record("T4a old token keeps its original auth_time", c1_again.get("auth_time"), auth1)
+    print("\n[T4] control: an OLD token must not gain freshness from a later re-authentication")
+    #
+    # The first version of this re-parsed the SAME token string and compared it to
+    # itself. `claims()` is pure, so that could not fail and proved nothing — it
+    # was a tautology wearing the label "control".
+    #
+    # The question that actually matters: after re-authenticating, does the OLD
+    # token still FAIL a freshness check that the NEW one passes? If the old token
+    # were ever treated as fresh, freshness would be fabricated rather than
+    # measured — the same class of failure as the CVE we rejected.
+    now_ts = int(time.time())
+    if auth3 is not None and auth1 is not None and auth3 > auth1:
+        window = (now_ts - auth3) + 1      # a window the NEW token fits inside
+        old_ok, old_why = policy_allows(c1, now_ts, window)
+        new_ok, new_why = policy_allows(c3, now_ts, window)
+        record("T4a the OLD token is REFUSED as stale", old_ok, False)
+        record("T4b the NEW token passes the SAME window", new_ok, True)
+        print(f"       window={window}s")
+        print(f"       old: {old_why}")
+        print(f"       new: {new_why}")
+    else:
+        record("T4a re-authentication produced a later auth_time", False, True)
 
     # =======================================================================
     # T5 — does max_age work, and does it work conditionally?
@@ -332,7 +351,14 @@ def main() -> int:
     # policy that accepts everything would make "auth_time is present" look like
     # proof.
     # =======================================================================
-    print("\n[T6] control: the freshness policy must refuse what it should")
+    print("\n[T6] the freshness policy PROTOTYPE — unit tests, not a deployed control")
+    #
+    # IMPORTANT, and previously mislabelled: `policy_allows` below is defined IN
+    # THIS FILE. These assertions test a ten-line prototype, not any shipped
+    # control. No product policy engine exists yet (that is slice S2, Amazon
+    # Verified Permissions, which needs AWS). Treating these as "verified" of the
+    # product inflated the claims register; they are recorded as prototype tests.
+    print("       (testing the prototype in this file, NOT a product control)")
     now = int(time.time())
     fresh = {"auth_time": now - 5}
     stale = {"auth_time": now - 3600}
@@ -369,21 +395,48 @@ def main() -> int:
     # reasoning needs correcting.
     # =======================================================================
     print("\n[T7] the privileged realm — is re-authentication a passkey assertion?")
-    status, flow = api(tok, "GET", f"/{PRIVILEGED}/authentication/flows/browser/executions")
+    # Inspect the flow the realm is ACTUALLY bound to, not the `browser` alias.
+    #
+    # The alias was hard-coded, so this always examined the original
+    # password-capable flow and emitted "the flow needs to be made passkey-only"
+    # even after S5d had done exactly that. A finding that cannot be cleared is
+    # not a finding — it is noise that trains people to ignore the output.
+    st_r, realm_repr = api(tok, "GET", f"/{PRIVILEGED}")
+    active_flow = (realm_repr or {}).get("browserFlow", "browser")
+    print(f"  the realm's ACTIVE browser flow is '{active_flow}'")
+    status, flow = api(
+        tok, "GET", f"/{PRIVILEGED}/authentication/flows/{urllib.parse.quote(active_flow)}/executions")
     if status == 200 and isinstance(flow, list):
         names = [e.get("displayName", "?") for e in flow]
-        providers = [(e.get("providerId") or "") for e in flow]
-        has_passkey = any("webauthn" in p.lower() for p in providers)
-        has_password = any("password" in p.lower() for p in providers)
+        # Only count steps that can ACTUALLY RUN. A DISABLED execution is still
+        # listed, so matching on presence alone reports a password step in a flow
+        # where the password form has been switched off — a false positive that
+        # made this finding uncleareable.
+        runnable = [e for e in flow
+                    if (e.get("requirement") or "").upper() not in ("DISABLED", "")]
+        has_passkey = any("webauthn" in (e.get("providerId") or "").lower() for e in runnable)
+        # Match the PASSWORD FORMS exactly. A substring test for "password" also
+        # matches `webauthn-authenticator-passwordless` — the PASSKEY step — which
+        # made this finding a false positive in every version until now, including
+        # one that claimed to have fixed it.
+        PASSWORD_FORMS = {"auth-username-password-form", "auth-password-form"}
+        has_password = any((e.get("providerId") or "") in PASSWORD_FORMS for e in runnable)
+        disabled_pw = [e.get("displayName") for e in flow
+                       if "password" in (e.get("providerId") or "").lower()
+                       and e.get("requirement") == "DISABLED"]
+        if disabled_pw:
+            print(f"  (password steps present but DISABLED, so not counted: {disabled_pw})")
         print(f"  flow steps: {names}")
         print(f"  passkey/WebAuthn step present : {has_passkey}")
         print(f"  password step present         : {has_password}")
         if has_password:
             FINDINGS.append(
-                "ADR-013's strength premise is NOT met: the privileged realm's browser flow "
-                "still contains a Username Password Form, so re-authentication there can be a "
-                "password, not a hardware-key assertion. The flow needs to be made passkey-only "
-                "before that argument holds.")
+                f"ADR-013's strength premise is NOT met for the ACTIVE flow '{active_flow}': it "
+                "contains a Username Password Form, so re-authentication there can be a password "
+                "rather than a hardware-key assertion. Apply the passkey-only flow "
+                "(make_privileged_passkey_only.py apply) for that argument to hold.")
+        else:
+            print("  no password step in the active flow — ADR-013's strength premise holds")
         if not has_passkey:
             FINDINGS.append(
                 "The privileged realm's browser flow contains no WebAuthn step at all.")

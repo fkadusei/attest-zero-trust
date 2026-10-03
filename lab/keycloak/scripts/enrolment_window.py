@@ -310,7 +310,9 @@ def sweep(api: Api) -> int:
         if is_open(api):
             record_event(s, "sweep-orphan")
             save_state(s)
-            set_client_enabled(api, False)
+            if not set_client_enabled(api, False):
+                print("  FAILED to disable the orphaned enrolment client")
+                return 1
             print("  no recorded window, but the client was ENABLED — closed as an orphan")
             return 0
         print("  nothing to do")
@@ -322,7 +324,15 @@ def sweep(api: Api) -> int:
         print(f"  window for {op['username']} still open, {remaining}s remaining")
         return 0
 
-    set_client_enabled(api, False)
+    # Check the result. This previously discarded it and printed "was closed by
+    # the sweep" unconditionally, so the tool could report success while the
+    # client stayed enabled — and the test grepped for that message.
+    if not set_client_enabled(api, False):
+        print(f"  FAILED to disable the enrolment client for {op['username']}")
+        return 1
+    if is_open(api):
+        print("  FAILED: the client is still enabled after being told to disable")
+        return 1
     record_event(s, "sweep-expired", username=op["username"])
     s["open"] = None
     save_state(s)

@@ -66,6 +66,9 @@
 <li><a href="#how-to-read-the-confidence-levels">How to read the confidence levels</a></li>
 <li><a href="#1-verified-we-ran-it-with-a-control">1. Verified — we ran it, with a control</a></li>
 <li><a href="#2-corroborated-external-sources-checked">2. Corroborated — external sources, checked</a></li>
+<li><a href="#2a-the-audit-that-corrected-this-register">2a. The audit that corrected this register</a></li>
+<li class="lvl3"><a href="#what-changed-as-a-result">What changed as a result</a></li>
+<li class="lvl3"><a href="#the-standing-rule-this-produced">The standing rule this produced</a></li>
 <li><a href="#3-documented-believed-not-tested-by-us">3. Documented — believed, not tested by us</a></li>
 <li><a href="#4-unverified-named-so-they-cannot-be-forgotten">4. Unverified — named so they cannot be forgotten</a></li>
 <li><a href="#5-where-confidence-is-genuinely-lower-than-it-looks">5. Where confidence is genuinely lower than it looks</a></li>
@@ -74,6 +77,7 @@
 <li class="lvl3"><a href="#found-and-fixed-two-scripts-could-not-fail">Found and fixed: two scripts could not fail</a></li>
 <li class="lvl3"><a href="#audited-every-other-script-that-reports-an-outcome">Audited: every other script that reports an outcome</a></li>
 <li><a href="#6b-continuous-verification">6b. Continuous verification</a></li>
+<li><a href="#6c-counts-and-why-they-are-not-the-headline">6c. Counts, and why they are not the headline</a></li>
 <li><a href="#7-what-would-most-likely-invalidate-this-work">7. What would most likely invalidate this work</a></li>
 <li><a href="#8-how-to-challenge-any-of-this">8. How to challenge any of this</a></li>
 </ul></div>
@@ -216,8 +220,8 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
-<td>An old token <strong>keeps its old <code>auth_time</code></strong> and does not retroactively update</td>
-<td>S5c T4a — otherwise freshness would be faked, not measured</td>
+<td>An old token <strong>does not gain freshness</strong> from a later re-authentication</td>
+<td>S5c T4/T4b — the old token is refused by a window the new token passes. <strong>The first version of this re-parsed the same token and compared it to itself, which could not fail</strong></td>
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
@@ -251,13 +255,13 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
-<td>A user with <strong>no passkey is locked out</strong></td>
-<td>S5d C1 — the expected cost, demonstrated</td>
+<td>A user with a password but <strong>no passkey is locked out</strong></td>
+<td>S5d C1-C3, <strong>corrected</strong>: the original C1 only counted credentials, and its control user was in <code>attest-users</code> — a realm that is not passkey-only. An independent reviewer signed in as that user and got a token while C1 reported PASS. Now a real sign-in is attempted in the correct realm</td>
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
 <td>Recovery from a broken flow is <strong>one API call</strong></td>
-<td>S5d D1/D2 — the original flow is never edited, only unbound</td>
+<td>S5d D1/D2a/D2b, <strong>corrected</strong>: <code>D1</code> used to compare a hard-coded constant against itself and could not fail; <code>D2</code> accepted a URL that is true in almost any outcome. D1 now reads the realm&rsquo;s real binding and D2 completes a real sign-in</td>
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
@@ -345,6 +349,72 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 </tr>
 </tbody>
 </table></div>
+</section>
+<section id="2a-the-audit-that-corrected-this-register"><h2>2a. The audit that corrected this register</h2>
+<p>This register previously overstated its own confidence. An independent adversarial review — plus a
+re-run of every suite — found <strong>the same class of defect in five more places</strong>: checks that could not
+fail, or that were satisfied by a state other than the one they claimed to test.</p>
+<p>That class is now named, because it keeps recurring:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>The defect</th>
+<th>How it hides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A check that cannot fail</strong></td>
+<td>Compares a constant to itself; re-reads the same value; asserts something true in every outcome</td>
+</tr>
+<tr>
+<td><strong>&ldquo;Denied&rdquo; vs &ldquo;broken&rdquo;</strong></td>
+<td>An absent field, a 400, or a refusal looks identical whether the control worked or the client was disabled</td>
+</tr>
+<tr>
+<td><strong>The wrong subject</strong></td>
+<td>The check examines something real, but not the thing the claim names — a different realm, a bygone flow, a session left over from an earlier step</td>
+</tr>
+<tr>
+<td><strong>A test of a mock</strong></td>
+<td>The assertion is about a function defined inside the test file, not about any deployed control</td>
+</tr>
+<tr>
+<td><strong>Self-vouching</strong></td>
+<td>The tool&rsquo;s own success message is the evidence that it succeeded</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="what-changed-as-a-result">What changed as a result</h3>
+<ul>
+<li><strong>S5c T4</strong> was a tautology; it now refuses the old token by a window the new token passes.</li>
+<li><strong>S5c T6</strong> tested a prototype; it is relabelled, not deleted.</li>
+<li><strong>S5d C1</strong> counted credentials in the wrong realm; it now attempts a real sign-in in the right one.</li>
+<li><strong>S5d D1</strong> compared a constant to itself; it now reads the realm&rsquo;s actual binding.</li>
+<li><strong>S5d D2</strong> accepted almost any URL; it now completes a real sign-in.</li>
+<li><strong>S5d <code>loginOutcome</code></strong> was rewritten twice: first because a successful sign-in for Keycloak&rsquo;s
+  <code>account</code> client carries <strong>no <code>code=</code></strong>, then because Node&rsquo;s <code>fetch</code> keeps no cookies, so a
+  multi-step login <em>always</em> looked rejected — which made a &ldquo;must be refused&rdquo; check pass for the wrong
+  reason. It now drives the real browser and clears cookies before every attempt.</li>
+<li><strong>S5c T7</strong> hard-coded a flow alias and counted a <strong>DISABLED</strong> password form as a live one — so its
+  finding was emitted even after the flow had been made passkey-only, and could never be cleared.</li>
+<li><strong>S5e E1/E9a</strong> discarded the HTTP status; they now assert the <strong>cause</strong> of a refusal, not merely the
+  absence of a field.</li>
+<li><strong>S5e E8</strong> grepped the tool&rsquo;s own success message; it now asserts the client is actually disabled.</li>
+<li><strong>S5e E10/E11</strong> were self-vouching; <strong>E12</strong> additionally requires Keycloak&rsquo;s own event log to contain
+  authentications through the client.</li>
+</ul>
+<h3 id="the-standing-rule-this-produced">The standing rule this produced</h3>
+<blockquote>
+<p><strong>Every suite must include a negative meta-test: deliberately break the property, and confirm the
+suite goes RED.</strong></p>
+</blockquote>
+<p>Observing a green run proves nothing about whether a check can fail. S5d&rsquo;s meta-test was performed by
+neutering the enforcement and re-running: <code>A'</code> and <code>A'2</code> both went red and the suite exited 1. Three of
+the checks above would have been caught immediately by this habit.</p>
+<p><strong>A note on the S5d meta-test itself:</strong> the first attempt re-enabled direct grants and the suite still
+passed — because the suite&rsquo;s own setup re-closed them. That is the setup enforcing the property, not
+the check failing. The check was validated by breaking the <em>enforcement</em>, not the <em>property</em>.</p>
 </section>
 <section id="3-documented-believed-not-tested-by-us"><h2>3. Documented — believed, not tested by us</h2>
 <div class="tablewrap"><table>
@@ -705,6 +775,19 @@ them on every push.</p>
 </table></div>
 <p><strong>An unexpected side benefit:</strong> the S3 matrix passed on <strong>Linux</strong>, having been developed on macOS. The
 hardware-key findings are therefore not an artifact of one platform.</p>
+</section>
+<section id="6c-counts-and-why-they-are-not-the-headline"><h2>6c. Counts, and why they are not the headline</h2>
+<p>&ldquo;12/12&rdquo; and &ldquo;14/14&rdquo; invite the reader to divide one number by another and feel reassured. That is
+misleading, and the audit showed it:</p>
+<ul>
+<li><strong>S5d</strong> reports 18/18, but several are setup scaffolding; the load-bearing enforcement evidence is
+  <code>A'</code>/<code>A'2</code> (direct-grant bypass), <code>B2</code> (a passkey really signs in), <code>C3</code> (a password really does not),
+  and <code>D2b</code> (recovery really works).</li>
+<li><strong>S5c</strong> reports 15/15; six of those are unit tests of a prototype policy.</li>
+<li><strong>S5e</strong> reports 19/19; <code>E1</code>/<code>E2</code> and <code>E9</code> are the same observation before and after a state change.</li>
+</ul>
+<p><strong>Read the claim, not the ratio.</strong> A suite of nineteen checks of which four are load-bearing is a suite
+of four checks with fifteen guards around them — useful, but not nineteen independent findings.</p>
 </section>
 <section id="7-what-would-most-likely-invalidate-this-work"><h2>7. What would most likely invalidate this work</h2>
 <p>Ranked, because knowing the failure modes matters more than the summary:</p>
