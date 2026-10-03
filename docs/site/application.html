@@ -76,8 +76,9 @@
 <li class="lvl3"><a href="#three-habits-this-suite-follows-deliberately">Three habits this suite follows deliberately</a></li>
 <li class="lvl3"><a href="#two-failure-modes-the-suite-itself-fell-into">Two failure modes the suite itself fell into</a></li>
 <li><a href="#7-l3-the-service">7. L3 — the service</a></li>
-<li><a href="#8-what-is-not-built">8. What is not built</a></li>
-<li><a href="#9-extending-it">9. Extending it</a></li>
+<li><a href="#8-l4-authorization">8. L4 — authorization</a></li>
+<li><a href="#9-what-is-not-built">9. What is not built</a></li>
+<li><a href="#10-extending-it">10. Extending it</a></li>
 </ul></div>
   </aside>
 
@@ -129,12 +130,16 @@ end to end. It is not a complete product.</p>
 <td>✅ <strong>17 of them</strong>, through the real request path</td>
 </tr>
 <tr>
-<td>Cedar authorization (L3)</td>
-<td>❌ Not started — the port is declared, nothing implements it</td>
+<td>Cedar authorization (L4)</td>
+<td>✅ <strong>Implemented.</strong> Policies in <code>policies/attest.cedar</code>, evaluated in-process</td>
 </tr>
 <tr>
-<td>Persistence, object storage</td>
-<td>❌ Interfaces only — no implementation</td>
+<td>Persistence</td>
+<td>⚠️ In-memory only — correct for one process, <strong>empty on restart</strong></td>
+</tr>
+<tr>
+<td>Object storage</td>
+<td>❌ Interface only — no implementation</td>
 </tr>
 <tr>
 <td>Customer-facing features</td>
@@ -142,8 +147,33 @@ end to end. It is not a complete product.</p>
 </tr>
 </tbody>
 </table></div>
-<p><strong>The API surface today is two routes:</strong> <code>GET /health</code>, unauthenticated, and <code>GET /v1/session</code>,
-which runs the full verification chain and reports what was verified.</p>
+<p><strong>The API surface today:</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /health</code></td>
+<td>Unauthenticated liveness</td>
+</tr>
+<tr>
+<td><code>GET /v1/session</code></td>
+<td>Authentication only — reports what was verified</td>
+</tr>
+<tr>
+<td><code>GET /v1/evidence</code></td>
+<td><strong>Authorized</strong> list, scoped to the caller&rsquo;s tenant</td>
+</tr>
+<tr>
+<td><code>GET /v1/evidence/:id</code></td>
+<td><strong>Authorized</strong> read, scoped to the caller&rsquo;s tenant</td>
+</tr>
+</tbody>
+</table></div>
 <p><strong>One finding is worth reading before anything else</strong>, because it is the reason the end-to-end tests
 exist at all. Keycloak issues DPoP-bound access tokens with a <strong>different payload <code>typ</code></strong> than
 ordinary ones:</p>
@@ -397,7 +427,7 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>91 tests</strong> across four files, all passing:</p>
+<p><strong>124 tests</strong> across six files, all passing:</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -419,8 +449,18 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 </tr>
 <tr>
 <td><code>server.test.ts</code></td>
-<td>17</td>
-<td>End-to-end HTTP: the request path, scheme handling, opacity, ADR-006</td>
+<td>22</td>
+<td>End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation</td>
+</tr>
+<tr>
+<td><code>pdp.test.ts</code></td>
+<td>16</td>
+<td>The PDP adapter: decisions, fail-closed behaviour, allow-with-errors</td>
+</tr>
+<tr>
+<td><code>policies.test.ts</code></td>
+<td>12</td>
+<td>The policy file evaluated directly, against hand-built entities</td>
 </tr>
 <tr>
 <td><code>config.test.ts</code></td>
@@ -442,6 +482,14 @@ breaks. Each enforcement point was removed one at a time: <strong>7 of 7</strong
 <code>dpop.ts</code>, <strong>6 of 6</strong> in <code>config.ts</code> — with the unmutated control green each time. One of these found
 a genuine gap: deleting the <code>sub</code> check went undetected, because Keycloak always issues one. A
 synthetic issuer now mints the shapes Keycloak will not.</p>
+<p><strong>Mutation-tested, including the policies themselves.</strong> Removing the tenant <code>forbid</code> entirely,
+inverting it, dropping the principal-type constraint, removing the writer-role requirement, and
+widening a permit to any tenant are <strong>all caught</strong>. One rule survives its own removal — the <code>forbid</code>
+guarding a resource with no <code>tenant</code> attribute — and that is <strong>correct</strong>: every permit already
+requires the attribute, so the rule is unreachable and removing it changes no outcome. It is a
+<strong>safety net for a future careless permit</strong>, and a dedicated test simulates exactly that: a
+deliberately loose permit is added, and the net catches what it lets through, with a control proving
+the net is what did the work.</p>
 <p><strong>And a caution about reading mutation results.</strong> In <code>server.ts</code>, removing the early no-proof check —
 and then removing the downgrade guard as well — leaves the suite <strong>green</strong>. That is not a blind spot:
 <code>verifyDpopProof</code> independently refuses a missing proof, so <strong>the property never broke</strong>. A harness
@@ -490,12 +538,48 @@ downgrade guard, and the proof verifier&rsquo;s own input validation. Mutation t
 first two as &ldquo;surviving mutants&rdquo;, which reads like a blind spot and is not: the property never broke.
 The consequence for anyone reading the mutation results is written down in <code>HANDOFF.md</code>.</p>
 </section>
-<section id="8-what-is-not-built"><h2>8. What is not built</h2>
+<section id="8-l4-authorization"><h2>8. L4 — authorization</h2>
+<p>Authentication answers <em>who is calling</em>. Authorization answers <em>what they may touch</em>. Keeping those
+apart is what stops &ldquo;authenticated&rdquo; being mistaken for &ldquo;allowed&rdquo;.</p>
+<p><strong>The policies are a portable file</strong>, <code>policies/attest.cedar</code>, evaluated in-process by <code>cedar-wasm</code>.
+The same text would go to Amazon Verified Permissions unchanged — the language is portable, the
+service is not (ADR-015).</p>
+<p><strong>The structure rests on Cedar&rsquo;s default deny.</strong> Permits are deliberately narrow, so forgetting to
+write one produces a denial rather than an opening. Two ways a request can wrongly succeed need two
+different defences:</p>
+<ol>
+<li><strong>A request matches a permit it should not.</strong> Defended by making every permit require tenant
+   equality, so there is no permit to match.</li>
+<li><strong>An attribute is missing</strong>, so a condition silently does not fire. <code>principal.tenant !=
+   resource.tenant</code> is <strong>not</strong> a safe test if either attribute is absent. The tenant boundary is
+   therefore a <strong><code>forbid</code></strong>, which no permit can override — including one added later by someone who
+   has not read the file.</li>
+</ol>
+<p><strong>A finding worth recording.</strong> A permit that does not constrain the <strong>principal type</strong> grants access
+to <em>any</em> entity carrying a matching <code>tenant</code> attribute — including one introduced later by an
+unrelated feature. A test caught this: a principal of type <code>MysteryActor</code> was <strong>allowed</strong>. Every
+permit now names the kinds of principal it applies to, so a new entity kind is denied until someone
+deliberately permits it.</p>
+<p><strong>Two independent tenant layers guard every evidence route</strong>, and they are deliberately different
+kinds of control:</p>
+<ul>
+<li>the <strong>repository</strong> looks records up inside the caller&rsquo;s own tenant — another tenant&rsquo;s record is
+  never in scope, rather than filtered out afterwards</li>
+<li>the <strong>policy</strong> would refuse the pair even if the record were handed to it</li>
+</ul>
+<p>Either alone would do. Both is what ADR-006 asks for, and it means a bug in one is caught by the
+other.</p>
+<p><strong>A missing record and another tenant&rsquo;s record are indistinguishable</strong> — both <code>404</code> with the same
+body. Otherwise the endpoint is an existence oracle: enumerate ids and learn which ones other tenants
+hold. A test asserts the two responses are byte-identical.</p>
+</section>
+<section id="9-what-is-not-built"><h2>9. What is not built</h2>
 <p>Stated plainly, because this list is as useful as the rest of the page:</p>
 <ul>
-<li><strong>No Cedar policy evaluation.</strong> The port exists; nothing implements it. Authorization today is
-  authentication only: the API proves who you are, it does not yet decide what you may do.</li>
-<li><strong>Two routes.</strong> No API surface beyond <code>/health</code> and <code>/v1/session</code>.</li>
+<li><strong>Persistence is in-memory.</strong> Empty on restart, and each replica has its own. The startup log says
+  so out loud. A tenant-scoped PostgreSQL adapter with Row-Level Security is the portable replacement.</li>
+<li><strong>No object storage.</strong> Evidence artifacts have a reference but no bytes anywhere.</li>
+<li><strong>Four routes.</strong> Still no product surface a customer would recognise.</li>
 <li><strong>No persistence or storage.</strong> Interfaces only.</li>
 <li><strong>No admin console, no API surface, no customer-facing feature.</strong></li>
 <li><strong>No deployment.</strong> Running locally costs nothing; nothing is hosted anywhere.</li>
@@ -503,7 +587,7 @@ The consequence for anyone reading the mutation results is written down in <code
 </ul>
 <hr>
 </section>
-<section id="9-extending-it"><h2>9. Extending it</h2>
+<section id="10-extending-it"><h2>10. Extending it</h2>
 <p>The pattern is the same for every capability that varies by environment:</p>
 <ol>
 <li><strong>Declare the need as a port</strong> in <code>src/ports/</code> — an interface, with a contract written as

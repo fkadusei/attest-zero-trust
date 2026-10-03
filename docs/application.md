@@ -21,12 +21,19 @@ end to end. It is not a complete product.
 | **An HTTP server** | ✅ **Implemented.** `src/server.ts`, entry point `src/index.ts` |
 | **Wiring L1 + L2 into a request path** | ✅ **Implemented.** Every protected route runs the chain |
 | **End-to-end HTTP tests** | ✅ **17 of them**, through the real request path |
-| Cedar authorization (L3) | ❌ Not started — the port is declared, nothing implements it |
-| Persistence, object storage | ❌ Interfaces only — no implementation |
+| Cedar authorization (L4) | ✅ **Implemented.** Policies in `policies/attest.cedar`, evaluated in-process |
+| Persistence | ⚠️ In-memory only — correct for one process, **empty on restart** |
+| Object storage | ❌ Interface only — no implementation |
 | Customer-facing features | ❌ None |
 
-**The API surface today is two routes:** `GET /health`, unauthenticated, and `GET /v1/session`,
-which runs the full verification chain and reports what was verified.
+**The API surface today:**
+
+| Route | Purpose |
+|---|---|
+| `GET /health` | Unauthenticated liveness |
+| `GET /v1/session` | Authentication only — reports what was verified |
+| `GET /v1/evidence` | **Authorized** list, scoped to the caller's tenant |
+| `GET /v1/evidence/:id` | **Authorized** read, scoped to the caller's tenant |
 
 **One finding is worth reading before anything else**, because it is the reason the end-to-end tests
 exist at all. Keycloak issues DPoP-bound access tokens with a **different payload `typ`** than
@@ -180,13 +187,15 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**91 tests** across four files, all passing:
+**124 tests** across six files, all passing:
 
 | File | Tests | What it covers |
 |---|---|---|
 | `verify.test.ts` | 28 | L1, against real tokens from the running Keycloak |
 | `dpop.test.ts` | 26 | L2, against real DPoP-bound tokens |
-| `server.test.ts` | 17 | End-to-end HTTP: the request path, scheme handling, opacity, ADR-006 |
+| `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
+| `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
+| `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
 
 ### Three habits this suite follows deliberately
@@ -205,6 +214,15 @@ breaks. Each enforcement point was removed one at a time: **7 of 7** in `verify.
 `dpop.ts`, **6 of 6** in `config.ts` — with the unmutated control green each time. One of these found
 a genuine gap: deleting the `sub` check went undetected, because Keycloak always issues one. A
 synthetic issuer now mints the shapes Keycloak will not.
+
+**Mutation-tested, including the policies themselves.** Removing the tenant `forbid` entirely,
+inverting it, dropping the principal-type constraint, removing the writer-role requirement, and
+widening a permit to any tenant are **all caught**. One rule survives its own removal — the `forbid`
+guarding a resource with no `tenant` attribute — and that is **correct**: every permit already
+requires the attribute, so the rule is unreachable and removing it changes no outcome. It is a
+**safety net for a future careless permit**, and a dedicated test simulates exactly that: a
+deliberately loose permit is added, and the net catches what it lets through, with a control proving
+the net is what did the work.
 
 **And a caution about reading mutation results.** In `server.ts`, removing the early no-proof check —
 and then removing the downgrade guard as well — leaves the suite **green**. That is not a blind spot:
@@ -262,13 +280,54 @@ downgrade guard, and the proof verifier's own input validation. Mutation testing
 first two as "surviving mutants", which reads like a blind spot and is not: the property never broke.
 The consequence for anyone reading the mutation results is written down in `HANDOFF.md`.
 
-## 8. What is not built
+## 8. L4 — authorization
+
+Authentication answers *who is calling*. Authorization answers *what they may touch*. Keeping those
+apart is what stops "authenticated" being mistaken for "allowed".
+
+**The policies are a portable file**, `policies/attest.cedar`, evaluated in-process by `cedar-wasm`.
+The same text would go to Amazon Verified Permissions unchanged — the language is portable, the
+service is not (ADR-015).
+
+**The structure rests on Cedar's default deny.** Permits are deliberately narrow, so forgetting to
+write one produces a denial rather than an opening. Two ways a request can wrongly succeed need two
+different defences:
+
+1. **A request matches a permit it should not.** Defended by making every permit require tenant
+   equality, so there is no permit to match.
+2. **An attribute is missing**, so a condition silently does not fire. `principal.tenant !=
+   resource.tenant` is **not** a safe test if either attribute is absent. The tenant boundary is
+   therefore a **`forbid`**, which no permit can override — including one added later by someone who
+   has not read the file.
+
+**A finding worth recording.** A permit that does not constrain the **principal type** grants access
+to *any* entity carrying a matching `tenant` attribute — including one introduced later by an
+unrelated feature. A test caught this: a principal of type `MysteryActor` was **allowed**. Every
+permit now names the kinds of principal it applies to, so a new entity kind is denied until someone
+deliberately permits it.
+
+**Two independent tenant layers guard every evidence route**, and they are deliberately different
+kinds of control:
+
+- the **repository** looks records up inside the caller's own tenant — another tenant's record is
+  never in scope, rather than filtered out afterwards
+- the **policy** would refuse the pair even if the record were handed to it
+
+Either alone would do. Both is what ADR-006 asks for, and it means a bug in one is caught by the
+other.
+
+**A missing record and another tenant's record are indistinguishable** — both `404` with the same
+body. Otherwise the endpoint is an existence oracle: enumerate ids and learn which ones other tenants
+hold. A test asserts the two responses are byte-identical.
+
+## 9. What is not built
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **No Cedar policy evaluation.** The port exists; nothing implements it. Authorization today is
-  authentication only: the API proves who you are, it does not yet decide what you may do.
-- **Two routes.** No API surface beyond `/health` and `/v1/session`.
+- **Persistence is in-memory.** Empty on restart, and each replica has its own. The startup log says
+  so out loud. A tenant-scoped PostgreSQL adapter with Row-Level Security is the portable replacement.
+- **No object storage.** Evidence artifacts have a reference but no bytes anywhere.
+- **Four routes.** Still no product surface a customer would recognise.
 - **No persistence or storage.** Interfaces only.
 - **No admin console, no API surface, no customer-facing feature.**
 - **No deployment.** Running locally costs nothing; nothing is hosted anywhere.
@@ -276,7 +335,7 @@ Stated plainly, because this list is as useful as the rest of the page:
 
 ---
 
-## 9. Extending it
+## 10. Extending it
 
 The pattern is the same for every capability that varies by environment:
 

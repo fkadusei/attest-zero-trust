@@ -44,6 +44,22 @@ export interface PolicyResource {
   readonly tenant: TenantScope;
 }
 
+/**
+ * A context value, in engine-neutral terms.
+ *
+ * Deliberately NOT the policy engine's own type. The port must stay usable by any
+ * engine — in-process Cedar, Amazon Verified Permissions, or something else — and
+ * importing one vendor's value type into it would make the boundary decorative.
+ * This is the JSON-shaped subset every engine accepts.
+ */
+export type AttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly AttributeValue[]
+  | { readonly [key: string]: AttributeValue };
+
 export interface PolicyRequest {
   readonly principal: PolicyPrincipal;
   readonly action: string;
@@ -52,7 +68,7 @@ export interface PolicyRequest {
    * Extra attributes the policy may consult — device posture, request freshness,
    * authentication method. Values must still originate from verified sources.
    */
-  readonly context?: Readonly<Record<string, unknown>>;
+  readonly context?: Readonly<Record<string, AttributeValue>>;
 }
 
 export type PolicyEffect = "Allow" | "Deny";

@@ -13,8 +13,12 @@
  */
 import { loadConfig, ConfigError } from "./config.ts";
 import { JwksSource } from "./jwks.ts";
+import { readFileSync } from "node:fs";
+
 import { InMemoryReplayCache } from "./ports/replay-cache.ts";
+import { InMemoryEvidenceRepository } from "./ports/memory-repository.ts";
 import { systemClock } from "./ports/clock.ts";
+import { CedarPolicyDecisionPoint, DEFAULT_POLICY_PATH } from "./pdp-cedar.ts";
 import { buildServer } from "./server.ts";
 
 async function main(): Promise<void> {
@@ -31,11 +35,24 @@ async function main(): Promise<void> {
     throw error;
   }
 
+  // The policies are read ONCE, at startup. A policy syntax error stops the
+  // process here rather than turning every request into a denial that looks like an
+  // authorization problem. The CedarPdp constructor validates and throws.
+  let pdp;
+  try {
+    pdp = new CedarPolicyDecisionPoint({ policies: readFileSync(DEFAULT_POLICY_PATH, "utf8") });
+  } catch (error) {
+    console.error(`policy error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(78); // EX_CONFIG
+  }
+
   const app = buildServer({
     config,
     jwks: new JwksSource(config.identity.jwksUri),
     clock: systemClock,
     replayCache: new InMemoryReplayCache(),
+    pdp,
+    evidence: new InMemoryEvidenceRepository(),
   });
 
   // Say one thing about the replay cache out loud, because it is the one component
@@ -44,6 +61,10 @@ async function main(): Promise<void> {
   app.log.warn(
     "replay cache is in-process: correct for a single instance, INCORRECT for a fleet. " +
       "A proof replayed to another replica would be treated as fresh.",
+  );
+  app.log.warn(
+    "evidence repository is in-memory: EMPTY on every restart, and each replica has its own. " +
+      "Replace with a tenant-scoped PostgreSQL adapter before this serves anyone.",
   );
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {

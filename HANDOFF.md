@@ -222,6 +222,23 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A permit that does not name the PRINCIPAL TYPE grants access to any entity carrying a matching
+  attribute.** A Cedar test caught a `MysteryActor` being allowed. Every permit now lists
+  `principal is User || principal is ServiceAccount`, so a new entity kind is denied until someone
+  deliberately permits it.
+- **Cedar can return `allow` WITH a non-empty `errors` array** — when a different policy failed to
+  evaluate, and that policy may have been a `forbid`. **Never trust the decision without checking
+  `diagnostics.errors`.** The PDP denies on any error.
+- **A dead policy rule is worse than no rule.** The `forbid` guarding a resource with no `tenant`
+  attribute is UNREACHABLE through the ordinary permits, because every permit already requires the
+  attribute. Removing it changes no outcome — so a mutation of it survives, correctly. It is a
+  safety net for a future careless permit, and it is tested as one: a deliberately loose permit is
+  added and the net must catch what it lets through, with a control proving the net did the work.
+- **A scripted edit that silently does nothing looks exactly like success.** An insertion into
+  `server.test.ts` used an anchor that no longer existed, so five tests were never added — and the
+  suite still reported green. **Assert the edit landed** (`assert "TENANT ISOLATION" in text`) before
+  trusting the result. Mutation harnesses have the same failure mode, which is why they assert the
+  mutation applied.
 - **A surviving mutant is NOT automatically a blind spot.** Removing the server's `if (!proof)`
   check, and removing `assertNotDowngraded` too, both leave the suite GREEN — because
   `verifyDpopProof` independently refuses a missing proof. **The property never broke.** A mutation

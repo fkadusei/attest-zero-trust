@@ -18,6 +18,9 @@ import { JwksSource } from "../src/jwks.ts";
 import { InMemoryReplayCache } from "../src/ports/replay-cache.ts";
 import { systemClock } from "../src/ports/clock.ts";
 import { buildServer } from "../src/server.ts";
+import { CedarPolicyDecisionPoint } from "../src/pdp-cedar.ts";
+import { InMemoryEvidenceRepository } from "../src/ports/memory-repository.ts";
+import { readFileSync } from "node:fs";
 import { createDpopKey, getBoundToken, setupBoundToken, DPOP_CLIENT, type DpopKey } from "./dpop-harness.ts";
 import { API_CLIENT, ISSUER, JWKS_URI, ensureLabFixtures, getRealToken, isLabUp } from "./lab.ts";
 
@@ -34,6 +37,7 @@ describe("the API over HTTP", { skip: labUp ? false : "Keycloak is not running" 
   let boundToken: string;
   let boundKey: DpopKey;
   let boundThumbprint: string;
+  let evidence: InMemoryEvidenceRepository;
 
   before(async () => {
     await ensureLabFixtures();
@@ -44,11 +48,37 @@ describe("the API over HTTP", { skip: labUp ? false : "Keycloak is not running" 
       TENANT_CLAIM: "tenant_id",
     });
 
+    // The REAL policy file, not a simplified one. A PDP tested against easier
+    // policies proves the wiring and says nothing about the rules that run.
+    const policies = readFileSync(new URL("../policies/attest.cedar", import.meta.url), "utf8");
+
+    evidence = new InMemoryEvidenceRepository();
+    // The token's tenant claim is "acme" (set by the lab's mapper), so "acme" is
+    // the caller's own tenant and "globex" is somebody else's.
+    evidence.seed({
+      id: "own-evidence",
+      tenantId: "acme",
+      control: "SOC2-CC6.1",
+      artifactRef: "ref-1",
+      sha256: "a".repeat(64),
+      collectedAt: "2026-01-01T00:00:00Z",
+    });
+    evidence.seed({
+      id: "other-tenant-evidence",
+      tenantId: "globex",
+      control: "SOC2-CC6.1",
+      artifactRef: "ref-2",
+      sha256: "b".repeat(64),
+      collectedAt: "2026-01-01T00:00:00Z",
+    });
+
     app = buildServer({
       config,
       jwks: new JwksSource(JWKS_URI, { cooldownDurationSec: 1 }),
       clock: systemClock,
       replayCache: new InMemoryReplayCache(),
+      pdp: new CedarPolicyDecisionPoint({ policies }),
+      evidence,
     });
     await app.ready();
 
@@ -219,5 +249,65 @@ describe("the API over HTTP", { skip: labUp ? false : "Keycloak is not running" 
     assert.equal(res.statusCode, 200, res.body);
     assert.equal(res.json().tenantId, "acme");
     assert.ok(!res.body.includes("attacker-tenant"));
+  });
+
+  // ---------------------------------------------------------------- authorization (L4)
+  it("reading your OWN evidence is allowed", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/evidence/own-evidence",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(res.json().id, "own-evidence");
+  });
+
+  it("TENANT ISOLATION, end to end: reading ANOTHER tenant's evidence is refused", async () => {
+    // The record exists and the caller is fully authenticated. Only the tenant
+    // differs. This is the cross-tenant read the whole design exists to prevent.
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/evidence/other-tenant-evidence",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    assert.notEqual(res.statusCode, 200, `cross-tenant read succeeded: ${res.body}`);
+    assert.equal(res.statusCode, 404);
+  });
+
+  it("a missing record and another tenant's record are INDISTINGUISHABLE", async () => {
+    // Otherwise the endpoint is an existence oracle: enumerate ids and learn which
+    // ones other tenants hold.
+    const mine = await app.inject({
+      method: "GET",
+      url: "/v1/evidence/does-not-exist",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    const theirs = await app.inject({
+      method: "GET",
+      url: "/v1/evidence/other-tenant-evidence",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    assert.equal(mine.statusCode, theirs.statusCode, "status codes must match");
+    assert.deepEqual(mine.json(), theirs.json(), "bodies must match");
+  });
+
+  it("listing returns ONLY the caller's own evidence", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/evidence",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    assert.equal(res.statusCode, 200, res.body);
+    const ids = res.json().items.map((i: { id: string }) => i.id);
+    assert.equal(ids.length, 1, `expected exactly one record, got ${JSON.stringify(ids)}`);
+    assert.equal(ids[0], "own-evidence");
+    assert.ok(!ids.includes("other-tenant-evidence"), "another tenant's record leaked into a list");
+  });
+
+  it("the evidence routes still require authentication", async () => {
+    for (const url of ["/v1/evidence", "/v1/evidence/own-evidence"]) {
+      const res = await app.inject({ method: "GET", url });
+      assert.equal(res.statusCode, 401, `${url} was reachable without credentials`);
+    }
   });
 });

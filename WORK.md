@@ -54,7 +54,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **L1b** | Cloud-agnostic boundaries: config + ports | ✅ **done — ADR-015, 47/47, 6/6 mutants** |
 | **L2** | DPoP proof verification at the API | ✅ **done — 75/75, 13/13 mutants** |
 | **L3** | The API as a running service (HTTP request path) | ✅ **done — 91/91, found a production-breaking bug** |
-| **L4** | Cedar authorization: the PDP, wired to the API | ▶ **NEXT** |
+| **L4** | Cedar authorization: the PDP, wired to the API | ✅ **done — 124/124, 5/6 policy mutants** |
+| **L5** | A tenant-scoped PostgreSQL adapter (replace in-memory) | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |

@@ -8,6 +8,8 @@ import { verifyDpopProof } from "./dpop.ts";
 import { assertNotDowngraded, requireTenant } from "./verify.ts";
 import type { Clock } from "./ports/clock.ts";
 import type { ReplayCache } from "./ports/replay-cache.ts";
+import type { PolicyDecisionPoint, PolicyRequest, TenantScope } from "./ports/policy.ts";
+import type { EvidenceRepository } from "./ports/repository.ts";
 
 /**
  * The API as a running service — the policy *enforcement point*.
@@ -31,6 +33,15 @@ export interface ServerDeps {
   readonly jwks: JwksSource;
   readonly clock: Clock;
   readonly replayCache: ReplayCache;
+  /**
+   * The policy decision point (ADR-005). Authorization is a SEPARATE step from
+   * authentication: L1 and L2 establish who is calling, and this decides what they
+   * may touch. Keeping them apart is what stops "authenticated" being mistaken for
+   * "allowed".
+   */
+  readonly pdp: PolicyDecisionPoint;
+  /** Evidence storage, scoped by tenant at the data layer. */
+  readonly evidence: EvidenceRepository;
 }
 
 /** Attached to the request by `authenticate`, for handlers to read. */
@@ -193,6 +204,66 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     };
   }
 
+  /**
+   * Ask the PDP, and turn its answer into a reply.
+   *
+   * Returns `true` when the caller may proceed. On refusal it has ALREADY replied,
+   * so the handler must not continue — hence the boolean rather than a throw, which
+   * is harder to ignore by accident in an `async` handler.
+   *
+   * The tenant on both sides comes from verified sources: the principal's from the
+   * token, the resource's from the stored record. **Nothing here reads a tenant
+   * from the request.**
+   */
+  async function authorize(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    action: string,
+    resource: { type: string; id: string; tenant: TenantScope },
+    context?: Readonly<Record<string, never>>,
+  ): Promise<boolean> {
+    const auth = request.auth!;
+    const policyRequest: PolicyRequest = {
+      principal: {
+        id: auth.token.subject,
+        type: principalType(auth.token),
+        roles: extractRoles(auth.token),
+        tenant: { tenantId: auth.tenantId },
+      },
+      action,
+      resource,
+      ...(context ? { context } : {}),
+    };
+
+    let decision;
+    try {
+      decision = await deps.pdp.decide(policyRequest);
+    } catch {
+      // A PDP that throws has not said "allow". Fail closed, and do not leak that
+      // the policy engine had a problem.
+      reply.log.error({ action }, "policy decision point failed");
+      reply.code(403).send({ error: "forbidden" });
+      return false;
+    }
+
+    if (decision.effect !== "Allow") {
+      // Logged WITH the determining policies, because "denied" without "by what" is
+      // not something an operator can act on. The caller learns only that it failed.
+      reply.log.warn(
+        { action, subject: auth.token.subject, policies: decision.determiningPolicies },
+        "access denied by policy",
+      );
+      reply.code(403).send({ error: "forbidden" });
+      return false;
+    }
+
+    request.log.info(
+      { action, subject: auth.token.subject, policies: decision.determiningPolicies },
+      "access allowed by policy",
+    );
+    return true;
+  }
+
   // ---------------------------------------------------------------- public
   app.get("/health", async () => ({ status: "ok" }));
 
@@ -214,5 +285,105 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     };
   });
 
+  // ---------------------------------------------------------------- evidence
+  /**
+   * Read one piece of evidence.
+   *
+   * TWO independent tenant layers guard this, and they are deliberately different
+   * kinds of control:
+   *
+   *   1. **The repository** looks the record up inside the caller's own tenant. A
+   *      record belonging to anyone else is not filtered out afterwards — it is
+   *      never in scope.
+   *   2. **The policy** would refuse the pair even if the record were handed to it,
+   *      because the tenant boundary is a `forbid` that cannot be overridden.
+   *
+   * Either alone would do. Both is what ADR-006 asks for, and it means a bug in one
+   * is caught by the other rather than becoming a cross-tenant read.
+   */
+  app.get<{ Params: { id: string } }>("/v1/evidence/:id", { preHandler: authenticate }, async (request, reply) => {
+    const auth = request.auth!;
+    const tenant: TenantScope = { tenantId: auth.tenantId };
+
+    const record = await deps.evidence.findById(tenant, request.params.id);
+
+    if (!record) {
+      // 404 for BOTH "does not exist" and "belongs to someone else". Distinguishing
+      // them would turn this endpoint into an existence oracle: an attacker could
+      // enumerate ids and learn which ones other tenants hold.
+      return reply.code(404).send({ error: "not_found" });
+    }
+
+    // Note the resource tenant comes from the RECORD, never from the request.
+    const allowed = await authorize(request, reply, "ReadEvidence", {
+      type: "Evidence",
+      id: record.id,
+      tenant: { tenantId: record.tenantId },
+    });
+    if (!allowed) return reply;
+
+    return {
+      id: record.id,
+      control: record.control,
+      collectedAt: record.collectedAt,
+      sha256: record.sha256,
+    };
+  });
+
+  /**
+   * List the caller's own evidence.
+   *
+   * The tenant is the TOKEN's, so there is no parameter that could name another.
+   */
+  app.get("/v1/evidence", { preHandler: authenticate }, async (request, reply) => {
+    const auth = request.auth!;
+    const tenant: TenantScope = { tenantId: auth.tenantId };
+
+    const allowed = await authorize(request, reply, "ListEvidence", {
+      type: "Tenant",
+      id: tenant.tenantId,
+      tenant,
+    });
+    if (!allowed) return reply;
+
+    const page = await deps.evidence.list(tenant, { limit: 50 });
+    return { items: page.items.map((r) => ({ id: r.id, control: r.control })) };
+  });
+
   return app;
 }
+
+/**
+ * Roles carried by the verified token.
+ *
+ * Read from `realm_access.roles` and `resource_access.<client>.roles`, which is
+ * where Keycloak puts them. Absent means the token carried none — never a default,
+ * because a default role is an unearned privilege.
+ */
+function extractRoles(token: VerifiedToken): string[] {
+  const roles = new Set<string>();
+  const realmAccess = token.claims["realm_access"];
+  if (realmAccess && typeof realmAccess === "object" && !Array.isArray(realmAccess)) {
+    const list = (realmAccess as Record<string, unknown>)["roles"];
+    if (Array.isArray(list)) for (const r of list) if (typeof r === "string") roles.add(r);
+  }
+  return [...roles];
+}
+
+/**
+ * The Cedar principal type for a token subject.
+ *
+ * A client-credentials token has no human behind it; a user token does. The
+ * distinction is recorded in the policy (`principal is User || principal is
+ * ServiceAccount`) so that a kind of principal added later is DENIED until someone
+ * deliberately permits it.
+ */
+function principalType(token: VerifiedToken): string {
+  // Keycloak marks client-credentials tokens with the service-account subject and
+  // no `preferred_username`. Absent that, treat the caller as a service account:
+  // the more restrictive of the two, since the permits that require a role will
+  // still apply.
+  const username = token.claims["preferred_username"];
+  return typeof username === "string" && username.length > 0 ? "User" : "ServiceAccount";
+}
+
