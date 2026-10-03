@@ -212,12 +212,52 @@ async function ensureClient(
   return { id: made[0]!.id, secret: made[0]!.secret ?? "" };
 }
 
-async function clientSecret(): Promise<string> {
-  const res = await admin(`/${TEST_REALM}/clients?clientId=${HARNESS_CLIENT}`);
+export async function clientSecretFor(clientId: string): Promise<string> {
+  const res = await admin(`/${TEST_REALM}/clients?clientId=${encodeURIComponent(clientId)}`);
   const list = (await res.json()) as Array<{ secret?: string }>;
   const secret = list[0]?.secret;
-  if (!secret) throw new Error(`${HARNESS_CLIENT} has no secret`);
+  if (!secret) throw new Error(`client ${clientId} has no secret`);
   return secret;
+}
+
+async function clientSecret(): Promise<string> {
+  return clientSecretFor(HARNESS_CLIENT);
+}
+
+/**
+ * A client that REQUIRES DPoP-bound tokens.
+ *
+ * `dpop.bound.access.tokens` is the attribute Keycloak's admin console writes when
+ * you tick "Require DPoP bound tokens". With it set, the token endpoint demands a
+ * valid DPoP proof and records the key's thumbprint in the token as `cnf.jkt` —
+ * which is the only way to obtain a genuinely bound token to test against.
+ *
+ * Client credentials rather than a password grant: no user, no password, and no
+ * direct-access-grant client introduced into any application realm.
+ */
+export const DPOP_CLIENT = "dpop-harness";
+
+export async function ensureDpopClient(): Promise<void> {
+  await ensureClient(DPOP_CLIENT, {
+    publicClient: false,
+    standardFlowEnabled: false,
+    serviceAccountsEnabled: true,
+    directAccessGrantsEnabled: false,
+    attributes: { "dpop.bound.access.tokens": "true" },
+    protocolMappers: [
+      {
+        name: "audience-attest-api",
+        protocol: "openid-connect",
+        protocolMapper: "oidc-audience-mapper",
+        consentRequired: false,
+        config: {
+          "included.client.audience": API_CLIENT,
+          "id.token.claim": "false",
+          "access.token.claim": "true",
+        },
+      },
+    ],
+  });
 }
 
 export interface RealToken {

@@ -222,6 +222,16 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A DPoP-bound token needs the `DPoP` authorization scheme, not `Bearer`, and a resource proof
+  MUST carry `ath`.** Both were S1 findings; L2 now enforces them in code. Keycloak also demands a
+  **nonce** on resource requests, which is stricter than RFC 9449 — a resource server choosing to
+  require nonces owes its clients an extra round trip.
+- **The DPoP replay check must run LAST.** Consuming the `jti` before the other checks lets a
+  malformed proof burn a `jti` that a legitimate request might need. And it must be **atomic** — a
+  check-then-set is a race two concurrent replays both win.
+- **The expected request URI must come from trusted configuration, never from `X-Forwarded-*` or
+  `Host`.** Deriving it from headers lets the attacker choose the value the proof is compared
+  against, which makes every `htu` check vacuous while still looking present.
 - **Cloud-agnostic is a REQUIREMENT, and it contradicts a decision already made.** ADR-008 chose
   DynamoDB, which exists only on AWS. **ADR-015 now governs**: the domain and its interfaces are
   portable, cloud services appear only behind adapters, and **the portable adapter is the default

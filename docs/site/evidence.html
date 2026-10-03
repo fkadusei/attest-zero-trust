@@ -368,6 +368,11 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong>Our DPoP proof verifier agrees with a real Keycloak-bound token</strong></td>
+<td>L2 — a genuinely <code>cnf.jkt</code>-bound token from the live provider plus a real proof verifies; 13 enforcement points each fail for their own asserted reason</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><strong>Keycloak&rsquo;s access-token marker is the PAYLOAD <code>typ</code> (&ldquo;Bearer&rdquo;), not the header&rsquo;s.</strong> The header <code>typ</code> is <code>"JWT"</code> for access tokens and ID tokens alike, so a header check cannot distinguish them</td>
 <td>L1 — decoded from live tokens: access <code>{header: JWT, payload: Bearer}</code>, ID <code>{header: JWT, payload: ID}</code></td>
 <td><strong>Verified</strong></td>

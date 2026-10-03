@@ -222,11 +222,12 @@ jobs:
           cat /tmp/proxy.log || true
 
   # ---------------------------------------------------------------------------
-  # L1 — the API as a policy enforcement point. Token verification against the
-  # real identity provider, plus a synthetic issuer for shapes Keycloak will not
-  # mint. The suite creates its own realm, so it needs Keycloak up but nothing else.
+  # L1 + L2 — the API as a policy enforcement point. Token verification and DPoP
+  # proof verification, both against the real identity provider, plus a synthetic
+  # issuer for shapes Keycloak will not mint. The suite creates its own realm and
+  # clients, so it needs Keycloak up but nothing else.
   # ---------------------------------------------------------------------------
-  api-token-verification:
+  api-verification:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -255,7 +256,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --workspace @attest/api
 
-      - name: L1 — token verification
+      - name: L1 + L2 — token and DPoP proof verification
         run: |
           set +e
           npm test --workspace @attest/api > /tmp/l1.log 2>&1
