@@ -222,6 +222,15 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Every harness creates the fixtures it depends on.** The S5f CI job died with `no such user:
+  spike-attest-privileged` — the user is made by another harness, and a fresh realm has none. **This is
+  the third time** the same assumption has broken a job (S5e, its CI job, and S5f). Assume **no user
+  exists**; create what you need, and clear required actions so a setup prompt is never mistaken for a
+  credential failure.
+- **When a container must reach a service, put the service on the same network.** Two attempts at
+  host networking failed silently: editing the *runner's* `/etc/hosts` cannot affect a container, and
+  `extra_hosts` is useless if the sink binds to loopback only. A compose service on the same network
+  has no host networking to get wrong and behaves identically everywhere.
 - **Check the commit SHA, not "the latest run".** After pushing a fix, `gh run list --limit 1` can
   still return the *previous* commit's run for a minute or so. Reading that as "the fix did not work"
   sent this session chasing a solved problem and adding an unnecessary diagnostic step. Always compare

@@ -150,11 +150,42 @@ def call(method: str, path: str, body=None):
         return e.code, e.read().decode()[:200]
 
 
-def user_id(name: str) -> str:
+def ensure_user(name: str) -> str:
+    """Return the user's id, CREATING them if absent.
+
+    A fresh realm has none of these users — they are made by other harnesses — so
+    a test that assumes one fails on the first run against a clean environment.
+    This is the THIRD time that mistake has been made in this project (S5e, its CI
+    job, and here), so it is now a rule: **every harness creates the fixtures it
+    depends on, and assumes no user exists.**
+    """
     st, us = call("GET", f"/{REALM}/users?username={urllib.parse.quote(name)}&exact=true")
     if st != 200 or not us:
-        raise SystemExit(f"no such user: {name}")
-    return us[0]["id"]
+        call("POST", f"/{REALM}/users", {
+            "username": name, "enabled": True, "emailVerified": True,
+            "email": f"{name}@example.test", "firstName": "Spike", "lastName": "Lab",
+            "credentials": [{"type": "password", "value": "Spike-Lab-Password-123!",
+                             "temporary": False}],
+        })
+        st, us = call("GET", f"/{REALM}/users?username={urllib.parse.quote(name)}&exact=true")
+    if st != 200 or not us:
+        raise SystemExit(f"could not create or find user: {name}")
+    uid = us[0]["id"]
+    # Fully set up: a pending required action makes Keycloak refuse direct grants
+    # with "Account is not fully set up", which reads like a credential failure.
+    st, fresh = call("GET", f"/{REALM}/users/{uid}")
+    call("PUT", f"/{REALM}/users/{uid}", {**fresh,
+        "firstName": fresh.get("firstName") or "Spike",
+        "lastName": fresh.get("lastName") or "Lab",
+        "email": fresh.get("email") or f"{name}@example.test",
+        "emailVerified": True, "requiredActions": []})
+    call("PUT", f"/{REALM}/users/{uid}/reset-password",
+         {"type": "password", "value": "Spike-Lab-Password-123!", "temporary": False})
+    return uid
+
+
+def user_id(name: str) -> str:
+    return ensure_user(name)
 
 
 def webauthn_ids(uid: str) -> list[str]:
@@ -245,6 +276,11 @@ def main() -> int:
     print("=" * 84)
     print("S5f — per-user enrolment by shareable link (impersonation ruled out)")
     print("=" * 84)
+
+    print("\n[setup] create the users this suite needs (a fresh realm has none)")
+    ensure_user(USER)
+    ensure_user(OTHER)
+    check("setup: both users exist", user_id(USER) != user_id(OTHER), True)
 
     print("\n[setup] point the realm at the mail sink (read-modify-write)")
     st, realm0 = call("GET", f"/{REALM}")
