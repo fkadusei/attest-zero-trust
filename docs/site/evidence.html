@@ -67,6 +67,10 @@
 <li><a href="#4-unverified-named-so-they-cannot-be-forgotten">4. Unverified — named so they cannot be forgotten</a></li>
 <li><a href="#5-where-confidence-is-genuinely-lower-than-it-looks">5. Where confidence is genuinely lower than it looks</a></li>
 <li><a href="#6-things-we-have-read-only-in-summary">6. Things we have read only in summary</a></li>
+<li><a href="#6a-is-the-test-harness-itself-trustworthy">6a. Is the test harness itself trustworthy?</a></li>
+<li class="lvl3"><a href="#found-and-fixed-two-scripts-could-not-fail">Found and fixed: two scripts could not fail</a></li>
+<li class="lvl3"><a href="#audited-every-other-script-that-reports-an-outcome">Audited: every other script that reports an outcome</a></li>
+<li><a href="#6b-continuous-verification">6b. Continuous verification</a></li>
 <li><a href="#7-what-would-most-likely-invalidate-this-work">7. What would most likely invalidate this work</a></li>
 <li><a href="#8-how-to-challenge-any-of-this">8. How to challenge any of this</a></li>
 </ul></div>
@@ -395,6 +399,129 @@ already been wrong once by trusting a summary:</p>
 <li><strong>OMB M-22-09</strong> — referenced for the phishing-resistant MFA requirement. Not read directly.</li>
 </ul>
 </section>
+<section id="6a-is-the-test-harness-itself-trustworthy"><h2>6a. Is the test harness itself trustworthy?</h2>
+<p>A result is only as good as the harness that produced it, so the harness is audited too — and this
+audit <strong>found real defects in it</strong>.</p>
+<h3 id="found-and-fixed-two-scripts-could-not-fail">Found and fixed: two scripts could not fail</h3>
+<p><code>run-matrix.sh</code> and <code>dpop_spike.py</code> both printed <code>PASS</code>/<code>FAIL</code> rows but <strong>never changed their exit
+code</strong>. Anything automating them — including the CI added in the same change — would have reported
+success on a total regression. The gate was decorative.</p>
+<p>Both are fixed, and <strong>both fixes were negative-tested</strong>, because an untested fix is just another
+unverified claim:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Command</th>
+<th>Expected</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matrix, all rows wrong</td>
+<td>stub <code>node</code> to report an unmatchable outcome</td>
+<td>exit 1</td>
+<td><strong>exit 1</strong> ✓</td>
+</tr>
+<tr>
+<td>Matrix, real run</td>
+<td><code>bash lab/keycloak/scripts/run-matrix.sh</code></td>
+<td>exit 0</td>
+<td><strong>exit 0</strong>, 5/5 ✓</td>
+</tr>
+<tr>
+<td>DPoP, one verifier check inverted</td>
+<td>throwaway copy with an inverted expectation</td>
+<td>exit 1</td>
+<td><strong>exit 1</strong>, 5/6 ✓</td>
+</tr>
+<tr>
+<td>DPoP, real run</td>
+<td><code>python3 lab/keycloak/scripts/dpop_spike.py</code></td>
+<td>exit 0</td>
+<td><strong>exit 0</strong>, 6/6 + 6/6 ✓</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>What this does and does not mean for the earlier results.</strong> The S1 and S3 findings <strong>stand</strong>: they
+were read off the printed rows and confirmed with controls at the time. What was broken was the
+ability to <em>detect a future regression</em> automatically — not the original observations. The
+distinction matters and is not being blurred in either direction.</p>
+<h3 id="audited-every-other-script-that-reports-an-outcome">Audited: every other script that reports an outcome</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Script</th>
+<th>Gates its exit code?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/check_docs.py</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>scripts/build_docs.py</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>lab/keycloak/scripts/configure-realms.py</code></td>
+<td>yes (<code>return 0 if all_ok else 1</code>)</td>
+</tr>
+<tr>
+<td><code>lab/keycloak/scripts/patch-realm.py</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>lab/browser/run.mjs</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>lab/browser/run_firefox.py</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>lab/keycloak/scripts/spike3-enrolment-test.mjs</code></td>
+<td><strong>No, deliberately</strong> — <code>REJECTED</code> is often the correct outcome, so the exit code cannot be the verdict. <code>run-matrix.sh</code> parses its <code>OUTCOME</code> line instead. Now documented in the file, because a script that always exits 0 is a trap for whoever uses it next</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="6b-continuous-verification"><h2>6b. Continuous verification</h2>
+<p>The experiments were originally run by hand, so nothing stopped a later change from quietly
+invalidating a result the documentation still asserted. <code>.github/workflows/verify.yml</code> now re-runs
+them on every push.</p>
+<p><strong>This workflow has been verified</strong>, contrary to the caveat in its own header at the time of writing:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Job</th>
+<th>What it re-runs</th>
+<th>First run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docs</code></td>
+<td>link, anchor, offline-safety, staleness and heading checks</td>
+<td><strong>7s, success</strong></td>
+</tr>
+<tr>
+<td><code>dpop</code></td>
+<td>the S1 experiment — 6/6 enforcement and 6/6 verifier</td>
+<td><strong>59s, success</strong></td>
+</tr>
+<tr>
+<td><code>hardware-keys</code></td>
+<td>the S3 matrix, controls included</td>
+<td><strong>2m12s, success</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>An unexpected side benefit:</strong> the S3 matrix passed on <strong>Linux</strong>, having been developed on macOS. The
+hardware-key findings are therefore not an artifact of one platform.</p>
+</section>
 <section id="7-what-would-most-likely-invalidate-this-work"><h2>7. What would most likely invalidate this work</h2>
 <p>Ranked, because knowing the failure modes matters more than the summary:</p>
 <ol>
@@ -406,8 +533,15 @@ already been wrong once by trusting a summary:</p>
 <li><strong>The step-up replacement does not work either.</strong> Then sensitive actions have no freshness control
    and need a different answer (a second approver, which the plan already wants for the highest-risk
    operations).</li>
-<li><strong>A published claim turns out to be wrong.</strong> This register exists to shrink that surface, and any
-   place where a claim is stated more strongly than it is recorded here is treated as a bug.</li>
+<li>
+<p><strong>A published claim turns out to be wrong.</strong> This register exists to shrink that surface, and any
+   place where a claim is stated more strongly than it is recorded here is treated as a bug.</p>
+</li>
+<li>
+<p><strong>The harness silently stops testing what it claims.</strong> This is not hypothetical — it was found in
+   this audit, in two scripts at once. The mitigation is that every gate is now negative-tested, not
+   merely observed to pass.</p>
+</li>
 </ol>
 </section>
 <section id="8-how-to-challenge-any-of-this"><h2>8. How to challenge any of this</h2>

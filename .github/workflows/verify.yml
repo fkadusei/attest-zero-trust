@@ -16,11 +16,17 @@
 #               Chromium runs are reproducible locally in ~30 seconds and add
 #               little as a gate
 #
-# HONEST LIMITATION
-#   This workflow has NOT been run on GitHub. It was written from commands that
-#   were each verified locally on macOS, but GitHub Actions cannot be executed
-#   locally, so the workflow itself is unverified until its first green run.
-#   Treat a first failure as more likely to be the workflow than the code.
+# THIS WORKFLOW IS VERIFIED
+#   It has run green on GitHub: docs 7s, dpop 59s, hardware-keys 2m12s. The
+#   hardware-keys job passing on Linux is itself a result — the experiment was
+#   developed on macOS, so the findings are not an artifact of one platform.
+#
+# THE GATES ARE NEGATIVE-TESTED
+#   Writing this workflow exposed that two scripts printed PASS/FAIL rows without
+#   ever affecting their exit code — so a job would have gone green on a total
+#   regression. Both are fixed, and both fixes were tested by deliberately
+#   breaking them and confirming a non-zero exit. A job that has only ever been
+#   seen to pass has not been shown to be capable of failing.
 
 name: verify
 

@@ -122,6 +122,61 @@ already been wrong once by trusting a summary:
   correct; we have not verified our mapping against the document clause by clause.
 - **OMB M-22-09** — referenced for the phishing-resistant MFA requirement. Not read directly.
 
+## 6a. Is the test harness itself trustworthy?
+
+A result is only as good as the harness that produced it, so the harness is audited too — and this
+audit **found real defects in it**.
+
+### Found and fixed: two scripts could not fail
+
+`run-matrix.sh` and `dpop_spike.py` both printed `PASS`/`FAIL` rows but **never changed their exit
+code**. Anything automating them — including the CI added in the same change — would have reported
+success on a total regression. The gate was decorative.
+
+Both are fixed, and **both fixes were negative-tested**, because an untested fix is just another
+unverified claim:
+
+| Test | Command | Expected | Result |
+|---|---|---|---|
+| Matrix, all rows wrong | stub `node` to report an unmatchable outcome | exit 1 | **exit 1** ✓ |
+| Matrix, real run | `bash lab/keycloak/scripts/run-matrix.sh` | exit 0 | **exit 0**, 5/5 ✓ |
+| DPoP, one verifier check inverted | throwaway copy with an inverted expectation | exit 1 | **exit 1**, 5/6 ✓ |
+| DPoP, real run | `python3 lab/keycloak/scripts/dpop_spike.py` | exit 0 | **exit 0**, 6/6 + 6/6 ✓ |
+
+**What this does and does not mean for the earlier results.** The S1 and S3 findings **stand**: they
+were read off the printed rows and confirmed with controls at the time. What was broken was the
+ability to *detect a future regression* automatically — not the original observations. The
+distinction matters and is not being blurred in either direction.
+
+### Audited: every other script that reports an outcome
+
+| Script | Gates its exit code? |
+|---|---|
+| `scripts/check_docs.py` | yes |
+| `scripts/build_docs.py` | yes |
+| `lab/keycloak/scripts/configure-realms.py` | yes (`return 0 if all_ok else 1`) |
+| `lab/keycloak/scripts/patch-realm.py` | yes |
+| `lab/browser/run.mjs` | yes |
+| `lab/browser/run_firefox.py` | yes |
+| `lab/keycloak/scripts/spike3-enrolment-test.mjs` | **No, deliberately** — `REJECTED` is often the correct outcome, so the exit code cannot be the verdict. `run-matrix.sh` parses its `OUTCOME` line instead. Now documented in the file, because a script that always exits 0 is a trap for whoever uses it next |
+
+## 6b. Continuous verification
+
+The experiments were originally run by hand, so nothing stopped a later change from quietly
+invalidating a result the documentation still asserted. `.github/workflows/verify.yml` now re-runs
+them on every push.
+
+**This workflow has been verified**, contrary to the caveat in its own header at the time of writing:
+
+| Job | What it re-runs | First run |
+|---|---|---|
+| `docs` | link, anchor, offline-safety, staleness and heading checks | **7s, success** |
+| `dpop` | the S1 experiment — 6/6 enforcement and 6/6 verifier | **59s, success** |
+| `hardware-keys` | the S3 matrix, controls included | **2m12s, success** |
+
+**An unexpected side benefit:** the S3 matrix passed on **Linux**, having been developed on macOS. The
+hardware-key findings are therefore not an artifact of one platform.
+
 ## 7. What would most likely invalidate this work
 
 Ranked, because knowing the failure modes matters more than the summary:
@@ -136,6 +191,10 @@ Ranked, because knowing the failure modes matters more than the summary:
    operations).
 5. **A published claim turns out to be wrong.** This register exists to shrink that surface, and any
    place where a claim is stated more strongly than it is recorded here is treated as a bug.
+
+6. **The harness silently stops testing what it claims.** This is not hypothetical — it was found in
+   this audit, in two scripts at once. The mitigation is that every gate is now negative-tested, not
+   merely observed to pass.
 
 ## 8. How to challenge any of this
 

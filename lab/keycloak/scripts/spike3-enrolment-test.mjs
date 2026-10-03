@@ -206,6 +206,11 @@ async function main() {
     detail = e.message.slice(0, 220);
   }
 
+  // NOTE: this script exits 0 even when the outcome is REJECTED. The exit code
+  // is deliberately NOT the verdict — REJECTED is often the correct result, and
+  // only the caller knows what was expected. run-matrix.sh parses the OUTCOME
+  // line above and is responsible for deciding pass or fail. Running this script
+  // directly tells you what happened, never whether it was right.
   console.log(`\nOUTCOME: ${outcome}`);
   console.log(`DETAIL : ${detail}`);
   if (consoleErrors.length) console.log(`BROWSER ERRORS: ${consoleErrors.slice(0, 3).join(' | ')}`);

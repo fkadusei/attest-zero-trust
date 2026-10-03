@@ -208,6 +208,11 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A test that prints FAIL and exits 0 is not a test.** Found in this project: *two* scripts printed
+  `PASS`/`FAIL` rows without ever affecting their exit code, so any automation — including the CI
+  added alongside them — would have reported success on a total regression. **Every gate must be
+  negative-tested**: deliberately break it, and confirm it fails. Observing a green run proves
+  nothing about whether the check can go red.
 - **A dependency can carry a live CVE in exactly the feature you need.** Before building on a
   third-party security feature, search the CVE databases for the *component*, not just the product.
   S5b found CVE-2026-97176 in `ConditionalLoaAuthenticator` only by looking it up directly — nothing

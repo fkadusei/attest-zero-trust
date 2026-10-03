@@ -457,16 +457,26 @@ def main() -> int:
          verify_proof(access, key.proof("GET", USERINFO_URL, access_token=access + "x"),
                       "GET", USERINFO_URL), False),
     ]
+    verifier_failures = 0
     for label, (ok, reason), want_ok in checks:
         mark = "PASS" if ok == want_ok else "FAIL"
+        if ok != want_ok:
+            verifier_failures += 1
         print(f"  {label:44s} -> {str(ok):5s} ({reason})  {mark}")
 
     print("\n" + "=" * 74)
     passed = sum(1 for _, _, ok in results if ok)
     print(f"Keycloak enforcement: {passed}/{len(results)} behaviours as expected")
+    print(f"Verifier checks     : {len(checks) - verifier_failures}/{len(checks)} behaved as expected")
     print(f"Observation recorded : {observation}")
     print("=" * 74)
-    return 0 if passed == len(results) else 1
+    # BOTH halves must pass. The verifier is the logic a resource server would
+    # have to write itself, so a regression there is as serious as one in
+    # Keycloak's enforcement — and it previously did not affect the exit code.
+    if passed != len(results) or verifier_failures:
+        print("FAILED: see the FAIL rows above.")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
