@@ -3,8 +3,14 @@
 A multi-tenant B2B SaaS application built on Zero Trust principles, with **passwordless,
 phishing-resistant authentication** (FIDO2/WebAuthn passkeys) as its identity foundation.
 
-> **Status: design complete, four verification experiments run — three hold, one failed. No
-> production code yet.** MIT licensed.
+> **Status: design complete. Six verification experiments run — three hold, one holds for Chromium
+> only, one failed, and one resolved by rejecting the mechanism it tested. No production code yet.**
+> MIT licensed.
+>
+> **The authoritative summary of what is and is not established is [EVIDENCE.md](EVIDENCE.md).** It
+> records every load-bearing claim with its evidence and a confidence level, and names the places
+> where we are **not** certain. Where any other document states something more strongly than that one
+> records it, that one is right.
 
 > ### 🔄 Starting a fresh session, or picking this up cold?
 >

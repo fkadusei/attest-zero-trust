@@ -35,14 +35,37 @@ scenario**, and the **exact failure the plan was trying to avoid**.
 
 ### CVE-2026-97176
 
+Corroborated across **four independent sources** — Red Hat's CVE record, the NVD entry, the upstream
+GitHub advisory, and OpenCVE — rather than a single page. The detail below was checked against each.
+
 | | |
 |---|---|
 | **Component** | `keycloak-services` → `ConditionalLoaAuthenticator` — the "Condition - Level of Authentication" authenticator |
-| **Published** | **2026-09-23** — nine days before this test |
-| **Severity** | Moderate, CVSS 3.1 base **4.2** (`AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N`) |
+| **Published** | **2026-09-23** (Red Hat) / 2026-09-24 (NVD, GHSA) — nine days before this test |
+| **Severity** | Moderate, CVSS 3.1 base **4.2** (`AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N`). SSVC: exploitation `none`, automatable `no`, technical impact `partial` (CISA) |
 | **Weakness** | CWE-862, Missing Authorization |
-| **Fix state** | **Affected — no fix** |
-| **Mitigation** | **"not available"** |
+| **Advisories** | Red Hat [RHBZ#2539964](https://bugzilla.redhat.com/show_bug.cgi?id=2539964) · upstream [GHSA-5jw9-cc9v-8h8r](https://github.com/keycloak/keycloak/security/advisories/GHSA-5jw9-cc9v-8h8r) · [NVD](https://nvd.nist.gov/vuln/detail/CVE-2026-97176) |
+| **Fix state** | Red Hat: **Affected**. Upstream advisory: **no patched version listed** |
+| **Mitigation** | **"not available"** (Red Hat Product Security) |
+
+**Two caveats, stated rather than glossed over:**
+
+1. **NVD's status is "Awaiting Analysis".** The description below is Red Hat's, not an
+   NVD-validated one. NVD may revise it.
+2. **No version range is published.** Neither Red Hat's record nor the upstream advisory lists
+   specific affected or patched versions. "Upstream Keycloak is affected" rests on the advisory
+   being filed against `keycloak/keycloak`, and on the vulnerable classes existing in the shipped
+   artifact — **not** on a published version range.
+
+**What *is* verified about our build**: the classes are present, by inspecting the jar directly:
+
+```
+org/keycloak/authentication/authenticators/conditional/ConditionalLoaAuthenticator.class
+org/keycloak/authentication/authenticators/conditional/ConditionalLoaAuthenticatorFactory.class
+org/keycloak/authentication/authenticators/util/LoAUtil.class
+```
+
+in `org.keycloak.keycloak-services-26.8.0.jar`, in the image we run.
 
 In Red Hat's own words:
 
@@ -70,11 +93,12 @@ all customers".
 ### It ships in our build
 
 ```
-/opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.8.0.jar
+/opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.8.0.jar   (4.5 MB)
 ```
 
-`keycloak-services` is the exact package named in the record, and the
-`conditional-level-of-authentication` authenticator is present and available in our realms.
+The package is the one named in the record, the vulnerable classes are **inside** it (checked by
+extracting the jar, not by matching a name), and the `conditional-level-of-authentication`
+authenticator is present and available in our realms.
 
 ## 3. The honest distinction — what I did NOT do
 
@@ -91,6 +115,16 @@ vulnerability of exactly the kind that matters here. **Either finding alone is e
 mechanism; neither is dressed up as more than it is.**
 
 ## 4. The decision
+
+!!! success "The decision does not depend on the CVE"
+
+    This matters for how much weight the finding can carry. **S5 independently showed, by experiment,
+    that the mechanism did not gate** — the second factor fired regardless of what was requested. That
+    observation stands on its own evidence and does not rely on anyone's advisory.
+
+    The CVE explains *why* it may be worse than simply non-functional, and it is now corroborated
+    across four sources. But even if the CVE were withdrawn or narrowed tomorrow, **the rejection
+    stands**, because our own test already justified it.
 
 **Reject ACR/LoA-based step-up.** Not "retry later", and not "unverified" — rejected, with a stated
 reason, on the same basis as any other rejected dependency.
@@ -162,8 +196,14 @@ trusted, which is worth considerably more than a passing test.
 Early is exactly when this is cheap to find. The alternative was discovering it after building
 step-up into the product, and after telling customers their sensitive actions were protected by it.
 
-## Sources
+## Sources, and how each was used
 
-- [Red Hat Bugzilla 2539964 — CVE-2026-97176](https://bugzilla.redhat.com/show_bug.cgi?id=2539964)
-- [Red Hat CVE data for CVE-2026-97176](https://access.redhat.com/security/cve/cve-2026-97176)
-- [Keycloak issue #28341 — ConditionalLoaAuthenticator documentation incorrect](https://github.com/keycloak/keycloak/issues/28341)
+| Source | Used for |
+|---|---|
+| [NVD CVE-2026-97176](https://nvd.nist.gov/vuln/detail/CVE-2026-97176) | Independent corroboration; also the source of the "Awaiting Analysis" caveat |
+| [Red Hat RHBZ#2539964](https://bugzilla.redhat.com/show_bug.cgi?id=2539964) | The root-cause description and the affected component |
+| [Red Hat CVE record](https://access.redhat.com/security/cve/cve-2026-97176) | Affected products, mitigation unavailability, CVSS |
+| [GHSA-5jw9-cc9v-8h8r](https://github.com/keycloak/keycloak/security/advisories/GHSA-5jw9-cc9v-8h8r) | That **upstream** Keycloak is affected, not only Red Hat's build; and that no patched version is listed |
+| [OpenCVE](https://app.opencve.io/cve/CVE-2026-97176) | Cross-check of scoring and status |
+| Direct inspection of the shipped jar | That the vulnerable classes are present in **our** build |
+| [Keycloak issue #28341](https://github.com/keycloak/keycloak/issues/28341) | Context: the authenticator's own documentation has been reported as incorrect |

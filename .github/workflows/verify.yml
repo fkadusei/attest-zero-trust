@@ -1,0 +1,155 @@
+# Re-verify everything that has been claimed.
+#
+# WHY THIS EXISTS
+#   The verification experiments were originally run by hand. Nothing stopped a
+#   later change from quietly invalidating a result that the documentation still
+#   asserted — which is the exact failure mode this project is trying to avoid.
+#   So the experiments are re-run on every push, and a claim that stops holding
+#   fails the build rather than sitting in a markdown file looking true.
+#
+# WHAT IS AND IS NOT COVERED
+#   covered     documentation integrity; the DPoP experiment (S1); the
+#               hardware-key enforcement experiment (S3)
+#   not covered the step-up experiment (S5) — it needs a browser flow and a
+#               realm rebuild that is slow and, given S5b rejected the mechanism,
+#               of no ongoing value; the browser-key experiment (S4) — its
+#               Chromium runs are reproducible locally in ~30 seconds and add
+#               little as a gate
+#
+# HONEST LIMITATION
+#   This workflow has NOT been run on GitHub. It was written from commands that
+#   were each verified locally on macOS, but GitHub Actions cannot be executed
+#   locally, so the workflow itself is unverified until its first green run.
+#   Treat a first failure as more likely to be the workflow than the code.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Documentation. Fast and certain: it only needs Python and the Markdown.
+  # ---------------------------------------------------------------------------
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the docs toolchain
+        run: pip install -r requirements-docs.txt
+
+      - name: Check the documentation
+        # Links resolve, anchors exist, nothing loads from the network, every
+        # section has a heading, and the committed site matches its sources.
+        run: python3 scripts/check_docs.py
+
+  # ---------------------------------------------------------------------------
+  # The DPoP experiment (S1). No browser needed, so this is a reliable gate.
+  # ---------------------------------------------------------------------------
+  dpop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the lab toolchain
+        run: pip install -r requirements-lab.txt
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:9000/health/ready >/dev/null 2>&1; then
+              echo "ready after ~$((i*3))s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "identity provider did not become ready"
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: S1 — token binding, and our own verifier
+        # Asserts 6/6 enforcement behaviours and 6/6 checks in the verifier.
+        # Exits non-zero if any behaviour regresses.
+        run: python3 lab/keycloak/scripts/dpop_spike.py
+
+      - name: Show the provider log on failure
+        if: failure()
+        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+
+  # ---------------------------------------------------------------------------
+  # The hardware-key experiment (S3). Needs a browser with a virtual
+  # authenticator, driven over the Chrome DevTools Protocol.
+  # ---------------------------------------------------------------------------
+  hardware-keys:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install the toolchains
+        run: |
+          pip install -r requirements-lab.txt
+          npm --prefix lab/keycloak install --no-audit --no-fund
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: Apply the WebAuthn policies
+        run: python3 lab/keycloak/scripts/configure-realms.py
+
+      - name: Launch Chrome with remote debugging
+        # --no-sandbox is required in containers; the virtual authenticator is
+        # reached over CDP rather than through any browser UI.
+        run: |
+          google-chrome --headless --disable-gpu --no-sandbox \
+            --disable-dev-shm-usage --remote-debugging-port=9222 \
+            --user-data-dir=/tmp/ci-chrome about:blank &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "Chrome did not expose a debugging port"
+          exit 1
+
+      - name: S3 — hardware-key enforcement matrix
+        # Five rows; two of them are controls. A control failing means the
+        # experiment is not measuring what it claims, so this must fail loudly.
+        run: bash lab/keycloak/scripts/run-matrix.sh
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100

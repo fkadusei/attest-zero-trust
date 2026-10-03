@@ -7,6 +7,10 @@ what this system deliberately does not do, the risks it accepts with its eyes op
 A claim of security that has never been bounded is not a claim anybody can evaluate. A reader who
 knows where the walls are is far better placed than one who is told there are none.
 
+**This page is the narrative version.** The authoritative record — every claim, its evidence, and its
+confidence level, including the places where we are **not certain** — is the
+[evidence register](evidence.md). Where this page and that one disagree, that one is right.
+
 ## Why write this down at all
 
 A non-goal is a decision not to spend effort. Left unwritten, those decisions get made accidentally —

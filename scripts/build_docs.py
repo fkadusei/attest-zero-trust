@@ -84,6 +84,8 @@ PAGES: list[Page] = [
          "What this deliberately does not do, and the risks we accept."),
 
     # --- Evidence: the part that separates design from wishful thinking -----
+    Page("evidence", "EVIDENCE.md", "Evidence", "Evidence register",
+         "Every load-bearing claim, how it is evidenced, and where confidence is less than total."),
     Page("verification", "docs/src/verification.md", "Evidence", "What we tested",
          "The verification spikes: what was actually run, what passed, and what is still open."),
     Page("decisions", "docs/src/decisions-guide.md", "Evidence", "Decisions and why",

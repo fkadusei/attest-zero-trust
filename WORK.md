@@ -3,6 +3,10 @@
 **Repository:** <https://github.com/fkadusei/attest-zero-trust> (public). Commit and push completed
 slices; keep the commit message honest about what was and was not established.
 
+**When finishing a slice:** update `EVIDENCE.md` — the claims register — in the same commit. A claim
+that is not in there with a confidence level is a claim nobody has checked. Where you are **not**
+certain, record the uncertainty rather than rounding it to confidence.
+
 
 Every piece of remaining work is a numbered **slice**. To tell me what to do next, reply with the
 slice number, for example:

@@ -54,6 +54,11 @@ deliberately explicit about which is which, and you should preserve that distinc
 
 ## 3. What is proven, and what is merely designed
 
+**`EVIDENCE.md` is the authoritative record.** It lists every load-bearing claim with its evidence and
+a confidence level, and it names the places where we are **not** certain. If any other file states a
+claim more strongly than `EVIDENCE.md` records it, **that other file is a bug** — fix it.
+
+
 This distinction is the most important thing to preserve. Do not let it erode.
 
 **Proven by experiment** (both written up on the *What we tested* page of the docs site):

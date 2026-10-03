@@ -1,0 +1,10 @@
+# Python dependencies for the verification lab.
+#
+#   python3 -m venv .venv
+#   ./.venv/bin/pip install -r requirements-docs.txt -r requirements-lab.txt
+#
+# Separate from requirements-docs.txt on purpose: the documentation builds with
+# two pure-Python packages, while the lab needs real cryptography to generate
+# DPoP proofs and TOTP-era test material. A reader who only wants to read the
+# docs should not need this.
+cryptography>=42

@@ -40,6 +40,7 @@
 <div class="navgroup">
 <div class="navtitle">Evidence</div>
 <ul>
+<li><a href="evidence.html">Evidence register</a></li>
 <li><a href="verification.html">What we tested</a></li>
 <li><a href="decisions.html">Decisions and why</a></li>
 </ul></div>
@@ -70,7 +71,7 @@
 <li><a href="#6-what-is-still-to-do">6. What is still to do</a></li>
 <li><a href="#7-what-this-changes-in-the-design">7. What this changes in the design</a></li>
 <li><a href="#8-the-wider-point">8. The wider point</a></li>
-<li><a href="#sources">Sources</a></li>
+<li><a href="#sources-and-how-each-was-used">Sources, and how each was used</a></li>
 </ul></div>
   </aside>
 
@@ -105,6 +106,8 @@ fires unconditionally.</p>
 behaves. That surfaced a vulnerability record describing <strong>exactly this component</strong>, <strong>exactly this
 scenario</strong>, and the <strong>exact failure the plan was trying to avoid</strong>.</p>
 <h3 id="cve-2026-97176">CVE-2026-97176</h3>
+<p>Corroborated across <strong>four independent sources</strong> — Red Hat&rsquo;s CVE record, the NVD entry, the upstream
+GitHub advisory, and OpenCVE — rather than a single page. The detail below was checked against each.</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -119,26 +122,46 @@ scenario</strong>, and the <strong>exact failure the plan was trying to avoid</s
 </tr>
 <tr>
 <td><strong>Published</strong></td>
-<td><strong>2026-09-23</strong> — nine days before this test</td>
+<td><strong>2026-09-23</strong> (Red Hat) / 2026-09-24 (NVD, GHSA) — nine days before this test</td>
 </tr>
 <tr>
 <td><strong>Severity</strong></td>
-<td>Moderate, CVSS 3.1 base <strong>4.2</strong> (<code>AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N</code>)</td>
+<td>Moderate, CVSS 3.1 base <strong>4.2</strong> (<code>AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N</code>). SSVC: exploitation <code>none</code>, automatable <code>no</code>, technical impact <code>partial</code> (CISA)</td>
 </tr>
 <tr>
 <td><strong>Weakness</strong></td>
 <td>CWE-862, Missing Authorization</td>
 </tr>
 <tr>
+<td><strong>Advisories</strong></td>
+<td>Red Hat <a href="https://bugzilla.redhat.com/show_bug.cgi?id=2539964">RHBZ#2539964</a> · upstream <a href="https://github.com/keycloak/keycloak/security/advisories/GHSA-5jw9-cc9v-8h8r">GHSA-5jw9-cc9v-8h8r</a> · <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-97176">NVD</a></td>
+</tr>
+<tr>
 <td><strong>Fix state</strong></td>
-<td><strong>Affected — no fix</strong></td>
+<td>Red Hat: <strong>Affected</strong>. Upstream advisory: <strong>no patched version listed</strong></td>
 </tr>
 <tr>
 <td><strong>Mitigation</strong></td>
-<td><strong>&ldquo;not available&rdquo;</strong></td>
+<td><strong>&ldquo;not available&rdquo;</strong> (Red Hat Product Security)</td>
 </tr>
 </tbody>
 </table></div>
+<p><strong>Two caveats, stated rather than glossed over:</strong></p>
+<ol>
+<li><strong>NVD&rsquo;s status is &ldquo;Awaiting Analysis&rdquo;.</strong> The description below is Red Hat&rsquo;s, not an
+   NVD-validated one. NVD may revise it.</li>
+<li><strong>No version range is published.</strong> Neither Red Hat&rsquo;s record nor the upstream advisory lists
+   specific affected or patched versions. &ldquo;Upstream Keycloak is affected&rdquo; rests on the advisory
+   being filed against <code>keycloak/keycloak</code>, and on the vulnerable classes existing in the shipped
+   artifact — <strong>not</strong> on a published version range.</li>
+</ol>
+<p><strong>What <em>is</em> verified about our build</strong>: the classes are present, by inspecting the jar directly:</p>
+<div class="codehilite"><pre><span></span><code>org/keycloak/authentication/authenticators/conditional/ConditionalLoaAuthenticator.class
+org/keycloak/authentication/authenticators/conditional/ConditionalLoaAuthenticatorFactory.class
+org/keycloak/authentication/authenticators/util/LoAUtil.class
+</code></pre></div>
+
+<p>in <code>org.keycloak.keycloak-services-26.8.0.jar</code>, in the image we run.</p>
 <p>In Red Hat&rsquo;s own words:</p>
 <blockquote>
 <p><em>&ldquo;The issue occurs when a client specifically requires a higher security level for a user who
@@ -160,11 +183,12 @@ correctly in the happy path is <strong>irrelevant</strong> if an attacker can by
 was going to be the control protecting &ldquo;export who can see what&rdquo; and &ldquo;an administrator looking across
 all customers&rdquo;.</p>
 <h3 id="it-ships-in-our-build">It ships in our build</h3>
-<div class="codehilite"><pre><span></span><code>/opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.8.0.jar
+<div class="codehilite"><pre><span></span><code>/opt/keycloak/lib/lib/main/org.keycloak.keycloak-services-26.8.0.jar   (4.5 MB)
 </code></pre></div>
 
-<p><code>keycloak-services</code> is the exact package named in the record, and the
-<code>conditional-level-of-authentication</code> authenticator is present and available in our realms.</p>
+<p>The package is the one named in the record, the vulnerable classes are <strong>inside</strong> it (checked by
+extracting the jar, not by matching a name), and the <code>conditional-level-of-authentication</code>
+authenticator is present and available in our realms.</p>
 </section>
 <section id="3-the-honest-distinction-what-i-did-not-do"><h2>3. The honest distinction — what I did NOT do</h2>
 <p><strong>I did not reproduce the CVE.</strong> This matters and should not be glossed over.</p>
@@ -180,6 +204,15 @@ vulnerability of exactly the kind that matters here. <strong>Either finding alon
 mechanism; neither is dressed up as more than it is.</strong></p>
 </section>
 <section id="4-the-decision"><h2>4. The decision</h2>
+<div class="admonition success">
+<p class="admonition-title">The decision does not depend on the CVE</p>
+<p>This matters for how much weight the finding can carry. <strong>S5 independently showed, by experiment,
+that the mechanism did not gate</strong> — the second factor fired regardless of what was requested. That
+observation stands on its own evidence and does not rely on anyone&rsquo;s advisory.</p>
+<p>The CVE explains <em>why</em> it may be worse than simply non-functional, and it is now corroborated
+across four sources. But even if the CVE were withdrawn or narrowed tomorrow, <strong>the rejection
+stands</strong>, because our own test already justified it.</p>
+</div>
 <p><strong>Reject ACR/LoA-based step-up.</strong> Not &ldquo;retry later&rdquo;, and not &ldquo;unverified&rdquo; — rejected, with a stated
 reason, on the same basis as any other rejected dependency.</p>
 <p>The concrete rule that follows, and it is the important part:</p>
@@ -257,12 +290,45 @@ trusted, which is worth considerably more than a passing test.</p>
 <p>Early is exactly when this is cheap to find. The alternative was discovering it after building
 step-up into the product, and after telling customers their sensitive actions were protected by it.</p>
 </section>
-<section id="sources"><h2>Sources</h2>
-<ul>
-<li><a href="https://bugzilla.redhat.com/show_bug.cgi?id=2539964">Red Hat Bugzilla 2539964 — CVE-2026-97176</a></li>
-<li><a href="https://access.redhat.com/security/cve/cve-2026-97176">Red Hat CVE data for CVE-2026-97176</a></li>
-<li><a href="https://github.com/keycloak/keycloak/issues/28341">Keycloak issue #28341 — ConditionalLoaAuthenticator documentation incorrect</a></li>
-</ul></section>
+<section id="sources-and-how-each-was-used"><h2>Sources, and how each was used</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://nvd.nist.gov/vuln/detail/CVE-2026-97176">NVD CVE-2026-97176</a></td>
+<td>Independent corroboration; also the source of the &ldquo;Awaiting Analysis&rdquo; caveat</td>
+</tr>
+<tr>
+<td><a href="https://bugzilla.redhat.com/show_bug.cgi?id=2539964">Red Hat RHBZ#2539964</a></td>
+<td>The root-cause description and the affected component</td>
+</tr>
+<tr>
+<td><a href="https://access.redhat.com/security/cve/cve-2026-97176">Red Hat CVE record</a></td>
+<td>Affected products, mitigation unavailability, CVSS</td>
+</tr>
+<tr>
+<td><a href="https://github.com/keycloak/keycloak/security/advisories/GHSA-5jw9-cc9v-8h8r">GHSA-5jw9-cc9v-8h8r</a></td>
+<td>That <strong>upstream</strong> Keycloak is affected, not only Red Hat&rsquo;s build; and that no patched version is listed</td>
+</tr>
+<tr>
+<td><a href="https://app.opencve.io/cve/CVE-2026-97176">OpenCVE</a></td>
+<td>Cross-check of scoring and status</td>
+</tr>
+<tr>
+<td>Direct inspection of the shipped jar</td>
+<td>That the vulnerable classes are present in <strong>our</strong> build</td>
+</tr>
+<tr>
+<td><a href="https://github.com/keycloak/keycloak/issues/28341">Keycloak issue #28341</a></td>
+<td>Context: the authenticator&rsquo;s own documentation has been reported as incorrect</td>
+</tr>
+</tbody>
+</table></div></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-browsers.html"><span>Previous</span><b>Lab results: other browsers</b></a></nav>
     <footer>

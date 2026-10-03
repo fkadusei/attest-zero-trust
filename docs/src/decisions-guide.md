@@ -238,6 +238,39 @@ as security-critical code with its own review. There is a genuine consolation: t
 stream exposes **more** authentication detail than the managed service did, so detection can end up
 better even where risk scoring is worse. Both statements are true.
 
+## Rejecting the identity provider's step-up mechanism
+
+**The decision:** sensitive actions do not use the identity provider's "level of authentication"
+step-up. Instead we force a genuine re-authentication and judge **how recently** it happened, using
+the `auth_time` claim — never the `acr` claim.
+
+**Why.** The plan assumed step-up would work through the provider's level mapping, with elevation
+becoming a fact the provider stamps into the token. An experiment could not make it gate at all: a
+subflow demanding a second factor fired regardless of what level was requested, or of nothing being
+requested.
+
+Rather than keep guessing at the configuration, we looked up how the component actually behaves. That
+found **CVE-2026-97176**, published nine days earlier: *a user with a low-level session can obtain a
+token asserting a higher level than they performed.* No fix, and no available mitigation, in a
+package that ships in our build.
+
+**Why that settles it.** The question "can we configure this correctly?" became irrelevant. A control
+an attacker can bypass is not a control, however well configured — and this one was going to protect
+"export who can see what" and "an administrator looking across all customers".
+
+**The principle it produced, which outlives step-up:** *a claim the issuer writes is not a claim the
+resource server can rely on without checking.* We learned this once already, with token binding, where
+the provider bound a token but our own API still had to verify it. Learning it twice is why it is
+written down as a principle rather than an incident.
+
+**What it costs.** A full re-authentication is blunter than a targeted step-up, and it is work the
+provider would otherwise have owned. On the privileged realm the objection is smaller than it looks:
+the only way to sign in there is a hardware key, so re-running the flow *is* a fresh hardware-key
+assertion — freshness and strength from the same act.
+
+**Revisit only if** an upstream fix ships — and only on the evidence of a test that **tries to exploit
+the bypass**, never on the strength of a patch note.
+
 ## The operating decision, and the one question left
 
 Running our own identity provider was the decision that shaped everything else here, and it has been
@@ -261,12 +294,16 @@ declarative realm configuration, migrating to a managed Keycloak service later w
 clients at a new issuer and re-importing configuration. The painful part would be every user
 re-registering their passkeys, which is worth knowing before it becomes urgent.
 
-The full list of open questions is in [the register](adr.md).
+The full list of open questions is in [the register](adr.md), and every claim's evidence and
+confidence is in [the evidence register](evidence.md).
 
 ## Verification work not yet done
 
-One claim has been tested. Several have not, and each could change a decision rather than merely
-confirm one. [The verification page](verification.md) tracks them; in summary:
+**`EVIDENCE.md` is the authoritative record** of every claim, its evidence and its confidence level.
+Reach for it before repeating anything from this page as fact.
+
+Several claims are tested; several are not, and the untested ones could change a decision rather than
+merely confirm one. In summary:
 
 | Not yet verified | Why it could change the design |
 |---|---|
@@ -275,7 +312,9 @@ confirm one. [The verification page](verification.md) tracks them; in summary:
 | **Running the identity provider as more than one instance** | A single instance is not a viable production target. The discovery mechanism is non-obvious on our chosen platform and could force a hosting change. |
 | **How quickly a revoked session actually stops working** | The target is under a minute. The mechanism involves a cache whose lifetime silently becomes the real figure, and caches drift. |
 | **A real phishing-proxy test** against our own sign-in flow | This is the attack the whole project exists to defeat. It should be demonstrated, not assumed. |
-| **The regulatory position on synced versus device-bound passkeys** | Determines whether a formal assurance-level claim can be made at all, or only the broader "phishing-resistant" claim. |
+| **The regulatory position on synced versus device-bound passkeys** | Determines whether a formal assurance-level claim can be made at all, or only the broader "phishing-resistant" claim. The source is read only in summary so far, which is not enough to claim anything publicly. |
+| **Whether the replacement for step-up actually forces a fresh check** | It is a plan, not a control. If it does not work either, sensitive actions have no freshness control at all. |
+| **Whether Firefox and Safari keep the session key** | Only Chromium has been tested, and it is one engine in three skins. Safari is the likeliest to evict stored data. |
 
 ## Where to go next
 
