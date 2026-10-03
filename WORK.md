@@ -51,6 +51,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S9b** | Is a BROAD relying-party ID actually exploitable? | ✅ **done — YES, measured. No `/etc/hosts` needed** |
 | **S4b** | Firefox and Safari — the last two engines | ⏸ needs ~1 minute at the keyboard |
 | **L1** | The API as a policy enforcement point: token verification | ✅ **done — 28/28, 7/7 mutants caught** |
+| **L1b** | Cloud-agnostic boundaries: config + ports | ✅ **done — ADR-015, 47/47, 6/6 mutants** |
 | **L2** | DPoP proof verification at the API | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |

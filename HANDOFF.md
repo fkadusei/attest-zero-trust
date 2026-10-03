@@ -222,6 +222,20 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Cloud-agnostic is a REQUIREMENT, and it contradicts a decision already made.** ADR-008 chose
+  DynamoDB, which exists only on AWS. **ADR-015 now governs**: the domain and its interfaces are
+  portable, cloud services appear only behind adapters, and **the portable adapter is the default
+  and the one CI tests**. Superseded in practice: DynamoDB (→ PostgreSQL), AVP (→ optional, because
+  Cedar is the portable part and the service is not), Lambda/API Gateway (→ containers).
+  **The security argument and the portability argument point the same way**: PostgreSQL Row-Level
+  Security enforces the tenant boundary *in the database*, whereas a DynamoDB partition key is only
+  a convention the application must honour.
+- **Keep the core config cloud-free.** `src/config.ts` reads no `AWS_*`, contacts nothing at
+  startup, and has a test asserting that supplying AWS variables changes nothing. If a cloud concept
+  appears there, the boundary has already leaked.
+- **When a mutation fails to APPLY, refuse to report.** The config meta-test initially printed
+  "MUTATION FAILED TO APPLY" for one mutant because of a shell-escaping bug — and correctly did not
+  claim it was caught. A harness that reports success when it did nothing is worse than no harness.
 - **Keycloak puts the token type in TWO places, and they disagree.** Header `typ` is `"JWT"` for
   **every** token; the payload claim `typ` is `"Bearer"` for an access token and `"ID"` for an ID
   token. **Only the payload claim distinguishes them**, and it is trustworthy only after the

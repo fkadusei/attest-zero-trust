@@ -74,7 +74,7 @@
 <li class="lvl3"><a href="#adr-005-retain-amazon-verified-permissions-cedar-reject-keycloak-authorization-services">ADR-005 — Retain Amazon Verified Permissions (Cedar); reject Keycloak Authorization Services</a></li>
 <li class="lvl3"><a href="#adr-006-tenant-isolation-as-a-fail-closed-forbid-with-tenant-id-sourced-only-from-the-token">ADR-006 — Tenant isolation as a fail-closed forbid, with tenant ID sourced only from the token</a></li>
 <li class="lvl3"><a href="#adr-007-native-keycloak-passkeys-with-conditional-ui-no-custom-ceremony">ADR-007 — Native Keycloak passkeys with conditional UI; no custom ceremony</a></li>
-<li class="lvl3"><a href="#adr-008-single-dynamodb-table-with-a-tenant-partition-key-pool-model">ADR-008 — Single DynamoDB table with a tenant partition key (pool model)</a></li>
+<li class="lvl3"><a href="#adr-008-pooled-tenancy-with-a-tenant-key-pool-model">ADR-008 — Pooled tenancy with a tenant key (pool model)</a></li>
 <li class="lvl3"><a href="#adr-009-aws-management-plane-uses-iam-identity-center-entirely-outside-keycloak">ADR-009 — AWS management plane uses IAM Identity Center, entirely outside Keycloak</a></li>
 <li class="lvl3"><a href="#adr-010-self-host-keycloak-on-ecs-fargate-rds-postgres-multi-az">ADR-010 — Self-host Keycloak on ECS Fargate + RDS Postgres Multi-AZ</a></li>
 <li class="lvl3"><a href="#adr-011-realm-configuration-as-code-applied-by-ci">ADR-011 — Realm configuration as code, applied by CI</a></li>
@@ -94,6 +94,7 @@
 <li><a href="#part-4-spike-summary">Part 4 — Spike summary</a></li>
 <li><a href="#part-5-what-i-could-not-verify">Part 5 — What I could not verify</a></li>
 <li class="lvl3"><a href="#adr-014-typescript-on-node-for-the-application-stack">ADR-014 — TypeScript on Node for the application stack</a></li>
+<li class="lvl3"><a href="#adr-015-cloud-agnostic-by-construction-ports-and-adapters">ADR-015 — Cloud-agnostic by construction: ports and adapters</a></li>
 </ul></div>
   </aside>
 
@@ -281,8 +282,16 @@ anyway (custom themes carry real upgrade cost and are a non-goal).</p>
 maintain across Keycloak upgrades). Conditional UI only (rejected: hardware keys need the modal
 path).</p>
 <hr>
-<h3 id="adr-008-single-dynamodb-table-with-a-tenant-partition-key-pool-model">ADR-008 — Single DynamoDB table with a tenant partition key (pool model)</h3>
-<p><strong>Status:</strong> Accepted — unchanged from the original plan</p>
+<h3 id="adr-008-pooled-tenancy-with-a-tenant-key-pool-model">ADR-008 — Pooled tenancy with a tenant key (pool model)</h3>
+<p><strong>Status:</strong> <strong>Amended by ADR-015</strong> — the pooled decision stands; the choice of <strong>DynamoDB does not</strong>.
+Storage is chosen by the port, and the portable default is PostgreSQL.</p>
+<p><strong>Amendment (see ADR-015):</strong> Pooled vs siloed was the real decision, and pooled is still right. But
+naming a specific managed service in a decision this load-bearing is what created the cloud lock-in:
+DynamoDB exists only on AWS. Worse, a DynamoDB partition key is enforced by <strong>application code
+alone</strong> — nothing in the database refuses a query that omits <code>tenant_id</code>. PostgreSQL <strong>Row-Level
+Security</strong> enforces the same boundary <em>inside the database</em>, which is a second layer under the Cedar
+policy rather than a restatement of it. The portability argument and the security argument point the
+same way.</p>
 <p><strong>Context:</strong> Tenant isolation can be siloed (per-tenant tables/stacks) or pooled (shared tables with
 tenant-keyed access).</p>
 <p><strong>Decision:</strong> Pooled — a single table with <code>tenant_id</code> in the partition key, isolation enforced by
@@ -914,6 +923,95 @@ experiment; it becomes a decision the moment application code starts.</p>
   throughput-bound.</li>
 <li><strong>Java / Quarkus</strong> — the natural neighbour to Keycloak. Rejected as heaviest for the least benefit
   at this size.</li>
+</ul>
+<hr>
+<h3 id="adr-015-cloud-agnostic-by-construction-ports-and-adapters">ADR-015 — Cloud-agnostic by construction: ports and adapters</h3>
+<p><strong>Status:</strong> Accepted — <strong>a requirement from the project owner</strong>, and it changes decisions already made.</p>
+<p><strong>Context:</strong> The plan targets AWS throughout. Counting the service references is instructive:
+Cognito 37 (already superseded by ADR-001), RDS 23, S3 21, Fargate 16, Lambda 9, DynamoDB 8,
+API Gateway 8, CloudFront 7, Verified Permissions 6, plus KMS, Secrets Manager, EventBridge and
+CloudWatch.</p>
+<p>Most of those are <strong>substitutable</strong> — every cloud has object storage, a secret store, a message bus
+and a managed Postgres. Three are not:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Why it locks you in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ADR-008 — DynamoDB</strong></td>
+<td>AWS-only. No equivalent elsewhere.</td>
+</tr>
+<tr>
+<td><strong>Amazon Verified Permissions</strong></td>
+<td>AWS-only <em>service</em>. But <strong>Cedar is open source</strong> — the policy <em>language</em> is portable even though the service is not.</td>
+</tr>
+<tr>
+<td><strong>Lambda + API Gateway</strong></td>
+<td>AWS-only compute. <strong>Containers run everywhere</strong>, including on a laptop.</td>
+</tr>
+</tbody>
+</table></div>
+<p>There is also a positive argument, not merely an avoidance one. <strong>PostgreSQL Row-Level Security
+enforces a tenant boundary inside the database.</strong> A DynamoDB partition key is a convention the
+application must honour; RLS is a rule the database refuses to break. For a system whose entire
+premise is that a logic error must not become a cross-tenant breach, that is a genuine second layer
+(ADR-006), not a portability tax.</p>
+<p><strong>Decision:</strong> The domain and its interfaces are cloud-agnostic; cloud services appear only behind
+adapters, and the <strong>default adapter is the portable one</strong>.</p>
+<ol>
+<li><strong>No cloud SDK in the domain.</strong> SDKs are imported by adapters and nowhere else. A reviewer should
+   be able to read the domain without knowing which cloud it runs on.</li>
+<li><strong>Ports</strong> define every capability that varies: policy decision, persistence, object storage,
+   secret resolution, event publishing, clock.</li>
+<li><strong>The portable adapter is the default and the one CI tests.</strong> Cloud-specific adapters are
+   <em>additions</em>. Tests never require a cloud.</li>
+<li><strong>PostgreSQL is the default persistence</strong>, with RLS as a second tenant boundary. DynamoDB, if ever
+   used, is an adapter.</li>
+<li><strong>Cedar is written as portable policy text</strong>, evaluated in-process by <code>cedar-wasm</code> by default.
+   Amazon Verified Permissions is an optional adapter for the <em>same policies</em> — no rewrite.</li>
+<li><strong>The deployment unit is a container.</strong> It runs on ECS, EKS, Cloud Run, App Service, Kubernetes
+   anywhere, or a plain VM. No handler-shaped code in the domain.</li>
+<li><strong>Configuration is environment-only</strong>, validated at startup. No cloud metadata calls, no
+   implicit credentials.</li>
+<li><strong>Infrastructure as code lives in a separate layer</strong> (<code>infra/</code>), because IaC is inherently
+   cloud-specific. The application must not depend on it.</li>
+</ol>
+<p><strong>Consequences — good:</strong></p>
+<ul>
+<li><strong>Local fidelity.</strong> The Docker lab <em>is</em> the deployment shape, so a passing local test means
+  something about production. The S9/S9b work already showed how much this matters.</li>
+<li><strong>RLS adds a real tenant boundary</strong> beneath the policy engine.</li>
+<li><strong>Cedar remains the policy language</strong>, so ADR-005&rsquo;s reasoning survives even though AVP becomes
+  optional.</li>
+<li><strong>No lock-in on price or terms.</strong> The same artifact runs anywhere.</li>
+<li><strong>On-premise and air-gapped become possible</strong>, which for a compliance-evidence product is a real
+  market, not a nicety.</li>
+</ul>
+<p><strong>Consequences — bad:</strong></p>
+<ul>
+<li><strong>Managed-service leverage is given up.</strong> AVP&rsquo;s managed policy store, DynamoDB&rsquo;s serverless
+  scaling and Lambda&rsquo;s zero-ops model all do work we now do ourselves. Portability is not free.</li>
+<li><strong>More operational surface.</strong> Running Postgres and containers is more work than a managed
+  serverless stack. If this ever ships, someone must own it.</li>
+<li><strong>Lowest-common-denominator risk.</strong> Designing for every cloud can mean exploiting none. Mitigated
+  by rule 3: portable by default, cloud-optimised by explicit exception, never the reverse.</li>
+<li><strong>Containers are not automatically portable.</strong> A container with AWS credentials baked in is locked
+  in just as surely as a Lambda. Rule 1 is what actually delivers this, not Docker.</li>
+</ul>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li><strong>AWS-only, revisit later.</strong> Rejected: the cost of portability is small <em>now</em> and grows with every
+  line written against a proprietary API. Retrofitting it after the system exists is a rewrite.</li>
+<li><strong>Abstract everything behind a cloud-agnostic framework</strong> (e.g. a multi-cloud SDK). Rejected: the
+  abstraction usually leaks, and you inherit a dependency you do not control in exchange for a
+  promise that rarely holds. Narrow, explicit ports are better than a broad, vague one.</li>
+<li><strong>Kubernetes as the portability layer.</strong> Rejected for now: it is portable, but at this size it is a
+  large operational burden for a system that does not exist yet. Containers give most of the
+  benefit without it. <strong>Revisit when there is a reason to run more than one service.</strong></li>
 </ul></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="threat-model.html"><span>Previous</span><b>Threat model</b></a><a class="pn next" href="lab-results.html"><span>Next</span><b>Lab results: hardware keys</b></a></nav>

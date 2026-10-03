@@ -233,9 +233,18 @@ path).
 
 ---
 
-### ADR-008 — Single DynamoDB table with a tenant partition key (pool model)
+### ADR-008 — Pooled tenancy with a tenant key (pool model)
 
-**Status:** Accepted — unchanged from the original plan
+**Status:** **Amended by ADR-015** — the pooled decision stands; the choice of **DynamoDB does not**.
+Storage is chosen by the port, and the portable default is PostgreSQL.
+
+**Amendment (see ADR-015):** Pooled vs siloed was the real decision, and pooled is still right. But
+naming a specific managed service in a decision this load-bearing is what created the cloud lock-in:
+DynamoDB exists only on AWS. Worse, a DynamoDB partition key is enforced by **application code
+alone** — nothing in the database refuses a query that omits `tenant_id`. PostgreSQL **Row-Level
+Security** enforces the same boundary *inside the database*, which is a second layer under the Cedar
+policy rather than a restatement of it. The portability argument and the security argument point the
+same way.
 
 **Context:** Tenant isolation can be siloed (per-tenant tables/stacks) or pooled (shared tables with
 tenant-keyed access).
@@ -800,3 +809,82 @@ The lab's browser harnesses are already Node (puppeteer), so tests and applicati
   throughput-bound.
 - **Java / Quarkus** — the natural neighbour to Keycloak. Rejected as heaviest for the least benefit
   at this size.
+
+---
+
+### ADR-015 — Cloud-agnostic by construction: ports and adapters
+
+**Status:** Accepted — **a requirement from the project owner**, and it changes decisions already made.
+
+**Context:** The plan targets AWS throughout. Counting the service references is instructive:
+Cognito 37 (already superseded by ADR-001), RDS 23, S3 21, Fargate 16, Lambda 9, DynamoDB 8,
+API Gateway 8, CloudFront 7, Verified Permissions 6, plus KMS, Secrets Manager, EventBridge and
+CloudWatch.
+
+Most of those are **substitutable** — every cloud has object storage, a secret store, a message bus
+and a managed Postgres. Three are not:
+
+| Decision | Why it locks you in |
+|---|---|
+| **ADR-008 — DynamoDB** | AWS-only. No equivalent elsewhere. |
+| **Amazon Verified Permissions** | AWS-only *service*. But **Cedar is open source** — the policy *language* is portable even though the service is not. |
+| **Lambda + API Gateway** | AWS-only compute. **Containers run everywhere**, including on a laptop. |
+
+There is also a positive argument, not merely an avoidance one. **PostgreSQL Row-Level Security
+enforces a tenant boundary inside the database.** A DynamoDB partition key is a convention the
+application must honour; RLS is a rule the database refuses to break. For a system whose entire
+premise is that a logic error must not become a cross-tenant breach, that is a genuine second layer
+(ADR-006), not a portability tax.
+
+**Decision:** The domain and its interfaces are cloud-agnostic; cloud services appear only behind
+adapters, and the **default adapter is the portable one**.
+
+1. **No cloud SDK in the domain.** SDKs are imported by adapters and nowhere else. A reviewer should
+   be able to read the domain without knowing which cloud it runs on.
+2. **Ports** define every capability that varies: policy decision, persistence, object storage,
+   secret resolution, event publishing, clock.
+3. **The portable adapter is the default and the one CI tests.** Cloud-specific adapters are
+   *additions*. Tests never require a cloud.
+4. **PostgreSQL is the default persistence**, with RLS as a second tenant boundary. DynamoDB, if ever
+   used, is an adapter.
+5. **Cedar is written as portable policy text**, evaluated in-process by `cedar-wasm` by default.
+   Amazon Verified Permissions is an optional adapter for the *same policies* — no rewrite.
+6. **The deployment unit is a container.** It runs on ECS, EKS, Cloud Run, App Service, Kubernetes
+   anywhere, or a plain VM. No handler-shaped code in the domain.
+7. **Configuration is environment-only**, validated at startup. No cloud metadata calls, no
+   implicit credentials.
+8. **Infrastructure as code lives in a separate layer** (`infra/`), because IaC is inherently
+   cloud-specific. The application must not depend on it.
+
+**Consequences — good:**
+
+- **Local fidelity.** The Docker lab *is* the deployment shape, so a passing local test means
+  something about production. The S9/S9b work already showed how much this matters.
+- **RLS adds a real tenant boundary** beneath the policy engine.
+- **Cedar remains the policy language**, so ADR-005's reasoning survives even though AVP becomes
+  optional.
+- **No lock-in on price or terms.** The same artifact runs anywhere.
+- **On-premise and air-gapped become possible**, which for a compliance-evidence product is a real
+  market, not a nicety.
+
+**Consequences — bad:**
+
+- **Managed-service leverage is given up.** AVP's managed policy store, DynamoDB's serverless
+  scaling and Lambda's zero-ops model all do work we now do ourselves. Portability is not free.
+- **More operational surface.** Running Postgres and containers is more work than a managed
+  serverless stack. If this ever ships, someone must own it.
+- **Lowest-common-denominator risk.** Designing for every cloud can mean exploiting none. Mitigated
+  by rule 3: portable by default, cloud-optimised by explicit exception, never the reverse.
+- **Containers are not automatically portable.** A container with AWS credentials baked in is locked
+  in just as surely as a Lambda. Rule 1 is what actually delivers this, not Docker.
+
+**Alternatives considered:**
+
+- **AWS-only, revisit later.** Rejected: the cost of portability is small *now* and grows with every
+  line written against a proprietary API. Retrofitting it after the system exists is a rewrite.
+- **Abstract everything behind a cloud-agnostic framework** (e.g. a multi-cloud SDK). Rejected: the
+  abstraction usually leaks, and you inherit a dependency you do not control in exchange for a
+  promise that rarely holds. Narrow, explicit ports are better than a broad, vague one.
+- **Kubernetes as the portability layer.** Rejected for now: it is portable, but at this size it is a
+  large operational burden for a system that does not exist yet. Containers give most of the
+  benefit without it. **Revisit when there is a reason to run more than one service.**
