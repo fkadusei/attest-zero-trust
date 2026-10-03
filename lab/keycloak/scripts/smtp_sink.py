@@ -13,9 +13,23 @@ WHY THIS EXISTS
     Deliberately dependency-free — a few dozen lines of the SMTP dialogue is less
     risk than another package in a security lab, and it does exactly one thing.
 
+EXPOSURE — read this before changing the default
+    By default the sink listens on 127.0.0.1 only, so nothing off the machine can
+    reach it.
+
+    That is not enough when the sender is a CONTAINER. A container reaching the
+    host over the Docker bridge arrives on the bridge interface, not on loopback,
+    so a loopback-only listener REFUSES it. (It appears to work under Docker
+    Desktop because that proxies host.docker.internal to the host's loopback —
+    which hides the problem until the same job runs on a Linux runner.)
+
+    Use --host 0.0.0.0 when a container must reach it, and understand that this
+    then accepts mail from anything that can route to the machine.
+
 Usage:
-    python3 smtp_sink.py [port] [outdir]     # default 2525 / /tmp/attest-mail
-    python3 smtp_sink.py --once [port] ...   # capture one message and exit
+    python3 smtp_sink.py [port] [outdir]          # default 2525 / /tmp/attest-mail
+    python3 smtp_sink.py --host 0.0.0.0 [port]    # reachable from a container
+    python3 smtp_sink.py --once [port] ...        # capture one message and exit
 """
 from __future__ import annotations
 
@@ -95,17 +109,23 @@ def handle(conn: socket.socket, addr, outdir: pathlib.Path, once: bool, done: th
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    once = "--once" in sys.argv
+    argv = sys.argv[1:]
+    once = "--once" in argv
+    host = "127.0.0.1"
+    if "--host" in argv:
+        i = argv.index("--host")
+        host = argv[i + 1]
+        del argv[i:i + 2]
+    args = [a for a in argv if not a.startswith("--")]
     port = int(args[0]) if args else PORT
     outdir = pathlib.Path(args[1]) if len(args) > 1 else OUTDIR
     outdir.mkdir(parents=True, exist_ok=True)
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", port))
+    srv.bind((host, port))
     srv.listen(8)
-    print(f"  [smtp] listening on 127.0.0.1:{port}, writing to {outdir}", flush=True)
+    print(f"  [smtp] listening on {host}:{port}, writing to {outdir}", flush=True)
 
     done = threading.Event()
     srv.settimeout(1.0)
