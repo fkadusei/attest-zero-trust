@@ -187,6 +187,31 @@ def user_id(name: str) -> str:
     return ensure_user(name)
 
 
+POLICY_KEYS = ("webAuthnPolicyPasswordlessAcceptableAaguids",
+               "webAuthnPolicyPasswordlessAttestationConveyancePreference")
+
+
+def relax_policy() -> dict:
+    """Relax the AAGUID policy so a VIRTUAL authenticator may enrol. Returns the
+    strict values for restoring.
+
+    This has to wrap EVERY step that completes an enrolment, not just the first
+    one. F4 restored the policy at its end; F5 then tried to complete a second
+    enrolment against YubiKey-only attestation, Keycloak refused the credential,
+    the required action never cleared — and F5b consequently saw the link still
+    alive and failed. It passed locally by luck of ordering, which is exactly the
+    kind of environment-dependent result this project keeps having to stamp out.
+    """
+    st, realm = call("GET", f"/{REALM}")
+    strict = {k: realm.get(k) for k in POLICY_KEYS}
+    call("PUT", f"/{REALM}", {**realm, POLICY_KEYS[0]: [], POLICY_KEYS[1]: "none"})
+    return strict
+
+
+def restore_policy(strict: dict) -> None:
+    call("PUT", f"/{REALM}", {**call("GET", f"/{REALM}")[1], **strict})
+
+
 def webauthn_ids(uid: str) -> list[str]:
     st, creds = call("GET", f"/{REALM}/users/{uid}/credentials")
     return sorted(c["id"] for c in (creds or []) if c.get("type", "").startswith("webauthn"))
@@ -340,13 +365,7 @@ def main() -> int:
     # policy doing its job, so the policy is relaxed for enrolment and restored
     # afterwards. (This is why the first F4 run reported "completed" with no
     # credential: the ceremony finished and Keycloak refused to store it.)
-    st, realm_repr = call("GET", f"/{REALM}")
-    strict = {k: realm_repr.get(k) for k in (
-        "webAuthnPolicyPasswordlessAcceptableAaguids",
-        "webAuthnPolicyPasswordlessAttestationConveyancePreference")}
-    call("PUT", f"/{REALM}", {**realm_repr,
-         "webAuthnPolicyPasswordlessAcceptableAaguids": [],
-         "webAuthnPolicyPasswordlessAttestationConveyancePreference": "none"})
+    strict = relax_policy()
     print(f"     policy relaxed for enrolment: {strict}")
     check("setup: policy relaxed so the virtual authenticator is accepted",
           call("GET", f"/{REALM}")[1].get("webAuthnPolicyPasswordlessAcceptableAaguids"), [])
@@ -373,7 +392,7 @@ def main() -> int:
     completed, new_creds = complete_enrolment(link4) if link4 else (False, [])
 
     # Restore the strict policy BEFORE asserting on the outcome.
-    call("PUT", f"/{REALM}", {**call("GET", f"/{REALM}")[1], **strict})
+    restore_policy(strict)
     print(f"     strict policy restored: {strict}")
     check("F4b the enrolment was actually COMPLETED", completed, True)
     check("F4c a NEW passkey appeared on the NAMED user",
@@ -394,6 +413,10 @@ def main() -> int:
     # bounds how long an intercepted link is dangerous.
     print("\n[F5] CONTROL: the link dies once the action COMPLETES")
     uid5 = user_id(USER)
+    # Relax the policy HERE TOO. Without it the completion below is silently
+    # refused by the AAGUID allowlist, the required action never clears, and the
+    # link correctly stays alive — so the test would report a false failure.
+    strict5 = relax_policy()
     st, creds = call("GET", f"/{REALM}/users/{uid5}/credentials")
     for c in (creds or []):
         if c.get("type", "").startswith("webauthn"):
@@ -408,8 +431,13 @@ def main() -> int:
     print(f"       re-opening before completion -> {again} (recorded below)")
 
     completed5, _ = complete_enrolment(link5) if link5 else (False, [])
+    action_cleared = "webauthn-register-passwordless" not in (
+        call("GET", f"/{REALM}/users/{uid5}")[1].get("requiredActions") or [])
+    check("F5b the enrolment actually COMPLETED (action cleared)", action_cleared, True)
+
     after = open_link(link5)["outcome"] if link5 else "no-link"
-    check("F5b the link is DEAD after the action completes", after, "refused")
+    check("F5c the link is DEAD after the action completes", after, "refused")
+    restore_policy(strict5)
 
     if again == "action_page":
         FINDINGS.append(
