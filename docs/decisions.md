@@ -374,6 +374,51 @@ option open, which is itself an argument for building the integration behind an 
 
 ---
 
+### ADR-013 — Reject ACR/LoA-based step-up; force re-authentication and verify `auth_time`
+
+**Status:** Accepted
+
+**Context:** The plan assumed step-up authentication would work through Keycloak's ACR → Level of
+Authentication mapping, with elevation becoming an IdP-issued, token-carried fact. S5 tested that
+assumption and it failed: a subflow configured to require a second factor at level 2 executed
+regardless of the level requested, or of nothing being requested.
+
+S5b then found the decisive fact. The component involved — `ConditionalLoaAuthenticator` in
+`keycloak-services` — carries **CVE-2026-97176**, published 2026-09-23, nine days before our test:
+
+- **An authenticated user with a low-level session can obtain a token asserting a higher level than
+  they actually performed.**
+- Fix state: **Affected**. Mitigation: **"not available"**.
+- The exact package (`org.keycloak.keycloak-services-26.8.0.jar`) ships in our build.
+
+**Decision:** Do **not** build step-up on ACR/LoA. Force a genuine re-authentication with
+`prompt=login` plus `max_age=0`, and evaluate **freshness** using the `auth_time` claim — never the
+`acr` claim.
+
+**Consequences — good:** The bypass is avoided entirely rather than mitigated. For the privileged
+realm, re-authentication means a fresh hardware-key assertion, so freshness and strength come from the
+same act. `auth_time` records when authentication actually happened, so it is unaffected by a flaw in
+how a *level* was computed.
+
+**Consequences — bad:** A full re-authentication is a blunter experience than a targeted step-up, and
+on the customer realm it proves freshness plus whatever strength that realm's policy provides — which
+must be stated plainly rather than implied. This is custom work the IdP would otherwise have owned.
+
+**The rule this establishes:** a claim the issuer *writes* is not a claim the resource server can
+*rely on* without checking. This is the same lesson as DPoP in S1, and it is now written down twice
+because we have now learned it twice.
+
+**Alternatives rejected:** LoA-based step-up (rejected: live unmitigated CVE, and the mechanism did
+not gate in testing either). Application-side step-up with a fresh WebAuthn assertion verified by our
+own API (rejected *for now*: more custom security code, and `prompt=login` already yields a fresh
+passkey assertion on the privileged realm). Second-approver workflow instead of step-up (still used
+for the highest-risk operations, but it answers a different question).
+
+**Revisit trigger:** an upstream fix for CVE-2026-97176 — and only on the evidence of a test that
+**tries to exploit the bypass**, not on the existence of a patch note.
+
+---
+
 ## Part 2 — Open questions requiring a human decision
 
 These are not research tasks. They need a stakeholder decision, and several affect cost or scope.
@@ -623,7 +668,7 @@ unmeasured, because it will be assumed to be fast.
 | 2 | AVP accepts Keycloak tokens | Phase 3 | 1 d | Use `IsAuthorized` with explicit principal |
 | 3 | AAGUID allowlist enforcement | ~~Phase 1~~ **DONE** | ~0.5 d | **RESOLVED — enforced.** Residual: physical-key happy path unproven |
 | 4 | Browser key persistence | Phase 2 | 1 d | Documented degraded mode, shorter TTLs |
-| 5 | ACR step-up forces fresh assertion | Phase 4 | 1 d | Full re-authentication instead of elevation |
+| 5 | ACR step-up forces fresh assertion | Phase 4 | ~1 d | **RESOLVED — does not work, and the component has an unmitigated CVE. See ADR-013** |
 | 6 | NIST sup1 consequence | Compliance claim | 1 d | Second factor, or narrower public claim |
 | 7 | Keycloak clustering on Fargate | Phase 0/1 | 1–1.5 d | Stickiness, external cache, or revisit hosting |
 | 8 | Revocation latency < 60s | Phase 2 | 1 d | Shorter cache, introspection, or documented higher figure |

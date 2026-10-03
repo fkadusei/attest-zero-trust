@@ -55,6 +55,7 @@
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -71,6 +72,7 @@
 <li class="lvl3"><a href="#adr-010-self-host-keycloak-on-ecs-fargate-rds-postgres-multi-az">ADR-010 — Self-host Keycloak on ECS Fargate + RDS Postgres Multi-AZ</a></li>
 <li class="lvl3"><a href="#adr-011-realm-configuration-as-code-applied-by-ci">ADR-011 — Realm configuration as code, applied by CI</a></li>
 <li class="lvl3"><a href="#adr-012-replace-managed-threat-protection-with-custom-authenticators-and-native-events">ADR-012 — Replace managed threat protection with custom authenticators and native events</a></li>
+<li class="lvl3"><a href="#adr-013-reject-acrloa-based-step-up-force-re-authentication-and-verify-auth_time">ADR-013 — Reject ACR/LoA-based step-up; force re-authentication and verify auth_time</a></li>
 <li><a href="#part-2-open-questions-requiring-a-human-decision">Part 2 — Open questions requiring a human decision</a></li>
 <li><a href="#part-3-verification-spikes">Part 3 — Verification spikes</a></li>
 <li class="lvl3"><a href="#dissolved-since-the-previous-revision">Dissolved since the previous revision</a></li>
@@ -371,6 +373,41 @@ T2-adjacent risk signals unaddressed for the customer realm, which still has pas
 third-party risk engine (deferred: plausible once scale justifies it; the SPI boundary keeps that
 option open, which is itself an argument for building the integration behind an interface).</p>
 <hr>
+<h3 id="adr-013-reject-acrloa-based-step-up-force-re-authentication-and-verify-auth_time">ADR-013 — Reject ACR/LoA-based step-up; force re-authentication and verify <code>auth_time</code></h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> The plan assumed step-up authentication would work through Keycloak&rsquo;s ACR → Level of
+Authentication mapping, with elevation becoming an IdP-issued, token-carried fact. S5 tested that
+assumption and it failed: a subflow configured to require a second factor at level 2 executed
+regardless of the level requested, or of nothing being requested.</p>
+<p>S5b then found the decisive fact. The component involved — <code>ConditionalLoaAuthenticator</code> in
+<code>keycloak-services</code> — carries <strong>CVE-2026-97176</strong>, published 2026-09-23, nine days before our test:</p>
+<ul>
+<li><strong>An authenticated user with a low-level session can obtain a token asserting a higher level than
+  they actually performed.</strong></li>
+<li>Fix state: <strong>Affected</strong>. Mitigation: <strong>&ldquo;not available&rdquo;</strong>.</li>
+<li>The exact package (<code>org.keycloak.keycloak-services-26.8.0.jar</code>) ships in our build.</li>
+</ul>
+<p><strong>Decision:</strong> Do <strong>not</strong> build step-up on ACR/LoA. Force a genuine re-authentication with
+<code>prompt=login</code> plus <code>max_age=0</code>, and evaluate <strong>freshness</strong> using the <code>auth_time</code> claim — never the
+<code>acr</code> claim.</p>
+<p><strong>Consequences — good:</strong> The bypass is avoided entirely rather than mitigated. For the privileged
+realm, re-authentication means a fresh hardware-key assertion, so freshness and strength come from the
+same act. <code>auth_time</code> records when authentication actually happened, so it is unaffected by a flaw in
+how a <em>level</em> was computed.</p>
+<p><strong>Consequences — bad:</strong> A full re-authentication is a blunter experience than a targeted step-up, and
+on the customer realm it proves freshness plus whatever strength that realm&rsquo;s policy provides — which
+must be stated plainly rather than implied. This is custom work the IdP would otherwise have owned.</p>
+<p><strong>The rule this establishes:</strong> a claim the issuer <em>writes</em> is not a claim the resource server can
+<em>rely on</em> without checking. This is the same lesson as DPoP in S1, and it is now written down twice
+because we have now learned it twice.</p>
+<p><strong>Alternatives rejected:</strong> LoA-based step-up (rejected: live unmitigated CVE, and the mechanism did
+not gate in testing either). Application-side step-up with a fresh WebAuthn assertion verified by our
+own API (rejected <em>for now</em>: more custom security code, and <code>prompt=login</code> already yields a fresh
+passkey assertion on the privileged realm). Second-approver workflow instead of step-up (still used
+for the highest-risk operations, but it answers a different question).</p>
+<p><strong>Revisit trigger:</strong> an upstream fix for CVE-2026-97176 — and only on the evidence of a test that
+<strong>tries to exploit the bypass</strong>, not on the existence of a patch note.</p>
+<hr>
 </section>
 <section id="part-2-open-questions-requiring-a-human-decision"><h2>Part 2 — Open questions requiring a human decision</h2>
 <p>These are not research tasks. They need a stakeholder decision, and several affect cost or scope.</p>
@@ -656,8 +693,8 @@ unmeasured, because it will be assumed to be fast.</p>
 <td>5</td>
 <td>ACR step-up forces fresh assertion</td>
 <td>Phase 4</td>
-<td>1 d</td>
-<td>Full re-authentication instead of elevation</td>
+<td>~1 d</td>
+<td><strong>RESOLVED — does not work, and the component has an unmitigated CVE. See ADR-013</strong></td>
 </tr>
 <tr>
 <td>6</td>

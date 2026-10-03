@@ -108,6 +108,8 @@ PAGES: list[Page] = [
          "The S4 experiment: does a browser keep the session key after a restart?"),
     Page("lab-results-browsers", "lab/browser/SPIKE-4b-RESULTS.md", "Reference", "Lab results: other browsers",
          "The S4b experiment: three Chromium browsers pass; Firefox and Safari remain manual."),
+    Page("lab-results-stepup", "lab/keycloak/SPIKE-5b-RESULTS.md", "Reference", "Lab results: step-up rejected",
+         "How a failed experiment uncovered a live, unmitigated CVE in the component the design depended on."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

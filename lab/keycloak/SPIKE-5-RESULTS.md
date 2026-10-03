@@ -1,9 +1,14 @@
 # S5 Results — does asking for a stronger check force one?
 
-**Status: UNRESOLVED — and it is a negative result.** The mechanism the plan depends on did **not**
-work in this configuration. This is written up as a failure because presenting it as anything else
-would be dishonest, and because a negative result that is recorded is worth more than a positive one
-that is assumed.
+**Status: SUPERSEDED by S5b — the mechanism is REJECTED (ADR-013).**
+
+The mechanism the plan depended on did **not** work in this configuration. This is written up as a
+failure because presenting it as anything else would be dishonest, and because a negative result that
+is recorded is worth more than a positive one that is assumed.
+
+**Read S5b next.** It resolved this by finding that the component carries **CVE-2026-97176** — an
+unfixed, unmitigated bypass of exactly the check this experiment was trying to prove. The hypothesis
+recorded below (`loa-max-age` not parsed) was tested and **disproved**.
 
 Tested against Keycloak **26.8.0**.
 

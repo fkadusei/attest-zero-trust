@@ -262,16 +262,37 @@ This was not a configuration mistake. The setting was verified by reading it bac
 the fault lies in the flow arrangement or in the feature itself; there is one cheap test left that
 would tell the two apart.
 
-!!! warning "What this invalidates"
+### A follow-up found something worse
 
-    A claim in the identity reference — that this mechanism was an improvement over the previous
-    design — is now marked unsupported. **The project should not build on this until it is resolved.**
-    Two honest fallbacks exist: force a full re-authentication, which proves the check is *fresh*
-    rather than *stronger*, or stop using the identity provider for this and require a fresh passkey
-    assertion at the moment of the action.
+Rather than keep guessing at the flow configuration, we looked up how the component actually behaves.
+That surfaced a vulnerability record describing **the same component, the same scenario, and exactly
+the failure this control was meant to prevent**:
 
-    A follow-up is time-boxed at half a day. If it does not resolve, the fallback is taken and the
-    limitation stated plainly rather than left as a permanent open question.
+> **CVE-2026-97176**, published nine days before our test. An authenticated user with a low-level
+> session can obtain a token asserting a **higher** level than they actually performed.
+
+- **Fix state: affected. Mitigation: "not available".**
+- The affected package ships in our build.
+
+So the mechanism is rejected rather than merely unverified. Whether it can be configured correctly is
+now beside the point: **a control an attacker can bypass is not a control, however well configured.**
+
+!!! danger "The rule this establishes, which outlives step-up"
+
+    **Never trust the `acr` claim for a step-up decision** — or any claim of this shape.
+
+    A claim the issuer *writes* is not a claim a resource server can *rely on* without checking. This
+    is the same lesson as the token-binding experiment, where the identity provider bound a token but
+    our own API still had to verify it. We have now learned it twice, so it is written down as a
+    principle rather than an incident.
+
+!!! warning "What replaced it"
+
+    Force a genuine re-authentication, and judge **how recently** it happened rather than what level
+    was claimed: `prompt=login` with `max_age=0`, and the **`auth_time`** claim — which records when
+    authentication actually occurred and is unaffected by a flaw in how a *level* was computed.
+
+    That is a plan, not yet a proven control, and it has its own test outstanding.
 
 ## What is NOT yet proven
 

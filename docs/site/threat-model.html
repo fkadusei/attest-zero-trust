@@ -55,6 +55,7 @@
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -79,6 +80,7 @@
 <li class="lvl3"><a href="#t15-compromise-of-the-keycloak-deployment-new">T15 — Compromise of the Keycloak deployment (new)</a></li>
 <li class="lvl3"><a href="#t16-unpatched-keycloak-vulnerability-new">T16 — Unpatched Keycloak vulnerability (new)</a></li>
 <li class="lvl3"><a href="#t17-realm-misconfiguration-and-configuration-drift-new">T17 — Realm misconfiguration and configuration drift (new)</a></li>
+<li class="lvl3"><a href="#t18-a-security-feature-of-a-dependency-is-itself-the-vulnerability-new">T18 — A security feature of a dependency is itself the vulnerability (new)</a></li>
 <li><a href="#5-explicitly-accepted-risks">5. Explicitly accepted risks</a></li>
 <li><a href="#6-detection-and-response">6. Detection and response</a></li>
 <li><a href="#7-threat-model-maintenance">7. Threat model maintenance</a></li>
@@ -739,6 +741,45 @@ and an allowlist can be spoofed. See <a href="identity.html">identity doc §7.3<
 <tr>
 <td><strong>Note</strong></td>
 <td>This threat is easy to dismiss because no attacker appears in it. It is nevertheless the most likely way the privileged-access guarantee is actually lost in practice — not through a clever exploit, but through a well-intentioned console click or an urgent production fix</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t18-a-security-feature-of-a-dependency-is-itself-the-vulnerability-new">T18 — A security feature of a dependency is itself the vulnerability <em>(new)</em></h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Not an attack so much as a condition: a third-party component we depend on for a <em>security control</em> turns out to have a flaw in that very control — or in the case actually found, a <strong>known, unpatched, unmitigated</strong> one</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td>The control appears to work, is documented as working, and does not. This is worse than an absent control because it is trusted</td>
+</tr>
+<tr>
+<td><strong>Found in practice</strong></td>
+<td><strong>CVE-2026-97176</strong> in Keycloak&rsquo;s <code>ConditionalLoaAuthenticator</code>: a user with a low-level session can obtain a token asserting a higher level than they performed. Published 2026-09-23; no fix; <strong>no available mitigation</strong>; the package ships in our build</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Before building on a third-party security feature, <strong>search the CVE databases for the component</strong>, not just the product name. Then prefer a mechanism that can be verified by <em>our own</em> code over one that must be taken on trust</td>
+</tr>
+<tr>
+<td><strong>Detection</strong></td>
+<td>The 48-hour patch commitment (S11) now has a live test case — except here there is nothing to patch, so the compensating control is architectural: we do not use the feature</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td><strong>Medium and ongoing.</strong> We depend on a large amount of third-party security code. Every such dependency is a claim we cannot verify ourselves</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>Neither the API, the server log, nor the rendered pages mentioned anything about this. It was found only by looking it up directly. <strong>&ldquo;It behaves oddly&rdquo; should trigger a CVE search, not just a configuration review</strong></td>
 </tr>
 </tbody>
 </table></div>

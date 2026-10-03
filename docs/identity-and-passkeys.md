@@ -342,17 +342,20 @@ scope, and the assurance claim should not imply it.
 
 ## 8. Step-up authentication via ACR
 
-!!! danger "This section is NOT verified, and the mechanism did not work when tested"
+!!! danger "REJECTED — do not use this mechanism (ADR-013)"
 
     **S5 tested exactly this and it failed.** Asking for a higher authentication level made no
     difference: the second factor was demanded whether a higher level was requested, a lower one, or
     nothing at all. The configuration was confirmed correct and read back from the server, and five
     different ways of requesting a level all behaved identically.
 
-    **Do not build on this.** The mechanism either requires a flow arrangement not yet found, or does
-    not work as documented. S5b in `WORK.md` is a time-boxed follow-up to decide which; if it cannot
-    be made to work, the fallback is forcing a full re-authentication, which proves the check is
-    *fresh* rather than *stronger*.
+    S5b found the decisive fact: the component involved carries **CVE-2026-97176** (published
+    2026-09-23), in which a user with a low-level session can obtain a token asserting a higher level
+    than they performed. Fix state **Affected**; mitigation **"not available"**; and the affected
+    package ships in our build.
+
+    **Never trust the `acr` claim for a step-up decision.** Use `prompt=login` with `max_age=0` to
+    force a genuine re-authentication, and evaluate freshness through the **`auth_time`** claim.
 
     Everything below describes the **intended** design. Read it as a plan, not as a description of
     working behaviour. Full evidence: `lab/keycloak/SPIKE-5-RESULTS.md`.

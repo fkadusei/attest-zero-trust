@@ -248,6 +248,18 @@ and an allowlist can be spoofed. See [identity doc §7.3](identity-and-passkeys.
 | **Residual** | Low if the CI gates exist and are taken seriously; High if they do not |
 | **Note** | This threat is easy to dismiss because no attacker appears in it. It is nevertheless the most likely way the privileged-access guarantee is actually lost in practice — not through a clever exploit, but through a well-intentioned console click or an urgent production fix |
 
+### T18 — A security feature of a dependency is itself the vulnerability *(new)*
+
+| | |
+|---|---|
+| **Attack** | Not an attack so much as a condition: a third-party component we depend on for a *security control* turns out to have a flaw in that very control — or in the case actually found, a **known, unpatched, unmitigated** one |
+| **Impact** | The control appears to work, is documented as working, and does not. This is worse than an absent control because it is trusted |
+| **Found in practice** | **CVE-2026-97176** in Keycloak's `ConditionalLoaAuthenticator`: a user with a low-level session can obtain a token asserting a higher level than they performed. Published 2026-09-23; no fix; **no available mitigation**; the package ships in our build |
+| **Control** | Before building on a third-party security feature, **search the CVE databases for the component**, not just the product name. Then prefer a mechanism that can be verified by *our own* code over one that must be taken on trust |
+| **Detection** | The 48-hour patch commitment (S11) now has a live test case — except here there is nothing to patch, so the compensating control is architectural: we do not use the feature |
+| **Residual** | **Medium and ongoing.** We depend on a large amount of third-party security code. Every such dependency is a claim we cannot verify ourselves |
+| **Note** | Neither the API, the server log, nor the rendered pages mentioned anything about this. It was found only by looking it up directly. **"It behaves oddly" should trigger a CVE search, not just a configuration review** |
+
 ---
 
 ## 5. Explicitly accepted risks

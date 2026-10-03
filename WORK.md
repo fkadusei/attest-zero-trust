@@ -38,7 +38,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S4** | Can a browser keep its session key across a restart? | ⚠ **partly done** — **Chrome only** |
 | **S4b** | Do the other browsers behave the same way? | ⚠ **Chromium done** — Firefox/Safari manual |
 | **S5** | Does asking for a stronger check actually force one? | ❌ **UNRESOLVED** — the condition never gated |
-| **S5b** | Can step-up be made to work at all? | ▶ **NEXT** |
+| **S5b** | Can step-up be made to work at all? | ✅ **answered — rejected (ADR-013)** |
+| **S5c** | Does the replacement actually force a fresh check? | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -139,28 +140,67 @@ The only diagnostic that explained anything appeared there and nowhere else.
 
 ---
 
-## ▶ S5b — Find out whether step-up can be made to work at all — **NEXT**
+## ✅ S5b — Can step-up be made to work at all? — **ANSWERED: REJECTED**
 
-**In plain words.** S5 failed, but it failed in a way that leaves one specific question open: **is my
-flow arrangement wrong, or does the feature simply not work as documented?**
+**Result: do not use this mechanism.** Not "retry later" — rejected, with a reason.
 
-There is one cheap test that separates the two: set the condition's level to **1** instead of 2 and
-see whether it *still* fires unconditionally. If it does, the condition is not being evaluated at all,
-which points at the structure of the flow rather than the numbers in it — and the search becomes
-"find the arrangement Keycloak expects" rather than "guess the right values".
+**The finding.** The component the design depended on — `ConditionalLoaAuthenticator` in
+`keycloak-services` — carries **CVE-2026-97176**, published **nine days before our test**:
 
-**If the mechanism turns out not to work**, the fallback is to force a full re-authentication
-(`prompt=login` with `max_age=0`). That definitely works, but it is honestly weaker: it proves the
-check is *fresh*, not that it is *stronger*. That difference needs stating plainly rather than being
-quietly glossed over.
+> An authenticated user with a low-level session can obtain a token asserting a higher authentication
+> level than they actually performed.
 
-**The third option**, if both fail, is to stop using the identity provider for step-up and require a
-fresh passkey assertion at the moment of the sensitive action, verified by our own API. More control,
-more custom code, and it goes against the principle of letting the identity provider own the ceremony.
+- Fix state: **Affected**. Mitigation: **"not available"**.
+- The affected package (`org.keycloak.keycloak-services-26.8.0.jar`) **ships in our build**.
+
+**Why this is the whole answer.** S5 asked whether step-up could be configured correctly. S5b shows
+the question is now irrelevant: a control an attacker can bypass is not a control, however well it is
+configured. This was going to protect "export who can see what" and "an administrator looking across
+all customers".
+
+**I did not reproduce the CVE, and the write-up says so.** The CVE describes a silent *bypass*; S5
+observed *over-enforcement*. Different symptoms of the same component, and I have not shown they share
+a cause. Either finding alone is enough to reject it.
+
+**The rule that follows — and it is the important part:** **never trust the `acr` claim for a step-up
+decision.** A claim the issuer *writes* is not a claim the resource server can *rely on* without
+checking. Same lesson as DPoP in S1, now learned twice.
+
+**Rejected in favour of:** `prompt=login` + `max_age=0` to force a genuine re-authentication, with
+freshness judged by the **`auth_time`** claim. See ADR-013.
+
+On the privileged realm this is better than it first looks: the only way to sign in there is a
+hardware key with user verification, so re-running the flow *is* a fresh hardware-key assertion —
+freshness and strength from the same act.
+
+**Also:** the S5 hypothesis (`loa-max-age` not parsed) was **wrong**. The predicted error disappears
+once both config keys are set, and the condition still fires. Recorded so nobody retries it.
+
+Full write-up: `lab/keycloak/SPIKE-5b-RESULTS.md`.
+
+---
+
+## ▶ S5c — Does the replacement actually force a fresh check? — **NEXT**
+
+**In plain words.** S5b rejected the broken mechanism and proposed a replacement: make the user sign
+in again for sensitive actions, and judge how *recently* they did it rather than trusting a label the
+server writes into the token. That is a plan, not a proven control.
+
+**What to test, with a control for each:**
+
+1. Does forcing a sign-in genuinely produce a fresh ceremony, even with a live session? Asking an
+   already-signed-in user to "sign in again" is exactly the kind of thing that quietly does nothing.
+2. Does the `auth_time` claim update on that re-authentication?
+3. **Control:** does an older token keep its *older* `auth_time`? If the value moves when it should
+   not, then freshness is being faked, not measured.
+4. Does it work on the **privileged** realm, where re-authentication means a passkey ceremony?
 
 **Needs:** nothing. Runs on this machine.
-**Time:** half a day, and it should be time-boxed. If it is not resolved in that, take the fallback
-and move on — this must not become the project's permanent open question.
+**Time:** half a day.
+
+**Also to track (not a slice, a watch item):** an upstream fix for CVE-2026-97176. If one ships,
+LoA-based step-up becomes worth re-evaluating — but only against a test that **tries to exploit the
+bypass**, never on the strength of a patch note.
 
 ---
 

@@ -55,6 +55,7 @@
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -549,15 +550,17 @@ scope, and the assurance claim should not imply it.</p>
 </section>
 <section id="8-step-up-authentication-via-acr"><h2>8. Step-up authentication via ACR</h2>
 <div class="admonition danger">
-<p class="admonition-title">This section is NOT verified, and the mechanism did not work when tested</p>
+<p class="admonition-title">REJECTED — do not use this mechanism (ADR-013)</p>
 <p><strong>S5 tested exactly this and it failed.</strong> Asking for a higher authentication level made no
 difference: the second factor was demanded whether a higher level was requested, a lower one, or
 nothing at all. The configuration was confirmed correct and read back from the server, and five
 different ways of requesting a level all behaved identically.</p>
-<p><strong>Do not build on this.</strong> The mechanism either requires a flow arrangement not yet found, or does
-not work as documented. S5b in <code>WORK.md</code> is a time-boxed follow-up to decide which; if it cannot
-be made to work, the fallback is forcing a full re-authentication, which proves the check is
-<em>fresh</em> rather than <em>stronger</em>.</p>
+<p>S5b found the decisive fact: the component involved carries <strong>CVE-2026-97176</strong> (published
+2026-09-23), in which a user with a low-level session can obtain a token asserting a higher level
+than they performed. Fix state <strong>Affected</strong>; mitigation <strong>&ldquo;not available&rdquo;</strong>; and the affected
+package ships in our build.</p>
+<p><strong>Never trust the <code>acr</code> claim for a step-up decision.</strong> Use <code>prompt=login</code> with <code>max_age=0</code> to
+force a genuine re-authentication, and evaluate freshness through the <strong><code>auth_time</code></strong> claim.</p>
 <p>Everything below describes the <strong>intended</strong> design. Read it as a plan, not as a description of
 working behaviour. Full evidence: <code>lab/keycloak/SPIKE-5-RESULTS.md</code>.</p>
 </div>

@@ -44,8 +44,9 @@ site. Start with `docs/site/index.html`.
 
 ## 2. State of play, in one paragraph
 
-**The design is complete and written down. Four of the planned experiments have been run: three
-hold, and one failed.** No production code has been written yet. The identity provider (Keycloak) runs locally
+**The design is complete and written down. Six experiments have been run: three hold, one failed and
+was then resolved by rejecting the mechanism, and one partly.** No production code has been written
+yet. The identity provider (Keycloak) runs locally
 in Docker with two realms configured. Everything else is design, not deployment — the documentation is
 deliberately explicit about which is which, and you should preserve that distinction.
 
@@ -63,9 +64,15 @@ This distinction is the most important thing to preserve. Do not let it erode.
 | A stolen session pass is inert: no proof, wrong key, wrong address, or a replayed request are all refused | **Holds** |
 | A browser keeps its session key across a full quit and relaunch, and it is the same key afterwards | **Holds in Chrome** — Safari untested |
 
-**Failed:** step-up authentication does not work as the plan assumed. Asking for a higher
-authentication level made no difference — the second factor fired regardless of what was requested.
-See `lab/keycloak/SPIKE-5-RESULTS.md`. **Do not build on ACR-based step-up until S5b resolves it.**
+**Failed, then rejected:** step-up authentication. S5 found the mechanism never gated; S5b found the
+component carries **CVE-2026-97176** — a user with a low-level session can obtain a token asserting a
+higher level than they performed, with **no fix and no mitigation available**, in a package that ships
+in our build. **ACR/LoA-based step-up is rejected (ADR-013).** The replacement is `prompt=login` plus
+`max_age=0`, with freshness judged by the **`auth_time`** claim.
+
+**The rule this established, and it applies well beyond step-up: a claim the issuer *writes* is not a
+claim a resource server can *rely on* without checking.** Same lesson as DPoP (S1). It has now been
+learned twice, so treat it as a design principle rather than an incident.
 
 **Designed but untested:** everything else, including sign-in surviving a real phishing proxy, whether
 a *physical* hardware key is accepted, whether browsers can hold the session key, revocation speed,
@@ -77,20 +84,15 @@ and running the identity provider as more than one copy.
 
 ## 4. What to do next
 
-**Slice S5b — can step-up be made to work at all?**
+**Slice S5c — does the replacement actually force a fresh check?**
 
-S5 tried to make "prove yourself again for sensitive actions" work through Keycloak's level-of-
-authentication feature. **It failed**: the extra check fired regardless of the level requested, or of
-nothing being requested. The configuration was verified as correct, so the fault is either the flow
-arrangement or the feature.
+S5b settled step-up: the IdP mechanism is **rejected** because of CVE-2026-97176, and the replacement
+is to force a genuine re-authentication (`prompt=login` + `max_age=0`) and judge freshness from the
+**`auth_time`** claim rather than the `acr` claim.
 
-S5b is one focused, **time-boxed** test to tell those apart: set the condition's level to 1 and see
-whether it still fires unconditionally. If it does, the condition is not being evaluated at all and
-the problem is structural.
-
-**If it cannot be made to work**, take the fallback — force a full re-authentication — and say plainly
-that this proves the check is *fresh*, not that it is *stronger*. Do **not** let this become the
-project's permanent open question: half a day, then decide.
+That replacement is a plan, not a proven control. S5c tests it, with a control: an older token must
+keep its *older* `auth_time`. If the value moves when it should not, freshness is being faked rather
+than measured — which would be the same class of failure as the thing we just rejected.
 
 **Nothing is blocking it.** Runs entirely on this machine.
 
@@ -201,6 +203,10 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A dependency can carry a live CVE in exactly the feature you need.** Before building on a
+  third-party security feature, search the CVE databases for the *component*, not just the product.
+  S5b found CVE-2026-97176 in `ConditionalLoaAuthenticator` only by looking it up directly — nothing
+  in the API, the logs, or the rendered pages mentioned it.
 - **Sandbox quirks that cost time:** `find`+`pgrep` output needs care, `timeout` does not exist on
   macOS (use the tool's own timeout), and `UID` is a readonly shell variable — pick another name.
 
@@ -257,7 +263,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ✅ S4 | Can a browser keep its session key across a restart? | — *done; **Chromium only*** |
 | ⚠ S4b | The other browser engines | — *Chromium 6/6; **Firefox + Safari manual*** |
 | ❌ S5 | Does asking for a stronger check actually force one? | — *ran, did not work* |
-| **▶ S5b** | Can step-up be made to work at all? | nothing — time-boxed |
+| ✅ S5b | Can step-up be made to work at all? | — *answered: **rejected**, live CVE* |
+| **▶ S5c** | Does the replacement force a fresh check? | nothing |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

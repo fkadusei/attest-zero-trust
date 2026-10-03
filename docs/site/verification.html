@@ -55,6 +55,7 @@
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -77,6 +78,7 @@
 <li class="lvl3"><a href="#the-results_2">The results</a></li>
 <li class="lvl3"><a href="#what-it-settled-and-the-surprise">What it settled, and the surprise</a></li>
 <li><a href="#the-one-that-failed-requiring-a-stronger-check">The one that failed: requiring a stronger check</a></li>
+<li class="lvl3"><a href="#a-follow-up-found-something-worse">A follow-up found something worse</a></li>
 <li><a href="#what-is-not-yet-proven">What is NOT yet proven</a></li>
 <li><a href="#how-this-is-reproducible">How this is reproducible</a></li>
 <li><a href="#what-this-means-for-the-rest-of-these-pages">What this means for the rest of these pages</a></li>
@@ -409,15 +411,34 @@ one, a lower one, or none at all. So there is currently no working step-up.</p>
 <strong>five different ways of requesting a level</strong> all behaved identically. What is <em>not</em> known is whether
 the fault lies in the flow arrangement or in the feature itself; there is one cheap test left that
 would tell the two apart.</p>
+<h3 id="a-follow-up-found-something-worse">A follow-up found something worse</h3>
+<p>Rather than keep guessing at the flow configuration, we looked up how the component actually behaves.
+That surfaced a vulnerability record describing <strong>the same component, the same scenario, and exactly
+the failure this control was meant to prevent</strong>:</p>
+<blockquote>
+<p><strong>CVE-2026-97176</strong>, published nine days before our test. An authenticated user with a low-level
+session can obtain a token asserting a <strong>higher</strong> level than they actually performed.</p>
+</blockquote>
+<ul>
+<li><strong>Fix state: affected. Mitigation: &ldquo;not available&rdquo;.</strong></li>
+<li>The affected package ships in our build.</li>
+</ul>
+<p>So the mechanism is rejected rather than merely unverified. Whether it can be configured correctly is
+now beside the point: <strong>a control an attacker can bypass is not a control, however well configured.</strong></p>
+<div class="admonition danger">
+<p class="admonition-title">The rule this establishes, which outlives step-up</p>
+<p><strong>Never trust the <code>acr</code> claim for a step-up decision</strong> — or any claim of this shape.</p>
+<p>A claim the issuer <em>writes</em> is not a claim a resource server can <em>rely on</em> without checking. This
+is the same lesson as the token-binding experiment, where the identity provider bound a token but
+our own API still had to verify it. We have now learned it twice, so it is written down as a
+principle rather than an incident.</p>
+</div>
 <div class="admonition warning">
-<p class="admonition-title">What this invalidates</p>
-<p>A claim in the identity reference — that this mechanism was an improvement over the previous
-design — is now marked unsupported. <strong>The project should not build on this until it is resolved.</strong>
-Two honest fallbacks exist: force a full re-authentication, which proves the check is <em>fresh</em>
-rather than <em>stronger</em>, or stop using the identity provider for this and require a fresh passkey
-assertion at the moment of the action.</p>
-<p>A follow-up is time-boxed at half a day. If it does not resolve, the fallback is taken and the
-limitation stated plainly rather than left as a permanent open question.</p>
+<p class="admonition-title">What replaced it</p>
+<p>Force a genuine re-authentication, and judge <strong>how recently</strong> it happened rather than what level
+was claimed: <code>prompt=login</code> with <code>max_age=0</code>, and the <strong><code>auth_time</code></strong> claim — which records when
+authentication actually occurred and is unaffected by a flaw in how a <em>level</em> was computed.</p>
+<p>That is a plan, not yet a proven control, and it has its own test outstanding.</p>
 </div>
 </section>
 <section id="what-is-not-yet-proven"><h2>What is NOT yet proven</h2>
