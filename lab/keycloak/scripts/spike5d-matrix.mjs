@@ -28,6 +28,7 @@
  * Exits non-zero if any check did not behave as expected.
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 // Resolve puppeteer-core from lab/keycloak, where it is installed.
@@ -40,7 +41,11 @@ const OTHER_REALM = 'attest-users';   // hosts a user we deliberately leave with
 const CDP = 'http://127.0.0.1:9222';
 const ADMIN = { user: 'admin', pass: 'lab-only-not-a-secret' };
 const TEST_PASSWORD = 'Spike-Lab-Password-123!';
-const PY = new URL('../../../.venv/bin/python', import.meta.url).pathname;
+// Use the workspace venv when there is one, otherwise the system interpreter.
+// CI has no .venv — it installs requirements with the setup-python action — and
+// hard-coding the venv path made this job fail before it tested anything.
+const VENV_PY = new URL('../../../.venv/bin/python', import.meta.url).pathname;
+const PY = process.env.SPIKE_PYTHON || (existsSync(VENV_PY) ? VENV_PY : 'python3');
 const FLOW_TOOL = new URL('./make_privileged_passkey_only.py', import.meta.url).pathname;
 
 const RESULTS = [];
