@@ -217,6 +217,10 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Check the commit SHA, not "the latest run".** After pushing a fix, `gh run list --limit 1` can
+  still return the *previous* commit's run for a minute or so. Reading that as "the fix did not work"
+  sent this session chasing a solved problem and adding an unnecessary diagnostic step. Always compare
+  `headSha` against what was just pushed.
 - **A test that prints FAIL and exits 0 is not a test.** Found in this project: *two* scripts printed
   `PASS`/`FAIL` rows without ever affecting their exit code, so any automation — including the CI
   added alongside them — would have reported success on a total regression. **Every gate must be
