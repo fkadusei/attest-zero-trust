@@ -1,0 +1,100 @@
+{
+  "open": null,
+  "history": [
+    {
+      "at": "2026-10-03T18:34:56+00:00",
+      "action": "sweep-orphan"
+    },
+    {
+      "at": "2026-10-03T18:34:57+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:35:57+00:00"
+    },
+    {
+      "at": "2026-10-03T18:36:06+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:36:32+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:37:32+00:00"
+    },
+    {
+      "at": "2026-10-03T18:37:34+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:37:46+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 2,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:39:46+00:00"
+    },
+    {
+      "at": "2026-10-03T18:37:58+00:00",
+      "action": "closed",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:37:58+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:38:58+00:00"
+    },
+    {
+      "at": "2026-10-03T18:39:00+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:39:08+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:40:08+00:00"
+    },
+    {
+      "at": "2026-10-03T18:40:10+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:40:11+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:41:11+00:00"
+    },
+    {
+      "at": "2026-10-03T18:41:13+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:42:04+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:43:04+00:00"
+    },
+    {
+      "at": "2026-10-03T18:43:06+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
+    }
+  ]
+}

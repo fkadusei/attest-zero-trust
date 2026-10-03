@@ -179,7 +179,14 @@ def apply() -> int:
     print(f"=== making {REALM} require a passkey ===\n")
 
     # Start from a clean copy so this is idempotent. Note: by ID, not alias.
+    #
+    # A flow that is currently BOUND cannot be deleted — Keycloak answers 500 —
+    # so unbind first. Without this, re-running `apply` on an already-applied
+    # realm fails, and `apply` is exactly what the S5e matrix calls to set up.
     existing = api.flow_id(NEW_FLOW)
+    if existing and bound_flow(api) == NEW_FLOW:
+        print(f"0. '{NEW_FLOW}' is currently bound; unbinding before removing it")
+        api.call("PUT", f"/{REALM}", {"browserFlow": BASE_FLOW})
     if existing:
         st, _ = api.call("DELETE", f"/{REALM}/authentication/flows/{existing}")
         print(f"0. removed the previous '{NEW_FLOW}' copy ({st})")

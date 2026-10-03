@@ -44,10 +44,11 @@ site. Start with `docs/site/index.html`.
 
 ## 2. State of play, in one paragraph
 
-**The design is complete and written down. Eight experiments have been run: five hold, one holds for
+**The design is complete and written down. Nine experiments have been run: six hold, one holds for
 Chromium only, one failed and was resolved by rejecting the mechanism it tested, one verified the
-replacement, and one proved the privileged realm passkey-only — finding a password bypass in the
-process.** No production code has been written yet.
+replacement, one proved the privileged realm passkey-only — finding a password bypass — and one
+bounded and audited the enrolment window, finding that its per-user restriction does not work.**
+No production code has been written yet.
 
 **The most serious open item:** a passkey-only browser flow does not make a realm passkey-only.
 Direct grants bypass the flow entirely, and `admin-cli` — created by Keycloak in **every** realm and
@@ -289,7 +290,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ✅ S5b | Can step-up be made to work at all? | — *answered: **rejected**, live CVE* |
 | ✅ S5c | Does the replacement force a fresh check? | — *yes, **14/14** with controls* |
 | ✅ S5d | Make the privileged flow require a passkey | — *yes, **12/12**; found a password bypass* |
-| **▶ S5e** | Time-box and audit the enrolment window | nothing |
+| ✅ S5e | Time-box and audit the enrolment window | — *yes, **14/14**; per-user gate unmet* |
+| **▶ S5f** | Does the whole enrolment journey actually work? | nothing |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

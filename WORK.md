@@ -45,7 +45,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5b** | Can step-up be made to work at all? | ✅ **answered — rejected (ADR-013)** |
 | **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
 | **S5d** | Make the privileged flow actually require a passkey | ✅ **done — 12/12; found a bypass** |
-| **S5e** | Time-box and audit the enrolment window | ▶ **NEXT** |
+| **S5e** | Time-box and audit the enrolment window | ⚠ **done — bounded and audited, but not per-user** |
+| **S5f** | Does the whole enrolment journey actually work? | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -263,30 +264,71 @@ Full write-up: `lab/keycloak/SPIKE-5d-RESULTS.md`.
 
 ---
 
-## ▶ S5e — Time-box and audit the enrolment window — **NEXT**
+## ⚠ S5e — Time-box and audit the enrolment window — **14/14, but one requirement unmet**
 
-**In plain words.** To give someone their first passkey, the password has to work again for a moment.
-Right now that window is "whenever an administrator runs the script". If that is left as-is, the
-passkey-only realm has a permanent, unaudited password path — which is exactly the bypass S5d just
-closed, wearing a different hat.
+**Result: the window is now closed by default, bounded, and audited. It is NOT restricted to one
+user, and that is a real residual risk.**
 
-**What to build and test:**
+S5d left a hole: to give someone their first passkey, the **whole realm** had to be reverted to a
+password flow. That opened a password path for **every** user, for an **unbounded** time, with **no
+record** — a worse hole than the one it fixed.
 
-1. A **dedicated enrolment flow**, not the normal one — reachable only for a named user, so enabling it
-   for one person does not open the door for everyone.
-2. A **time limit** that closes it automatically. Test that it closes: leave it open, wait, and confirm
-   the password no longer works.
-3. An **audit record** — who was enrolled, by whom, and when. An enrolment window that leaves no trace
-   is indistinguishable from an attacker using it.
-4. **Control:** the enrolment flow must be unreachable while closed. Prove it, don't assume it.
+**What now works (14/14 with three controls):** the enrolment client is disabled by default; a window
+is opened deliberately for a bounded time; it expires; the sweep closes it; the password path is gone
+afterwards; **and normal clients stay passkey-only throughout** — verified as a control every run,
+which is the entire point. Every window records who it was for, who opened it, and when it expires.
+
+**What does NOT work: the per-user restriction.** While a window is open, **any user in the realm can
+authenticate through the enrolment client with their password** — proven by completing a real sign-in
+as a second user (E12). Four arrangements of Keycloak's `conditional-user-role` were tried, including
+an **exact mirror of Keycloak's own built-in conditional subflow**, and none gated. That looks like a
+Keycloak behaviour worth reporting upstream.
+
+**The honest summary:** this narrows the hole from *"the whole realm, forever, silently"* to *"one
+client, briefly, on the record."* **It does not close it**, and must not be described as if it does.
+
+**A finding about the baseline:** Keycloak ships with the **event log disabled**. There was no audit
+trail of any kind in this lab until this slice switched it on. The window manager now refuses to open a
+window it cannot audit.
+
+**Two structural traps:** an `ALTERNATIVE` subflow whose children are all `CONDITIONAL`/`DISABLED`
+throws `AuthenticationFlowException`, surfacing as HTTP 400 *"Invalid username or password"* on a page
+nobody typed into — the same misleading symptom S5 diagnosed, from a different cause.
+
+**Residual risk to schedule, not forget:** the time limit is a **sweep**, not an enforced deadline. If
+the sweep stops running, the window stays open silently. Nothing tests that.
+
+Full write-up: `lab/keycloak/SPIKE-5e-RESULTS.md`.
+
+---
+
+## ▶ S5f — Does the whole enrolment journey actually work? — **NEXT**
+
+**In plain words.** Every piece of the enrolment story has now been proven separately: a passkey can
+be registered (S3), a passkey can sign in and a password cannot (S5d), and the window that allows a
+password is bounded and audited (S5e). **Nobody has walked the whole path in one go**, from "this
+person has no passkey" to "this person signs in with a passkey".
+
+That is exactly the kind of gap where two well-tested halves fail to join.
+
+**What to test, in one continuous run:**
+
+1. Start with a user who has **no passkey** and confirm they cannot sign in to the normal client.
+2. Open the enrolment window.
+3. Sign in with a password, complete the required action, and **register a passkey**.
+4. Close and sweep the window.
+5. **Confirm the password no longer works** for that user anywhere.
+6. Sign in again with the **passkey**, on the normal client.
+7. **Control:** while the window was open, the normal client must have stayed passkey-only — the whole
+   journey must not be achieved by quietly reopening the realm.
 
 **Needs:** nothing. Runs on this machine.
 **Time:** half a day.
 
 **The bigger one still waiting:** the **phishing-proxy test** — the project's headline claim, and the
-top entry in `EVIDENCE.md` §7. It needs care: WebAuthn's relying-party ID ignores the *port*, so a
-proxy on a different localhost port would share the RP ID and the test would show a false bypass. It
-needs distinct hostnames, which means editing `/etc/hosts`.
+top entry in `EVIDENCE.md` §7. It needs distinct hostnames, because WebAuthn's relying-party ID
+ignores the *port*, so a proxy on another localhost port would share the RP ID and show a false
+bypass. That means editing `/etc/hosts`, which needs the user's approval.
 
 ---
 

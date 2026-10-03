@@ -52,6 +52,11 @@ here, **this file is right and the other one is a bug.** Please report it.
 | Recovery from a broken flow is **one API call** | S5d D1/D2 — the original flow is never edited, only unbound | **Verified** |
 | The `flow_tool` backup/restore **detects a broken flow and restores it** | Tested in a scratch realm: passes untouched, detects damage, restores exactly | **Verified** |
 | **A passkey-only browser flow does NOT stop direct password grants** | S5d A′ — `admin-cli` had `directAccessGrantsEnabled: true`, so a password still bought a token despite the login page refusing one | **Verified** |
+| A bound **client** can use a different flow from the realm default | S5e — the `enrolment` client accepts a password while normal clients stay passkey-only, verified every run as a control | **Verified** |
+| A password path can be **closed by default** and opened deliberately | S5e E1/E2 | **Verified** |
+| The window **expires and is swept closed**, and the password path is gone afterwards | S5e E7-E9, tested by waiting for a real expiry rather than editing a timestamp | **Verified** |
+| The window **records who, when and why** | S5e E10/E11 | **Verified** |
+| **Keycloak ships with the event log DISABLED** | S5e — `eventsEnabled: false`, `adminEventsEnabled: false` in this realm. There was **no audit trail of any kind** until it was switched on | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -146,7 +151,19 @@ Recorded because the instruction is explicit: **say when you are not certain.**
     (a passkey signing in) also worked. **A refusal is only evidence when the grant would otherwise
     succeed.**
 
-11. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+11. **The enrolment window is bounded and audited, NOT restricted to one user.** S5e set out to make
+    it reachable only for a named user. **It is not.** While a window is open, any user in the realm
+    can authenticate through the enrolment client with their password — proven by completing a real
+    sign-in as a second user (E12). Four arrangements of Keycloak's `conditional-user-role` were
+    tried, including an **exact mirror of Keycloak's own working built-in conditional subflow**, and
+    none gated. **This is a real residual risk.** What it does narrow the hole to: one dedicated
+    client, briefly, on the record — rather than the whole realm, indefinitely, silently.
+
+12. **Nothing verifies that the sweep actually runs.** The time limit is a sweep, not an enforced
+    deadline, so there is a gap between expiry and the sweep. In production it must be a scheduled
+    task — and **if that schedule stops, the window stays open silently**. No test covers that.
+
+13. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 

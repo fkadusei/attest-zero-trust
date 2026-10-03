@@ -59,6 +59,7 @@
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
+<li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -267,6 +268,31 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <tr>
 <td><strong>A passkey-only browser flow does NOT stop direct password grants</strong></td>
 <td>S5d A′ — <code>admin-cli</code> had <code>directAccessGrantsEnabled: true</code>, so a password still bought a token despite the login page refusing one</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A bound <strong>client</strong> can use a different flow from the realm default</td>
+<td>S5e — the <code>enrolment</code> client accepts a password while normal clients stay passkey-only, verified every run as a control</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A password path can be <strong>closed by default</strong> and opened deliberately</td>
+<td>S5e E1/E2</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The window <strong>expires and is swept closed</strong>, and the password path is gone afterwards</td>
+<td>S5e E7-E9, tested by waiting for a real expiry rather than editing a timestamp</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The window <strong>records who, when and why</strong></td>
+<td>S5e E10/E11</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>Keycloak ships with the event log DISABLED</strong></td>
+<td>S5e — <code>eventsEnabled: false</code>, <code>adminEventsEnabled: false</code> in this realm. There was <strong>no audit trail of any kind</strong> until it was switched on</td>
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
@@ -485,6 +511,20 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
     failed on bad credentials, not on being refused. It only became a real check once the positive case
     (a passkey signing in) also worked. <strong>A refusal is only evidence when the grant would otherwise
     succeed.</strong></p>
+</li>
+<li>
+<p><strong>The enrolment window is bounded and audited, NOT restricted to one user.</strong> S5e set out to make
+    it reachable only for a named user. <strong>It is not.</strong> While a window is open, any user in the realm
+    can authenticate through the enrolment client with their password — proven by completing a real
+    sign-in as a second user (E12). Four arrangements of Keycloak&rsquo;s <code>conditional-user-role</code> were
+    tried, including an <strong>exact mirror of Keycloak&rsquo;s own working built-in conditional subflow</strong>, and
+    none gated. <strong>This is a real residual risk.</strong> What it does narrow the hole to: one dedicated
+    client, briefly, on the record — rather than the whole realm, indefinitely, silently.</p>
+</li>
+<li>
+<p><strong>Nothing verifies that the sweep actually runs.</strong> The time limit is a sweep, not an enforced
+    deadline, so there is a gap between expiry and the sweep. In production it must be a scheduled
+    task — and <strong>if that schedule stops, the window stays open silently</strong>. No test covers that.</p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by

@@ -116,6 +116,8 @@ PAGES: list[Page] = [
          "The step-up replacement verified as a working control, 14/14 with its controls — and one premise it disproved."),
     Page("lab-results-passkey-only", "lab/keycloak/SPIKE-5d-RESULTS.md", "Reference", "Lab results: passkey-only, actually",
          "Making the privileged realm passkey-only, and the password bypass that the login page hid."),
+    Page("lab-results-enrolment-window", "lab/keycloak/SPIKE-5e-RESULTS.md", "Reference", "Lab results: the enrolment window",
+         "Bounding and auditing the password window needed to enrol a first passkey — and the per-user restriction that would not work."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

@@ -145,6 +145,54 @@ jobs:
         run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
+  # The enrolment window (S5e). No browser needed.
+  # ---------------------------------------------------------------------------
+  enrolment-window:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the lab toolchain
+        run: pip install -r requirements-lab.txt
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: Apply the WebAuthn policies
+        run: python3 lab/keycloak/scripts/configure-realms.py
+
+      - name: S5e — is the enrolment window bounded, audited and gated?
+        # 14 checks. The time limit is tested by WAITING for a real one-minute
+        # window to expire, not by editing a timestamp — so this takes ~3 minutes.
+        #
+        # E12 is a FINDING, not a gate: the per-user restriction does not work,
+        # and pinning it as a test means it cannot be quietly forgotten.
+        run: |
+          set +e
+          python3 lab/keycloak/scripts/spike5e-matrix.py > /tmp/s5e.log 2>&1
+          code=$?
+          cat /tmp/s5e.log
+          echo "===== end of S5e output (exit $code) ====="
+          exit $code
+
+      - name: Show the provider log on failure
+        if: failure()
+        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+
+  # ---------------------------------------------------------------------------
   # Passkey-only enforcement (S5d). Needs a browser for one check — the positive
   # case, that a passkey actually signs in — because a flow that refuses
   # everything would otherwise satisfy every negative test.

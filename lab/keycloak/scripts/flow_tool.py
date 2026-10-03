@@ -56,6 +56,37 @@ class Api:
     def __init__(self) -> None:
         self.t = admin_token()
 
+    def flow_id(self, realm: str, alias: str):
+        """Look up a flow's ID by alias. Flows are deleted by ID, not alias."""
+        status, flows = self.call("GET", f"/{realm}/authentication/flows")
+        if not isinstance(flows, list):
+            raise RuntimeError(f"could not list flows in {realm}: {status} {flows}")
+        for f in flows:
+            if f.get("alias") == alias:
+                return f.get("id")
+        return None
+
+    def executions(self, realm: str, flow: str):
+        """The children of a flow. NOTE: this is flat and includes subflow children
+        at every depth, so never match an authenticator by name alone — ask each
+        flow for its own children. (Learned in S5, where a flat match corrupted
+        the built-in 2FA subflow.)"""
+        st, ex = self.call(
+            "GET", f"/{realm}/authentication/flows/{urllib.parse.quote(flow)}/executions")
+        return ex if st == 200 and isinstance(ex, list) else []
+
+    def set_requirement(self, realm: str, flow: str, display_name: str, requirement: str) -> bool:
+        for e in self.executions(realm, flow):
+            if e.get("displayName") == display_name:
+                if e.get("requirement") == requirement:
+                    return True
+                e = dict(e)
+                e["requirement"] = requirement
+                st, _ = self.call(
+                    "PUT", f"/{realm}/authentication/flows/{urllib.parse.quote(flow)}/executions", e)
+                return st in (200, 204)
+        return False
+
     def call(self, method: str, path: str, body=None):
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(f"{KC}/admin/realms{path}", data=data, method=method)
