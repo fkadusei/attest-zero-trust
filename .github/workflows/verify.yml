@@ -145,6 +145,83 @@ jobs:
         run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
+  # Phishing resistance (S9). The headline claim. Needs a browser for the passkey
+  # ceremonies and the relay proxy, which runs on the same network.
+  # ---------------------------------------------------------------------------
+  phishing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install the toolchains
+        run: |
+          pip install -r requirements-lab.txt
+          npm --prefix lab/keycloak install --no-audit --no-fund
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: Apply the WebAuthn policies
+        run: python3 lab/keycloak/scripts/configure-realms.py
+
+      - name: Start the phishing relay
+        # The victim's browser is directed at evil.localhost, and the relay forwards
+        # to the real Keycloak. *.localhost resolves to loopback by convention, so
+        # no /etc/hosts edit is needed.
+        run: |
+          nohup python3 lab/keycloak/scripts/phishing_proxy.py \
+            --listen evil.localhost:9001 --upstream localhost:8080 \
+            > /tmp/proxy.log 2>&1 &
+          sleep 2
+          head -1 /tmp/proxy.log
+          curl -sf "http://evil.localhost:9001/realms/attest-privileged/.well-known/openid-configuration" \
+            >/dev/null && echo "relay is serving the real provider"
+
+      - name: Launch Chrome with remote debugging
+        run: |
+          google-chrome --headless --disable-gpu --no-sandbox \
+            --disable-dev-shm-usage --remote-debugging-port=9222 \
+            --user-data-dir=/tmp/ci-chrome-s9 about:blank &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "Chrome did not expose a debugging port"
+          exit 1
+
+      - name: S9 — does a phishing proxy actually fail?
+        run: |
+          set +e
+          python3 lab/keycloak/scripts/spike9-matrix.py > /tmp/s9.log 2>&1
+          code=$?
+          cat /tmp/s9.log
+          echo "===== end of S9 output (exit $code) ====="
+          exit $code
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          docker compose -f lab/keycloak/compose.yaml logs --tail 80
+          cat /tmp/proxy.log || true
+
+  # ---------------------------------------------------------------------------
   # Enrolment by link (S5f). Needs a browser for the one check that matters —
   # completing a real enrolment through the emailed link — and a mail sink to
   # capture the link.

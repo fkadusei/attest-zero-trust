@@ -340,7 +340,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ✅ S5d | Make the privileged flow require a passkey | — *yes, **12/12**; found a password bypass* |
 | ⚠ S5e | Time-box and audit the enrolment window | — *14/14; per-user gate **unmet**, and it fails open* |
 | ✅ S5f | Can enrolment be made per-user? | — *yes, by emailed link; **impersonation ruled out*** |
-| **▶ S9** | Does a phishing proxy actually fail? | **approval to edit `/etc/hosts`** |
+| ✅ S9 | Does a phishing proxy actually fail? | — ***YES*, proven with a real relay** |
+| **▶ S9b** | Is a broad relying-party ID exploitable? | **`/etc/hosts` approval** |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

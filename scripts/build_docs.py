@@ -120,6 +120,8 @@ PAGES: list[Page] = [
          "Bounding and auditing the password window needed to enrol a first passkey — and the per-user restriction that would not work."),
     Page("lab-results-enrolment-link", "lab/keycloak/SPIKE-5f-RESULTS.md", "Reference", "Lab results: enrolment by link",
          "Why impersonation cannot work, and the action-token link that does — verified by completing a real enrolment."),
+    Page("lab-results-phishing", "lab/keycloak/SPIKE-9-RESULTS.md", "Reference", "Lab results: phishing resistance",
+         "The headline claim, tested with a real adversary-in-the-middle relay — and the counter-case that needs approval."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

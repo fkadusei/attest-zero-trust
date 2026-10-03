@@ -66,6 +66,9 @@ here, **this file is right and the other one is a bug.** Please report it.
 | The link is **invalidated once the action completes** | S5f F5b | **Verified** |
 | An **expired link is refused** | S5f F6 | **Verified** |
 | The link is a **bearer token**: opening it does not consume it | S5f — re-opening before completion still renders the action. Recorded as a finding, not a gate | **Verified** |
+| **A passkey cannot be used through a phishing proxy**, even when the proxy relays the genuine page byte-for-byte | S9 T4 — the browser refuses with `SecurityError: The relying party ID is not a registrable domain suffix of, nor equal to the current domain` | **Verified** |
+| The **same credential signs in at the real origin**, so the refusal is a refusal and not a broken harness | S9 T2 — the positive control that makes T4 meaningful | **Verified** |
+| The relay is **faithful**: no reference to the real host survives in the served page | S9 T3/T3b — every absolute URL rewritten to the attacker's origin | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -141,7 +144,8 @@ the check failing. The check was validated by breaking the *enforcement*, not th
 
 | Not tested | Why it matters | Blocked on |
 |---|---|---|
-| Sign-in survives a **real phishing proxy** | The headline claim of the project | A live relay test |
+| The **broad-relying-party-ID** failure mode | S9's meta-test. `*.localhost` cannot demonstrate it: Chrome refuses a broad RP ID there because `.localhost` is not in the public suffix list. Needs two hostnames under a real registrable domain, i.e. an `/etc/hosts` edit | **Approval** |
+| Phishing over **real TLS, DNS and a real certificate** | S9 runs over HTTP on loopback. WebAuthn's origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement | A deployed environment |
 | The **`DPoP` header survives** CloudFront → ALB → API Gateway | A hop that strips it breaks binding **silently** | AWS |
 | **Firefox and Safari** keep the session key | The two non-Chromium engines; Safari is the likeliest to evict | A manual minute each |
 | A **physical hardware key** is accepted | Only refusal has been tested; the known failure is lockout, not bypass | A physical key |
@@ -247,7 +251,15 @@ Recorded because the instruction is explicit: **say when you are not certain.**
     open-ended — emailed reset links behave the same way — but it must be a conscious acceptance with a
     **short** lifespan. See `lab/keycloak/SPIKE-5f-RESULTS.md` §4.
 
-15. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+15. **Phishing resistance holds for the passkey — and the soft spots are elsewhere.** S9 proves a
+    passkey bound to a narrow domain cannot be used through an attacker's origin, even with a
+    byte-for-byte relay of the genuine page. But a phishing proxy could still abuse the paths this
+    project deliberately built: the **enrolment window** (S5e) accepts a password while open, and the
+    **enrolment link** (S5f) is a bearer token. Neither is phishable *silently* — both are bounded and
+    audited — but neither is protected by WebAuthn's origin binding. **The passkey is not the weak
+    point; the deliberate exceptions around it are.**
+
+16. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 

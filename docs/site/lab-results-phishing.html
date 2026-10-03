@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: phishing resistance — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The headline claim, tested with a real adversary-in-the-middle relay — and the counter-case that needs approval." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="evidence.html">Evidence register</a></li>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
+<li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
+<li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
+<li><a href="lab-results-phishing.html" class="current">Lab results: phishing resistance</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-what-was-built">1. What was built</a></li>
+<li><a href="#2-why-hostnames-and-not-ports">2. Why hostnames, and not ports</a></li>
+<li><a href="#3-the-results">3. The results</a></li>
+<li class="lvl3"><a href="#the-decisive-evidence-is-the-browsers-own-words">The decisive evidence is the browser’s own words</a></li>
+<li class="lvl3"><a href="#why-this-is-not-a-false-pass">Why this is not a false pass</a></li>
+<li><a href="#4-not-run-the-counter-case-and-exactly-why">4. NOT RUN: the counter-case, and exactly why</a></li>
+<li><a href="#5-what-this-does-and-does-not-establish">5. What this does and does not establish</a></li>
+<li><a href="#6-what-this-means-for-the-design">6. What this means for the design</a></li>
+<li><a href="#7-reproducing">7. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: phishing resistance</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: phishing resistance</h1>
+        <p class="blurb">The headline claim, tested with a real adversary-in-the-middle relay — and the counter-case that needs approval.</p>
+      </header>
+      <section id="overview"><p><strong>Status: RESOLVED for the claim. PROVEN — with the counter-case recorded as NOT RUN and the reason
+stated.</strong></p>
+<p>This is the claim the whole project rests on: <em>a user can be tricked into visiting an attacker&rsquo;s copy
+of the sign-in page, hand over everything they are able to, and still not get in.</em></p>
+<p>Everything else in this repository tests parts. <strong>This tests that, and it holds.</strong></p>
+<hr></section>
+<section id="1-what-was-built"><h2>1. What was built</h2>
+<p><strong>Not a mock-up of a phishing site.</strong> A fake login page proves nothing — nobody types a passkey into an
+obvious fake. The phishing site is a <strong>real reverse proxy relaying to the real Keycloak</strong>:</p>
+<div class="codehilite"><pre><span></span><code>victim's browser  -&gt;  evil.localhost:9001  -&gt;  (relay)  -&gt;  localhost:8080 Keycloak
+</code></pre></div>
+
+<p>The victim sees exactly what the genuine site serves — the same markup, the same title, the same
+everything. <strong>The only difference is the origin.</strong></p>
+<p>Verified properties of the relay:</p>
+<ul>
+<li>the login page is served, and <code>#authenticateWebAuthnButton</code> is present</li>
+<li><strong>zero references to the real host survive in the page</strong> — every absolute URL is rewritten to the
+  attacker&rsquo;s origin, so the browser never escapes it</li>
+</ul>
+</section>
+<section id="2-why-hostnames-and-not-ports"><h2>2. Why hostnames, and not ports</h2>
+<p><strong>WebAuthn&rsquo;s relying-party ID ignores the port.</strong> A proxy on <code>localhost:9001</code> relaying to
+<code>localhost:8080</code> shares the RP ID <code>localhost</code>, so the credential <em>would</em> answer and the test would
+report a <strong>false bypass</strong>.</p>
+<p><code>app.localhost</code> and <code>evil.localhost</code> are genuinely different registrable domains, and <code>*.localhost</code>
+resolves to loopback by convention — so <strong>no <code>/etc/hosts</code> edit was needed</strong> for this part.</p>
+</section>
+<section id="3-the-results"><h2>3. The results</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The phishing-lab client and test user exist</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>A passkey is registered at the real origin</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Control:</strong> the passkey signs in at the <strong>real</strong> origin</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Control:</strong> the proxy relays a faithful login page</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Control:</strong> the relayed page points nothing back at the real host</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>THE CLAIM: the phishing origin does NOT authenticate</strong></td>
+<td><strong>pass</strong></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="the-decisive-evidence-is-the-browsers-own-words">The decisive evidence is the browser&rsquo;s own words</h3>
+<p>When the victim clicks &ldquo;sign in with passkey&rdquo; on the attacker&rsquo;s page, the browser refuses, and
+Keycloak records exactly why:</p>
+<div class="codehilite"><pre><span></span><code>SecurityError: The relying party ID is not a registrable domain suffix of, nor equal to the
+current domain. Subsequently, an attempt to fetch the .well-known/webauthn resource of the
+claimed RP ID failed.
+</code></pre></div>
+
+<p><strong>The credential does not answer.</strong> Neither the password nor the passkey can be phished, because the
+assertion is bound to a domain the attacker does not control.</p>
+<h3 id="why-this-is-not-a-false-pass">Why this is not a false pass</h3>
+<p>A test that always fails proves nothing. <strong>T2 is the control</strong>: the <em>same</em> credential, the <em>same</em>
+browser, the <em>same session</em> signs in successfully at the real origin. So the harness demonstrably
+<strong>can</strong> observe a successful assertion — T4&rsquo;s failure is a refusal, not a broken harness.</p>
+</section>
+<section id="4-not-run-the-counter-case-and-exactly-why"><h2>4. NOT RUN: the counter-case, and exactly why</h2>
+<p>The intended <strong>meta-test</strong> was to widen the relying-party ID to the shared parent <code>localhost</code> — a
+realistic misconfiguration — and show the <strong>same attack succeeding</strong>. That would prove both that the
+harness can detect a bypass and precisely which setting the property rests on.</p>
+<p><strong>It cannot be run with these hostnames.</strong> Chrome refuses a broad RP ID over <code>.localhost</code> outright,
+with the same <code>SecurityError</code> — because <code>.localhost</code> is <strong>not in the public suffix list</strong>, so
+<code>app.localhost</code> and <code>evil.localhost</code> do not share a registrable parent.</p>
+<p>That is the same fact that makes the claim demonstrable here, and it is also what blocks the
+counter-case.</p>
+<p><strong>To run it</strong> needs two hostnames under a real registrable domain — for example <code>app.attest.test</code> and
+<code>evil.attest.test</code>, with the RP ID set to <code>attest.test</code>. <code>.test</code> <strong>is</strong> a reserved TLD treated as
+registrable, so the broad RP ID would be accepted and the attack should succeed.</p>
+<p><strong>That requires editing <code>/etc/hosts</code></strong>, which is outside the workspace and awaits the operator&rsquo;s
+approval.</p>
+<blockquote>
+<p><strong>Until then:</strong> the claim that a <em>broad</em> relying-party ID is exploitable rests on reasoning and on
+Chrome&rsquo;s own error message — <strong>not on a measurement.</strong> It is recorded as a finding, not as a pass.</p>
+</blockquote>
+</section>
+<section id="5-what-this-does-and-does-not-establish"><h2>5. What this does and does not establish</h2>
+<p><strong>Established by measurement:</strong></p>
+<ul>
+<li>A passkey bound to a narrow domain <strong>cannot</strong> be used through an origin the attacker controls, even
+  when the attacker relays the genuine page byte-for-byte.</li>
+<li>The relay is faithful — the victim cannot distinguish the page.</li>
+<li>Both directions work in the harness: a matching origin succeeds, a mismatched one is refused.</li>
+</ul>
+<p><strong>Not established:</strong></p>
+<ul>
+<li>That a <strong>broad</strong> RP ID is exploitable — see §4. It is the reason the guidance below is stated as
+  guidance and not as a measured result.</li>
+<li><strong>Phishing of the password</strong>, on realms that still have one. The S5d work makes the privileged realm
+  passkey-only, but the enrolment window (S5e) and the enrolment link (S5f) are deliberate password and
+  bearer-token paths that a proxy could still abuse. <strong>Those are the soft spots, not the passkey.</strong></li>
+<li>Real-world network conditions: TLS, real DNS, a real certificate. This runs over HTTP on loopback,
+  which is a legitimate lab simplification but is <strong>not</strong> what a real attacker faces. A real phishing
+  site needs a valid certificate for a domain it controls; WebAuthn&rsquo;s origin check does not depend on
+  the certificate, so the conclusion should hold — but that inference is reasoning, not measurement.</li>
+<li>Attestation-based defences, which were deliberately relaxed here so a virtual authenticator could
+  enrol. In production a YubiKey allowlist is an <em>additional</em> layer.</li>
+</ul>
+</section>
+<section id="6-what-this-means-for-the-design"><h2>6. What this means for the design</h2>
+<p>The property that makes it work is narrow and specific: <strong>the relying-party ID.</strong></p>
+<ul>
+<li>it must be a <strong>domain the attacker cannot obtain a matching origin for</strong></li>
+<li>it must be as <strong>narrow as the deployment allows</strong> — the broader the RP ID, the more hosts can obtain
+  assertions for the credential (see §4)</li>
+<li>and it must <strong>never</strong> be a value the application does not actually control</li>
+</ul>
+<p>This is the one control in the whole design that does not depend on our code being correct. It is
+enforced by the browser, against the origin, before any of our logic runs.</p>
+</section>
+<section id="7-reproducing"><h2>7. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># the adversary-in-the-middle relay</span>
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/phishing_proxy.py<span class="w"> </span>--listen<span class="w"> </span>evil.localhost:9001<span class="w"> </span><span class="se">\</span>
+<span class="w">                                                          </span>--upstream<span class="w"> </span>localhost:8080
+
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/spike9-matrix.py<span class="w">     </span><span class="c1"># 7 checks</span>
+</code></pre></div>
+
+<p><code>*.localhost</code> resolves to loopback on this platform, so no <code>/etc/hosts</code> edit is required for the
+claim itself. The meta-test would require one.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-enrolment-link.html"><span>Previous</span><b>Lab results: enrolment by link</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

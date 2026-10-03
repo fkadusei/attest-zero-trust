@@ -61,6 +61,7 @@
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
 <li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 <li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
+<li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -346,6 +347,21 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong>A passkey cannot be used through a phishing proxy</strong>, even when the proxy relays the genuine page byte-for-byte</td>
+<td>S9 T4 — the browser refuses with <code>SecurityError: The relying party ID is not a registrable domain suffix of, nor equal to the current domain</code></td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The <strong>same credential signs in at the real origin</strong>, so the refusal is a refusal and not a broken harness</td>
+<td>S9 T2 — the positive control that makes T4 meaningful</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The relay is <strong>faithful</strong>: no reference to the real host survives in the served page</td>
+<td>S9 T3/T3b — every absolute URL rewritten to the attacker&rsquo;s origin</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><code>http.cookiejar</code> <strong>cannot drive a Keycloak login</strong></td>
 <td>Cookies stored as <code>localhost.local</code> + <code>Secure</code>, so never sent over http; error is &ldquo;Restart login cookie not found&rdquo;</td>
 <td><strong>Verified</strong></td>
@@ -511,9 +527,14 @@ the check failing. The check was validated by breaking the <em>enforcement</em>,
 </thead>
 <tbody>
 <tr>
-<td>Sign-in survives a <strong>real phishing proxy</strong></td>
-<td>The headline claim of the project</td>
-<td>A live relay test</td>
+<td>The <strong>broad-relying-party-ID</strong> failure mode</td>
+<td>S9&rsquo;s meta-test. <code>*.localhost</code> cannot demonstrate it: Chrome refuses a broad RP ID there because <code>.localhost</code> is not in the public suffix list. Needs two hostnames under a real registrable domain, i.e. an <code>/etc/hosts</code> edit</td>
+<td><strong>Approval</strong></td>
+</tr>
+<tr>
+<td>Phishing over <strong>real TLS, DNS and a real certificate</strong></td>
+<td>S9 runs over HTTP on loopback. WebAuthn&rsquo;s origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement</td>
+<td>A deployed environment</td>
 </tr>
 <tr>
 <td>The <strong><code>DPoP</code> header survives</strong> CloudFront → ALB → API Gateway</td>
@@ -670,6 +691,15 @@ remains <strong>unmet</strong>, and the obvious way to build it is unsafe.</p>
     <strong>complete the enrolment first</strong> and register their own passkey on that account. Bounded, not
     open-ended — emailed reset links behave the same way — but it must be a conscious acceptance with a
     <strong>short</strong> lifespan. See <code>lab/keycloak/SPIKE-5f-RESULTS.md</code> §4.</p>
+</li>
+<li>
+<p><strong>Phishing resistance holds for the passkey — and the soft spots are elsewhere.</strong> S9 proves a
+    passkey bound to a narrow domain cannot be used through an attacker&rsquo;s origin, even with a
+    byte-for-byte relay of the genuine page. But a phishing proxy could still abuse the paths this
+    project deliberately built: the <strong>enrolment window</strong> (S5e) accepts a password while open, and the
+    <strong>enrolment link</strong> (S5f) is a bearer token. Neither is phishable <em>silently</em> — both are bounded and
+    audited — but neither is protected by WebAuthn&rsquo;s origin binding. <strong>The passkey is not the weak
+    point; the deliberate exceptions around it are.</strong></p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by

@@ -47,7 +47,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5d** | Make the privileged flow actually require a passkey | ✅ **done — 12/12; found a bypass** |
 | **S5e** | Time-box and audit the enrolment window | ⚠ **done — bounded and audited, but not per-user** |
 | **S5f** | Can enrolment be made per-user with impersonation? | ✅ **done — impersonation ruled out; a link works** |
-| **S9** | Does a phishing proxy actually fail? | ▶ **NEXT** |
+| **S9** | Does a phishing proxy actually fail? | ✅ **done — YES, proven; counter-case needs approval** |
+| **S9b** | Is a BROAD relying-party ID actually exploitable? | ⏸ **needs `/etc/hosts` approval** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -340,32 +341,44 @@ Full write-up: `lab/keycloak/SPIKE-5f-RESULTS.md`.
 
 ---
 
-## ▶ S9 — Does a phishing proxy actually fail? — **NEXT**
+## ✅ S9 — Does a phishing proxy actually fail? — **YES. The headline claim is proven.**
 
-**In plain words.** Everything so far tests the parts. This tests **the claim the whole project rests
-on**: that a user can be tricked into visiting an attacker's copy of the login page, hand over
-everything they can, and **still not get in**. That has never been demonstrated here. It is the top
-entry in `EVIDENCE.md` §7 and the one thing most likely to invalidate the design.
+**Result: 7/7. A passkey cannot be used through an attacker's origin, even when the attacker relays the
+genuine login page byte-for-byte.**
 
-**What to build:**
+**What was built:** not a fake login page — nobody types a passkey into an obvious fake. A **real
+reverse proxy** relaying to the real Keycloak, rewriting every absolute URL so the victim's browser
+never leaves the attacker's origin. Verified: zero references to the real host survive in the served
+page.
 
-1. A reverse proxy that serves a real copy of the sign-in page and relays to the real Keycloak — a
-   genuine adversary-in-the-middle, not a mock-up.
-2. Walk a full sign-in through it with a virtual authenticator.
-3. **The claim:** the ceremony fails, because WebAuthn binds the assertion to the **relying-party ID**
-   — the domain — and the proxy's domain is not the real one. The credential simply will not answer.
-4. **Control:** the same sign-in against the **real** origin must still succeed, or "it failed" proves
-   only that the harness is broken.
-5. **Control:** the proxy must be shown to be faithfully relaying — the victim must reach a page
-   visually identical to the real one, or the test is measuring nothing.
+**Why hostnames and not ports:** the relying-party ID **ignores the port**, so a proxy on another
+`localhost` port would share the RP ID and show a **false bypass**. `app.localhost` and `evil.localhost`
+are genuinely different registrable domains — and `*.localhost` resolves to loopback by convention, so
+**no `/etc/hosts` edit was needed**.
 
-⚠️ **The trap that makes a naive version worthless:** WebAuthn's relying-party ID **ignores the port**.
-A proxy on another `localhost` port shares the RP ID with the real site, so the credential *would*
-answer and the test would show a **false bypass**. Distinct **hostnames** are required, which means
-editing `/etc/hosts` — **outside the workspace, so it needs approval before I touch it.**
+**The decisive evidence is the browser's own words:**
 
-**Needs:** approval to edit `/etc/hosts`; otherwise nothing.
-**Time:** one day.
+```
+SecurityError: The relying party ID is not a registrable domain suffix of, nor equal to the
+current domain.
+```
+
+**Why it is not a false pass:** the **same credential, same browser, same session** signs in
+successfully at the real origin (T2). So the harness demonstrably *can* observe a successful assertion —
+the phishing refusal is a refusal, not a broken harness.
+
+**NOT RUN — the counter-case.** The meta-test was to widen the RP ID to the shared parent `localhost`
+and show the same attack **succeeding**. Chrome refuses a broad RP ID over `.localhost` outright,
+because `.localhost` is not in the public suffix list. That is the same fact that makes the claim
+provable here, and it is what blocks the counter-case. It needs two hostnames under a real registrable
+domain (`app.attest.test` / `evil.attest.test`, RP ID `attest.test`) — **which means editing
+`/etc/hosts`.** Recorded as a finding, not skipped quietly.
+
+**The soft spots are not the passkey.** A phishing proxy could still abuse the deliberate exceptions
+this project built: the **enrolment window** accepts a password while open, and the **enrolment link**
+is a bearer token. Both are bounded and audited, but neither is protected by WebAuthn's origin binding.
+
+Full write-up: `lab/keycloak/SPIKE-9-RESULTS.md`.
 
 ---
 
