@@ -222,6 +222,19 @@ documentation implies.
   still return the *previous* commit's run for a minute or so. Reading that as "the fix did not work"
   sent this session chasing a solved problem and adding an unnecessary diagnostic step. Always compare
   `headSha` against what was just pushed.
+- **A test that cannot tell "denied" from "broken" is not a test.** S5e concluded, and briefly
+  published, that Keycloak's `conditional-user-role` "never gated". Both halves of that test were
+  broken: the **client was disabled**, so every request returned HTTP 400 `"Client disabled."`, and
+  the probe **read only the first page**, whereas with identity-first login the condition is evaluated
+  only *after* the username is submitted. Both faults produced "no password field", which looks
+  exactly like a condition refusing. **Assert on the HTTP status and complete every step of the flow
+  before concluding anything from an absent field.**
+- **In Keycloak, a conditional that can skip the only credential step makes the flow fail OPEN.** With
+  the gate working, skipping the credential step did not fail the flow — Keycloak **issued a token**.
+  A real token was obtained with **no credential at all, only a username string**. `Username Form`
+  identifies a user; it does not authenticate one. Making the subflow `REQUIRED` instead of
+  `CONDITIONAL` removes the gate rather than closing the hole. **Design conditional flows so some
+  authentication step is REQUIRED on every path.**
 - **A test that prints FAIL and exits 0 is not a test.** Found in this project: *two* scripts printed
   `PASS`/`FAIL` rows without ever affecting their exit code, so any automation — including the CI
   added alongside them — would have reported success on a total regression. **Every gate must be
@@ -290,8 +303,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ✅ S5b | Can step-up be made to work at all? | — *answered: **rejected**, live CVE* |
 | ✅ S5c | Does the replacement force a fresh check? | — *yes, **14/14** with controls* |
 | ✅ S5d | Make the privileged flow require a passkey | — *yes, **12/12**; found a password bypass* |
-| ✅ S5e | Time-box and audit the enrolment window | — *yes, **14/14**; per-user gate unmet* |
-| **▶ S5f** | Does the whole enrolment journey actually work? | nothing |
+| ⚠ S5e | Time-box and audit the enrolment window | — *14/14; per-user gate **unmet**, and it fails open* |
+| **▶ S5f** | Can enrolment be made per-user with impersonation? | nothing |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

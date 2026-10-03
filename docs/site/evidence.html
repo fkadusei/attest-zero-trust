@@ -296,6 +296,21 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td>Keycloak&rsquo;s <strong><code>conditional-user-role</code> gates correctly</strong> — with <code>negate</code> as the discriminator</td>
+<td>Corrected S5e pass: <code>negate=false</code> shows the password only <em>with</em> the role; <code>negate=true</code> shows it only <em>without</em>. Requires identity-first (username split from password)</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>A conditional that skips the only credential step issues a token</strong></td>
+<td>A real token obtained with <strong>no credential at all</strong>, only a username, against the identity-first arrangement</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The <strong>shipped S5e design does not have that bypass</strong></td>
+<td>After restoring it: a username-only POST returns HTTP 200, no code, password form still required</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><code>http.cookiejar</code> <strong>cannot drive a Keycloak login</strong></td>
 <td>Cookies stored as <code>localhost.local</code> + <code>Secure</code>, so never sent over http; error is &ldquo;Restart login cookie not found&rdquo;</td>
 <td><strong>Verified</strong></td>
@@ -513,18 +528,40 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
     succeed.</strong></p>
 </li>
 <li>
-<p><strong>The enrolment window is bounded and audited, NOT restricted to one user.</strong> S5e set out to make
-    it reachable only for a named user. <strong>It is not.</strong> While a window is open, any user in the realm
-    can authenticate through the enrolment client with their password — proven by completing a real
-    sign-in as a second user (E12). Four arrangements of Keycloak&rsquo;s <code>conditional-user-role</code> were
-    tried, including an <strong>exact mirror of Keycloak&rsquo;s own working built-in conditional subflow</strong>, and
-    none gated. <strong>This is a real residual risk.</strong> What it does narrow the hole to: one dedicated
-    client, briefly, on the record — rather than the whole realm, indefinitely, silently.</p>
+<p><strong>CORRECTED — the earlier claim that Keycloak&rsquo;s <code>conditional-user-role</code> &ldquo;never gated&rdquo; was wrong.</strong>
+    It does gate, exactly as documented. The tests behind the original claim were invalid twice over:
+    the <strong>client was disabled</strong>, so every request returned HTTP 400 <code>"Client disabled."</code>; and the
+    probe <strong>only read the first page</strong>, whereas with identity-first login the condition is evaluated
+    only <em>after</em> the username is submitted. Both faults produced &ldquo;no password field&rdquo;, which is
+    indistinguishable from a condition refusing. <strong>A test that cannot tell &ldquo;denied&rdquo; from &ldquo;broken&rdquo; is
+    not a test.</strong></p>
+</li>
+<li>
+<p><strong>But gating it that way FAILS OPEN — and that is worse.</strong> With the gate working, skipping the
+    credential step does not fail the flow: Keycloak <strong>issues a token anyway</strong>. Verified by obtaining
+    a real token while supplying <strong>no credential of any kind, only a username string</strong>.</p>
+<blockquote>
+<p><strong>In Keycloak, a conditional that can skip the only credential step in a flow causes that flow
+to complete successfully without authentication.</strong></p>
+</blockquote>
+<p><code>Username Form</code> identifies a user; it does not authenticate one. Making the subflow <code>REQUIRED</code>
+rather than <code>CONDITIONAL</code> does not fail closed — it removes the gate instead.</p>
+<p><strong>The shipped S5e design is not affected</strong> (its credential step is a plain <code>Username Password
+Form</code> that no conditional can skip) — verified after the experiment. But the per-user requirement
+remains <strong>unmet</strong>, and the obvious way to build it is unsafe.</p>
 </li>
 <li>
 <p><strong>Nothing verifies that the sweep actually runs.</strong> The time limit is a sweep, not an enforced
     deadline, so there is a gap between expiry and the sweep. In production it must be a scheduled
     task — and <strong>if that schedule stops, the window stays open silently</strong>. No test covers that.</p>
+</li>
+<li>
+<p><strong>The enrolment window is still not restricted to one user.</strong> While a window is open, any user in
+    the realm can authenticate through the enrolment client with their password — proven by completing
+    a real sign-in as a second user (E12). What the window does narrow the hole to: one dedicated
+    client, briefly, on the record — rather than the whole realm, indefinitely, silently. The
+    candidate replacement is <strong>Keycloak impersonation</strong>, which yields a one-time, per-user,
+    time-limited, audited link and removes the password path entirely. <strong>That is untested.</strong></p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by

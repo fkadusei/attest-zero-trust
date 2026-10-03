@@ -121,6 +121,32 @@
       "at": "2026-10-03T18:52:41+00:00",
       "action": "sweep-expired",
       "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T19:02:23+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 5,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T19:07:23+00:00"
+    },
+    {
+      "at": "2026-10-03T19:03:27+00:00",
+      "action": "closed",
+      "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T19:03:32+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 3,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T19:06:32+00:00"
+    },
+    {
+      "at": "2026-10-03T19:03:43+00:00",
+      "action": "closed",
+      "username": "spike-attest-privileged"
     }
   ]
 }

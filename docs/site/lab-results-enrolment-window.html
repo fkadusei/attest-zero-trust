@@ -64,8 +64,12 @@
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
 <li><a href="#1-the-result">1. The result</a></li>
-<li><a href="#2-the-requirement-that-was-not-met">2. The requirement that was NOT met</a></li>
-<li class="lvl3"><a href="#what-was-tried-so-nobody-repeats-it">What was tried, so nobody repeats it</a></li>
+<li><a href="#2-the-requirement-that-was-not-met-and-a-correction">2. The requirement that was NOT met — and a correction</a></li>
+<li class="lvl3"><a href="#what-was-actually-happening">What was actually happening</a></li>
+<li class="lvl3"><a href="#the-finding-it-fails-open">The finding: it fails OPEN</a></li>
+<li class="lvl3"><a href="#what-this-means">What this means</a></li>
+<li class="lvl3"><a href="#where-this-leaves-the-requirement">Where this leaves the requirement</a></li>
+<li class="lvl3"><a href="#what-was-tried-and-the-original-conclusion-now-corrected">What was tried — and the original conclusion, now corrected</a></li>
 <li class="lvl3"><a href="#two-structural-traps-found-along-the-way">Two structural traps found along the way</a></li>
 <li class="lvl3"><a href="#the-compensating-position">The compensating position</a></li>
 <li><a href="#3-what-was-actually-found-missing-in-the-lab">3. What was actually found missing in the lab</a></li>
@@ -82,7 +86,7 @@
         <h1>Lab results: the enrolment window</h1>
         <p class="blurb">Bounding and auditing the password window needed to enrol a first passkey — and the per-user restriction that would not work.</p>
       </header>
-      <section id="overview"><p><strong>Status: PARTLY RESOLVED — 14/14 checks pass, but the per-user restriction does NOT work.</strong></p>
+      <section id="overview"><p><strong>Status: PARTLY RESOLVED — 14/14 checks pass; the per-user gate is unmet and FAILS OPEN (see §2).</strong></p>
 <p>S5d proved the privileged realm passkey-only, and left a hole behind it: the only way to give someone
 their first passkey was to revert the <strong>whole realm</strong> to a password flow. That opens a password path
 for <strong>every</strong> user, for an <strong>unbounded</strong> time, with <strong>no record</strong>. A worse hole than the one it fixed.</p>
@@ -153,7 +157,97 @@ for <strong>every</strong> user, for an <strong>unbounded</strong> time, with <s
 <p><strong>The window is closed by default, bounded, and audited</strong>, and the normal clients are untouched
 throughout — that last one is the whole point, and it is a control rather than an afterthought.</p>
 </section>
-<section id="2-the-requirement-that-was-not-met"><h2>2. The requirement that was NOT met</h2>
+<section id="2-the-requirement-that-was-not-met-and-a-correction"><h2>2. The requirement that was NOT met — and a correction</h2>
+<blockquote>
+<p><strong>This section originally claimed the condition &ldquo;never gated&rdquo; in four arrangements. That was
+wrong, and the correction matters more than the original text.</strong> The tests behind it were invalid
+in two ways, and a later, properly-controlled run found something considerably worse than a
+non-functional condition.</p>
+</blockquote>
+<h3 id="what-was-actually-happening">What was actually happening</h3>
+<p>Two faults made every earlier probe meaningless:</p>
+<ol>
+<li><strong>The client was disabled.</strong> The window was closed, so the <code>enrolment</code> client was disabled and
+   <em>every</em> request returned HTTP 400 <code>"Client disabled."</code> A probe that only reports &ldquo;no password field
+   appeared&rdquo; cannot tell that apart from &ldquo;the condition refused&rdquo;.</li>
+<li><strong>The probe only read the first page.</strong> With identity-first login, the condition is evaluated
+   <em>after</em> the username is submitted. Every earlier test checked the page before that — where no
+   password field would ever appear regardless.</li>
+</ol>
+<p>A correctly-controlled test — window open, username actually submitted, <code>negate</code> used as a
+discriminator — shows <strong>the condition works exactly as documented</strong>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th><code>negate</code></th>
+<th>Role present</th>
+<th>Password form appears</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>false</code></td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>false</code></td>
+<td><strong>yes</strong></td>
+<td><strong>yes</strong></td>
+</tr>
+<tr>
+<td><code>true</code></td>
+<td><strong>no</strong></td>
+<td><strong>yes</strong></td>
+</tr>
+<tr>
+<td><code>true</code></td>
+<td>yes</td>
+<td>no</td>
+</tr>
+</tbody>
+</table></div>
+<p>The conditional subflow must be <strong><code>CONDITIONAL</code></strong> and <strong>identity-first</strong>: the user has to be
+identified <em>before</em> the condition runs, which means splitting <code>Username Password Form</code> into
+<code>auth-username-form</code> + <code>auth-password-form</code>.</p>
+<h3 id="the-finding-it-fails-open">The finding: it fails OPEN</h3>
+<p>Having made the gate work, the next test asked a different question — <em>what happens when the
+condition skips the credential step?</em></p>
+<div class="admonition danger">
+<p class="admonition-title">A conditional that skips the only credential step issues a token anyway</p>
+<p>When <code>conditional-user-role</code> fails, the <code>CONDITIONAL</code> subflow is <strong>skipped</strong>. The <code>Username Form</code>
+had already &ldquo;succeeded&rdquo; — it identifies a user, it does <strong>not</strong> authenticate one — so the
+<code>ALTERNATIVE</code> parent subflow completes and <strong>Keycloak issues an authorization code</strong>.</p>
+<p><strong>Verified by obtaining a real token while supplying no credential of any kind, only a username
+string:</strong></p>
+<p><code>attacking user     : spike-attest-privileged
+credential supplied: NONE — only a username
+1. GET auth page        -&gt; HTTP 200
+2. POST username only   -&gt; HTTP 302
+3. code issued          -&gt; yes
+4. TOKEN ISSUED         -&gt; preferred_username: spike-attest-privileged</code></p>
+<p>Making the subflow <code>REQUIRED</code> instead of <code>CONDITIONAL</code> does <strong>not</strong> fail closed — it removes the
+gate entirely, so the password form always appears.</p>
+</div>
+<h3 id="what-this-means">What this means</h3>
+<p><strong>The per-user restriction cannot be built this way.</strong> Not because the condition fails to gate, but
+because gating it this way makes the flow <strong>fail open</strong>, which is worse than the limitation it was
+meant to fix: an unauthenticated attacker would obtain tokens for arbitrary users.</p>
+<p><strong>The shipped design is not affected.</strong> <code>enrolment_window.py setup</code> builds a flow whose credential
+step is a plain <code>Username Password Form</code> with no conditional able to skip it. Verified after the
+experiment: a username-only POST returns HTTP 200 with <strong>no code</strong> and the password form still
+required.</p>
+<p><strong>The generalisable lesson, which is not specific to enrolment:</strong></p>
+<blockquote>
+<p>In Keycloak, a conditional that can skip the only credential step in a flow causes the flow to
+complete <strong>successfully</strong> without authentication. Design conditional flows so that some
+authentication step is <strong>REQUIRED on every path</strong>.</p>
+</blockquote>
+<h3 id="where-this-leaves-the-requirement">Where this leaves the requirement</h3>
+<p>Still unmet — but for a proven and much better-understood reason, and with a clear alternative:
+<strong>Keycloak impersonation</strong> (<code>POST /users/{id}/impersonation</code>) yields a one-time, per-user,
+time-limited and audited link, and removes the password path from enrolment entirely. That is a
+strong candidate for the follow-up, and it should be tested rather than assumed.</p>
 <blockquote>
 <p><em>&ldquo;A dedicated enrolment flow — reachable only for a named user, so enabling it for one person does
 not open the door for everyone.&rdquo;</em></p>
@@ -163,9 +257,10 @@ authenticate through the enrolment client with their password.</strong> Check E1
 full sign-in as a second user. That check is deliberately a <strong>finding</strong> rather than a gate: it is a
 known residual risk, and pinning it as a test means it cannot be quietly forgotten or quietly assumed
 to work.</p>
-<h3 id="what-was-tried-so-nobody-repeats-it">What was tried, so nobody repeats it</h3>
-<p>The intended mechanism was Keycloak&rsquo;s <code>conditional-user-role</code> — a per-user gate. <strong>Four arrangements
-were tested, and none gated:</strong></p>
+<h3 id="what-was-tried-and-the-original-conclusion-now-corrected">What was tried — and the original conclusion, now corrected</h3>
+<p><strong>Superseded by the correction at the top of this section.</strong> The text below was the first conclusion,
+based on tests that were later shown to be invalid. It is kept because the traps it describes are
+real, but the headline claim — &ldquo;none gated&rdquo; — is <strong>wrong</strong>.</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>

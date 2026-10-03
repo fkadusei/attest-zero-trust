@@ -1,6 +1,6 @@
 # S5e Results — is the enrolment window time-boxed, gated and audited?
 
-**Status: PARTLY RESOLVED — 14/14 checks pass, but the per-user restriction does NOT work.**
+**Status: PARTLY RESOLVED — 14/14 checks pass; the per-user gate is unmet and FAILS OPEN (see §2).**
 
 S5d proved the privileged realm passkey-only, and left a hole behind it: the only way to give someone
 their first passkey was to revert the **whole realm** to a password flow. That opens a password path
@@ -29,7 +29,89 @@ for **every** user, for an **unbounded** time, with **no record**. A worse hole 
 **The window is closed by default, bounded, and audited**, and the normal clients are untouched
 throughout — that last one is the whole point, and it is a control rather than an afterthought.
 
-## 2. The requirement that was NOT met
+## 2. The requirement that was NOT met — and a correction
+
+> **This section originally claimed the condition "never gated" in four arrangements. That was
+> wrong, and the correction matters more than the original text.** The tests behind it were invalid
+> in two ways, and a later, properly-controlled run found something considerably worse than a
+> non-functional condition.
+
+### What was actually happening
+
+Two faults made every earlier probe meaningless:
+
+1. **The client was disabled.** The window was closed, so the `enrolment` client was disabled and
+   *every* request returned HTTP 400 `"Client disabled."` A probe that only reports "no password field
+   appeared" cannot tell that apart from "the condition refused".
+2. **The probe only read the first page.** With identity-first login, the condition is evaluated
+   *after* the username is submitted. Every earlier test checked the page before that — where no
+   password field would ever appear regardless.
+
+A correctly-controlled test — window open, username actually submitted, `negate` used as a
+discriminator — shows **the condition works exactly as documented**:
+
+| `negate` | Role present | Password form appears |
+|---|---|---|
+| `false` | no | no |
+| `false` | **yes** | **yes** |
+| `true` | **no** | **yes** |
+| `true` | yes | no |
+
+The conditional subflow must be **`CONDITIONAL`** and **identity-first**: the user has to be
+identified *before* the condition runs, which means splitting `Username Password Form` into
+`auth-username-form` + `auth-password-form`.
+
+### The finding: it fails OPEN
+
+Having made the gate work, the next test asked a different question — *what happens when the
+condition skips the credential step?*
+
+!!! danger "A conditional that skips the only credential step issues a token anyway"
+
+    When `conditional-user-role` fails, the `CONDITIONAL` subflow is **skipped**. The `Username Form`
+    had already "succeeded" — it identifies a user, it does **not** authenticate one — so the
+    `ALTERNATIVE` parent subflow completes and **Keycloak issues an authorization code**.
+
+    **Verified by obtaining a real token while supplying no credential of any kind, only a username
+    string:**
+
+    ```
+    attacking user     : spike-attest-privileged
+    credential supplied: NONE — only a username
+    1. GET auth page        -> HTTP 200
+    2. POST username only   -> HTTP 302
+    3. code issued          -> yes
+    4. TOKEN ISSUED         -> preferred_username: spike-attest-privileged
+    ```
+
+    Making the subflow `REQUIRED` instead of `CONDITIONAL` does **not** fail closed — it removes the
+    gate entirely, so the password form always appears.
+
+### What this means
+
+**The per-user restriction cannot be built this way.** Not because the condition fails to gate, but
+because gating it this way makes the flow **fail open**, which is worse than the limitation it was
+meant to fix: an unauthenticated attacker would obtain tokens for arbitrary users.
+
+**The shipped design is not affected.** `enrolment_window.py setup` builds a flow whose credential
+step is a plain `Username Password Form` with no conditional able to skip it. Verified after the
+experiment: a username-only POST returns HTTP 200 with **no code** and the password form still
+required.
+
+**The generalisable lesson, which is not specific to enrolment:**
+
+> In Keycloak, a conditional that can skip the only credential step in a flow causes the flow to
+> complete **successfully** without authentication. Design conditional flows so that some
+> authentication step is **REQUIRED on every path**.
+
+### Where this leaves the requirement
+
+Still unmet — but for a proven and much better-understood reason, and with a clear alternative:
+**Keycloak impersonation** (`POST /users/{id}/impersonation`) yields a one-time, per-user,
+time-limited and audited link, and removes the password path from enrolment entirely. That is a
+strong candidate for the follow-up, and it should be tested rather than assumed.
+
+
 
 > *"A dedicated enrolment flow — reachable only for a named user, so enabling it for one person does
 > not open the door for everyone."*
@@ -40,10 +122,11 @@ full sign-in as a second user. That check is deliberately a **finding** rather t
 known residual risk, and pinning it as a test means it cannot be quietly forgotten or quietly assumed
 to work.
 
-### What was tried, so nobody repeats it
+### What was tried — and the original conclusion, now corrected
 
-The intended mechanism was Keycloak's `conditional-user-role` — a per-user gate. **Four arrangements
-were tested, and none gated:**
+**Superseded by the correction at the top of this section.** The text below was the first conclusion,
+based on tests that were later shown to be invalid. It is kept because the traps it describes are
+real, but the headline claim — "none gated" — is **wrong**.
 
 | Arrangement | Outcome |
 |---|---|

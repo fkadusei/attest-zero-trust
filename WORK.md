@@ -46,7 +46,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
 | **S5d** | Make the privileged flow actually require a passkey | ✅ **done — 12/12; found a bypass** |
 | **S5e** | Time-box and audit the enrolment window | ⚠ **done — bounded and audited, but not per-user** |
-| **S5f** | Does the whole enrolment journey actually work? | ▶ **NEXT** |
+| **S5f** | Can enrolment be made per-user with impersonation? | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -302,33 +302,39 @@ Full write-up: `lab/keycloak/SPIKE-5e-RESULTS.md`.
 
 ---
 
-## ▶ S5f — Does the whole enrolment journey actually work? — **NEXT**
+## ▶ S5f — Can enrolment be made per-user, using impersonation? — **NEXT**
 
-**In plain words.** Every piece of the enrolment story has now been proven separately: a passkey can
-be registered (S3), a passkey can sign in and a password cannot (S5d), and the window that allows a
-password is bounded and audited (S5e). **Nobody has walked the whole path in one go**, from "this
-person has no passkey" to "this person signs in with a passkey".
+**In plain words.** The enrolment window still is not restricted to one person. The obvious fix —
+gating the password form with a role condition — **turned out to fail open**: skipping the credential
+step issued a token to anyone who typed a username. So that route is closed, and for a much better
+understood reason than "it didn't work".
 
-That is exactly the kind of gap where two well-tested halves fail to join.
+There is a cleaner mechanism, and it removes the password path from enrolment entirely:
 
-**What to test, in one continuous run:**
+**Keycloak impersonation.** `POST /admin/realms/{realm}/users/{id}/impersonation` returns a
+**one-time link for exactly one user**. Opened on their own device, it starts a session as that user,
+so the "register a passkey" required action runs. That is:
 
-1. Start with a user who has **no passkey** and confirm they cannot sign in to the normal client.
-2. Open the enrolment window.
-3. Sign in with a password, complete the required action, and **register a passkey**.
-4. Close and sweep the window.
-5. **Confirm the password no longer works** for that user anywhere.
-6. Sign in again with the **passkey**, on the normal client.
-7. **Control:** while the window was open, the normal client must have stayed passkey-only — the whole
-   journey must not be achieved by quietly reopening the realm.
+- **per-user by construction** — the administrator names the person, so the requirement is met by the
+  mechanism rather than bolted onto it
+- **time-limited** — the link carries an expiring token
+- **audited** — impersonation is a privileged admin action and is logged as one
+- **no password path at all**, so the whole window problem disappears
+
+**What to test, with controls:**
+
+1. An impersonation link works for the named user and reaches the passkey registration.
+2. **Control:** the link does **not** work for a different user.
+3. **Control:** the link stops working after it expires, and after it is used once.
+4. The resulting session is **flagged as impersonated**, so it can be audited and constrained.
+5. **Control:** with no impersonation in play, the password path is still gone from the realm.
+
+⚠️ **Impersonation is a powerful capability.** It must be limited to a named role, every use must be
+logged, and the resulting session must be distinguishable from a normal one. Do not adopt it without
+testing those — that is the whole point of the slice.
 
 **Needs:** nothing. Runs on this machine.
 **Time:** half a day.
-
-**The bigger one still waiting:** the **phishing-proxy test** — the project's headline claim, and the
-top entry in `EVIDENCE.md` §7. It needs distinct hostnames, because WebAuthn's relying-party ID
-ignores the *port*, so a proxy on another localhost port would share the RP ID and show a false
-bypass. That means editing `/etc/hosts`, which needs the user's approval.
 
 ---
 
