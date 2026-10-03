@@ -38,6 +38,14 @@ here, **this file is right and the other one is a bug.** Please report it.
 | The browser **keeps its session key across a full quit and relaunch**, and it is the *same* key | S4/S4b, including a control requiring a fresh key to be rejected | **Verified** (Chromium only — see §4) |
 | **Keycloak's LoA condition does not gate** the subflow it is attached to | S5 enabled/disabled/enabled test: the prompt tracks the subflow, not the requested level | **Verified** |
 | A **CONDITIONAL subflow at the top level of the browser flow breaks it** | S5 bisect: the flow returns HTTP 400 from step 4 onward, and a pristine copy works | **Verified** |
+| **`prompt=login` forces a genuine ceremony** even with a live session | S5c T3a: the login form is demanded despite a valid session cookie | **Verified** |
+| Reusing a live session **does not** change `auth_time` | S5c T2b — the control that makes the next row meaningful | **Verified** |
+| `auth_time` **advances** on re-authentication | S5c T3c: advanced by exactly the deliberate 3-second wait | **Verified** |
+| An old token **keeps its old `auth_time`** and does not retroactively update | S5c T4a — otherwise freshness would be faked, not measured | **Verified** |
+| `max_age` is honoured **conditionally and correctly** | S5c T5a/T5b: `3600` reuses a 2s-old session; `0` re-authenticates it | **Verified** |
+| A freshness policy **refuses** stale tokens | S5c T6b | **Verified** |
+| A freshness policy **refuses a token with no `auth_time`** — fail closed | S5c T6c | **Verified** |
+| A freshness policy **refuses a future `auth_time`** | S5c T6d | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -72,8 +80,9 @@ here, **this file is right and the other one is a bug.** Please report it.
 | Our **permissions engine accepts our tokens** | It was built for a different issuer | AWS |
 | **Revocation latency** is under a minute | Claimed, never measured | AWS |
 | The login server **clusters** on Fargate | A single instance is not viable | AWS |
-| The **replacement for step-up** forces a fresh check | It is a plan, not a control | S5c |
-| **`auth_time`** behaves as expected | The whole replacement rests on it | S5c |
+| Freshness over a **real browser and a real user** | S5c drives Keycloak over HTTP with scripted forms; it proves protocol behaviour, not user experience | A browser-driven test |
+| Behaviour of `prompt=login` when re-authentication is **impossible** | A user whose only credential was removed. Expected to lock out; unproven, and lockout paths deserve their own test | A lab user with no credential |
+| Whether the **privileged flow requires a passkey** | It does **not** today — see §5.8 | S5d |
 
 ## 5. Where confidence is genuinely lower than it looks
 
@@ -105,7 +114,20 @@ Recorded because the instruction is explicit: **say when you are not certain.**
 6. **NVD has not analysed the CVE** — its status is "Awaiting Analysis". The description is Red
    Hat's. NVD could revise or re-score it.
 
-7. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+7. **`max_age` nearly produced a published false finding.** The first S5c run reported that
+   `max_age=0` did not force re-authentication. That was a **test error**, not a design flaw: the
+   request was made on a session 0 seconds old, and `elapsed > max_age` is `0 > 0` — false. Reusing
+   the session was correct. Recorded because the near-miss is more instructive than the result:
+   **a failing test is a hypothesis about the code, not a conclusion about it.**
+
+8. **ADR-013's strength argument does not hold as configured.** It claimed re-authentication on the
+   privileged realm *is* a hardware-key assertion. S5c read the flow and found a **`Username Password
+   Form` still present**, with WebAuthn only as a conditional second factor. So the replacement gives
+   verified **freshness** and, today, **no strength**. Corrected in ADR-013 and tracked as S5d.
+   Anything user-facing must say *"you signed in again just now"*, never *"you used your key just
+   now"*, until that flow work is done.
+
+9. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 

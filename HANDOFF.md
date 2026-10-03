@@ -44,9 +44,9 @@ site. Start with `docs/site/index.html`.
 
 ## 2. State of play, in one paragraph
 
-**The design is complete and written down. Six experiments have been run: three hold, one failed and
-was then resolved by rejecting the mechanism, and one partly.** No production code has been written
-yet. The identity provider (Keycloak) runs locally
+**The design is complete and written down. Seven experiments have been run: four hold, one holds for
+Chromium only, one failed and was resolved by rejecting the mechanism it tested, and one verified the
+replacement for that mechanism.** No production code has been written yet. The identity provider (Keycloak) runs locally
 in Docker with two realms configured. Everything else is design, not deployment — the documentation is
 deliberately explicit about which is which, and you should preserve that distinction.
 
@@ -89,17 +89,20 @@ and running the identity provider as more than one copy.
 
 ## 4. What to do next
 
-**Slice S5c — does the replacement actually force a fresh check?**
+**Slice S5d — make the privileged flow actually require a passkey.**
 
-S5b settled step-up: the IdP mechanism is **rejected** because of CVE-2026-97176, and the replacement
-is to force a genuine re-authentication (`prompt=login` + `max_age=0`) and judge freshness from the
-**`auth_time`** claim rather than the `acr` claim.
+S5c verified the step-up replacement as a working control (14/14, negative-tested). It also found that
+**ADR-013's strength argument does not hold**: the privileged browser flow still contains a
+`Username Password Form`, with WebAuthn only as a conditional second factor. So re-authentication
+there gives verified **freshness** and, today, **no strength**.
 
-That replacement is a plan, not a proven control. S5c tests it, with a control: an older token must
-keep its *older* `auth_time`. If the value moves when it should not, freshness is being faked rather
-than measured — which would be the same class of failure as the thing we just rejected.
+S5d does the flow surgery so that a password alone is **refused**. This is the gap between "supports
+passkeys" and "requires a passkey", and it is the whole point of the privileged realm.
 
-**Nothing is blocking it.** Runs entirely on this machine.
+**⚠️ The risk here is lockout, not bypass.** Get it wrong and privileged administrators cannot sign in
+at all. Build and verify the recovery path *before* removing the password form.
+
+**Nothing is blocking it.** Runs on this machine using S3's virtual authenticator.
 
 **Also worth doing whenever convenient — a one-minute manual job:** run the S4 test in Safari, which
 is the browser most likely to throw stored data away and the one we could not automate. It needs a
@@ -274,7 +277,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ⚠ S4b | The other browser engines | — *Chromium 6/6; **Firefox + Safari manual*** |
 | ❌ S5 | Does asking for a stronger check actually force one? | — *ran, did not work* |
 | ✅ S5b | Can step-up be made to work at all? | — *answered: **rejected**, live CVE* |
-| **▶ S5c** | Does the replacement force a fresh check? | nothing |
+| ✅ S5c | Does the replacement force a fresh check? | — *yes, **14/14** with controls* |
+| **▶ S5d** | Make the privileged flow require a passkey | nothing — **lockout risk** |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

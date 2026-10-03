@@ -112,6 +112,8 @@ PAGES: list[Page] = [
          "The S4b experiment: three Chromium browsers pass; Firefox and Safari remain manual."),
     Page("lab-results-stepup", "lab/keycloak/SPIKE-5b-RESULTS.md", "Reference", "Lab results: step-up rejected",
          "How a failed experiment uncovered a live, unmitigated CVE in the component the design depended on."),
+    Page("lab-results-freshness", "lab/keycloak/SPIKE-5c-RESULTS.md", "Reference", "Lab results: forcing a fresh check",
+         "The step-up replacement verified as a working control, 14/14 with its controls — and one premise it disproved."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

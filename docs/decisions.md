@@ -395,10 +395,23 @@ S5b then found the decisive fact. The component involved — `ConditionalLoaAuth
 `prompt=login` plus `max_age=0`, and evaluate **freshness** using the `auth_time` claim — never the
 `acr` claim.
 
-**Consequences — good:** The bypass is avoided entirely rather than mitigated. For the privileged
-realm, re-authentication means a fresh hardware-key assertion, so freshness and strength come from the
-same act. `auth_time` records when authentication actually happened, so it is unaffected by a flaw in
-how a *level* was computed.
+**Consequences — good:** The bypass is avoided entirely rather than mitigated. `auth_time` records
+when authentication actually happened, so it is unaffected by a flaw in how a *level* was computed.
+
+!!! warning "Corrected by S5c — the strength argument does not hold yet"
+
+    This record originally claimed that *"for the privileged realm, re-authentication means a fresh
+    hardware-key assertion, so freshness and strength come from the same act."*
+
+    **That is false as the realm is currently configured.** S5c read the privileged browser flow and
+    found a `Username Password Form` still present, with WebAuthn only as a conditional second
+    factor. So re-authentication there can be **a password**, not a hardware-key assertion.
+
+    Forcing re-authentication therefore gives us **freshness** — which S5c verified as a working
+    control, 14/14 with its controls — and **not strength**. The two come from the same act only once
+    the flow requires a passkey. Until that flow work is done, a sensitive action on the privileged
+    realm proves *"you signed in again just now"* and **not** *"you used your hardware key just
+    now"*. That distinction must not be blurred anywhere user-facing.
 
 **Consequences — bad:** A full re-authentication is a blunter experience than a targeted step-up, and
 on the customer realm it proves freshness plus whatever strength that realm's policy provides — which
@@ -407,6 +420,10 @@ must be stated plainly rather than implied. This is custom work the IdP would ot
 **The rule this establishes:** a claim the issuer *writes* is not a claim the resource server can
 *rely on* without checking. This is the same lesson as DPoP in S1, and it is now written down twice
 because we have now learned it twice.
+
+**Verified by:** S5c — `prompt=login` forces a genuine ceremony despite a live session, `auth_time`
+advances and does not retroactively change, and the freshness policy refuses stale and
+freshness-less tokens. 14/14 checks, and the gate is negative-tested.
 
 **Alternatives rejected:** LoA-based step-up (rejected: live unmitigated CVE, and the mechanism did
 not gate in testing either). Application-side step-up with a fresh WebAuthn assertion verified by our

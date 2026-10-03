@@ -57,6 +57,7 @@
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -391,16 +392,30 @@ regardless of the level requested, or of nothing being requested.</p>
 <p><strong>Decision:</strong> Do <strong>not</strong> build step-up on ACR/LoA. Force a genuine re-authentication with
 <code>prompt=login</code> plus <code>max_age=0</code>, and evaluate <strong>freshness</strong> using the <code>auth_time</code> claim — never the
 <code>acr</code> claim.</p>
-<p><strong>Consequences — good:</strong> The bypass is avoided entirely rather than mitigated. For the privileged
-realm, re-authentication means a fresh hardware-key assertion, so freshness and strength come from the
-same act. <code>auth_time</code> records when authentication actually happened, so it is unaffected by a flaw in
-how a <em>level</em> was computed.</p>
+<p><strong>Consequences — good:</strong> The bypass is avoided entirely rather than mitigated. <code>auth_time</code> records
+when authentication actually happened, so it is unaffected by a flaw in how a <em>level</em> was computed.</p>
+<div class="admonition warning">
+<p class="admonition-title">Corrected by S5c — the strength argument does not hold yet</p>
+<p>This record originally claimed that <em>&ldquo;for the privileged realm, re-authentication means a fresh
+hardware-key assertion, so freshness and strength come from the same act.&rdquo;</em></p>
+<p><strong>That is false as the realm is currently configured.</strong> S5c read the privileged browser flow and
+found a <code>Username Password Form</code> still present, with WebAuthn only as a conditional second
+factor. So re-authentication there can be <strong>a password</strong>, not a hardware-key assertion.</p>
+<p>Forcing re-authentication therefore gives us <strong>freshness</strong> — which S5c verified as a working
+control, 14/14 with its controls — and <strong>not strength</strong>. The two come from the same act only once
+the flow requires a passkey. Until that flow work is done, a sensitive action on the privileged
+realm proves <em>&ldquo;you signed in again just now&rdquo;</em> and <strong>not</strong> <em>&ldquo;you used your hardware key just
+now&rdquo;</em>. That distinction must not be blurred anywhere user-facing.</p>
+</div>
 <p><strong>Consequences — bad:</strong> A full re-authentication is a blunter experience than a targeted step-up, and
 on the customer realm it proves freshness plus whatever strength that realm&rsquo;s policy provides — which
 must be stated plainly rather than implied. This is custom work the IdP would otherwise have owned.</p>
 <p><strong>The rule this establishes:</strong> a claim the issuer <em>writes</em> is not a claim the resource server can
 <em>rely on</em> without checking. This is the same lesson as DPoP in S1, and it is now written down twice
 because we have now learned it twice.</p>
+<p><strong>Verified by:</strong> S5c — <code>prompt=login</code> forces a genuine ceremony despite a live session, <code>auth_time</code>
+advances and does not retroactively change, and the freshness policy refuses stale and
+freshness-less tokens. 14/14 checks, and the gate is negative-tested.</p>
 <p><strong>Alternatives rejected:</strong> LoA-based step-up (rejected: live unmitigated CVE, and the mechanism did
 not gate in testing either). Application-side step-up with a fresh WebAuthn assertion verified by our
 own API (rejected <em>for now</em>: more custom security code, and <code>prompt=login</code> already yields a fresh

@@ -57,6 +57,7 @@
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -198,6 +199,46 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong><code>prompt=login</code> forces a genuine ceremony</strong> even with a live session</td>
+<td>S5c T3a: the login form is demanded despite a valid session cookie</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>Reusing a live session <strong>does not</strong> change <code>auth_time</code></td>
+<td>S5c T2b — the control that makes the next row meaningful</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><code>auth_time</code> <strong>advances</strong> on re-authentication</td>
+<td>S5c T3c: advanced by exactly the deliberate 3-second wait</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>An old token <strong>keeps its old <code>auth_time</code></strong> and does not retroactively update</td>
+<td>S5c T4a — otherwise freshness would be faked, not measured</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><code>max_age</code> is honoured <strong>conditionally and correctly</strong></td>
+<td>S5c T5a/T5b: <code>3600</code> reuses a 2s-old session; <code>0</code> re-authenticates it</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A freshness policy <strong>refuses</strong> stale tokens</td>
+<td>S5c T6b</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A freshness policy <strong>refuses a token with no <code>auth_time</code></strong> — fail closed</td>
+<td>S5c T6c</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A freshness policy <strong>refuses a future <code>auth_time</code></strong></td>
+<td>S5c T6d</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><code>http.cookiejar</code> <strong>cannot drive a Keycloak login</strong></td>
 <td>Cookies stored as <code>localhost.local</code> + <code>Secure</code>, so never sent over http; error is &ldquo;Restart login cookie not found&rdquo;</td>
 <td><strong>Verified</strong></td>
@@ -332,14 +373,19 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td>AWS</td>
 </tr>
 <tr>
-<td>The <strong>replacement for step-up</strong> forces a fresh check</td>
-<td>It is a plan, not a control</td>
-<td>S5c</td>
+<td>Freshness over a <strong>real browser and a real user</strong></td>
+<td>S5c drives Keycloak over HTTP with scripted forms; it proves protocol behaviour, not user experience</td>
+<td>A browser-driven test</td>
 </tr>
 <tr>
-<td><strong><code>auth_time</code></strong> behaves as expected</td>
-<td>The whole replacement rests on it</td>
-<td>S5c</td>
+<td>Behaviour of <code>prompt=login</code> when re-authentication is <strong>impossible</strong></td>
+<td>A user whose only credential was removed. Expected to lock out; unproven, and lockout paths deserve their own test</td>
+<td>A lab user with no credential</td>
+</tr>
+<tr>
+<td>Whether the <strong>privileged flow requires a passkey</strong></td>
+<td>It does <strong>not</strong> today — see §5.8</td>
+<td>S5d</td>
 </tr>
 </tbody>
 </table></div>
@@ -378,6 +424,21 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <li>
 <p><strong>NVD has not analysed the CVE</strong> — its status is &ldquo;Awaiting Analysis&rdquo;. The description is Red
    Hat&rsquo;s. NVD could revise or re-score it.</p>
+</li>
+<li>
+<p><strong><code>max_age</code> nearly produced a published false finding.</strong> The first S5c run reported that
+   <code>max_age=0</code> did not force re-authentication. That was a <strong>test error</strong>, not a design flaw: the
+   request was made on a session 0 seconds old, and <code>elapsed &gt; max_age</code> is <code>0 &gt; 0</code> — false. Reusing
+   the session was correct. Recorded because the near-miss is more instructive than the result:
+   <strong>a failing test is a hypothesis about the code, not a conclusion about it.</strong></p>
+</li>
+<li>
+<p><strong>ADR-013&rsquo;s strength argument does not hold as configured.</strong> It claimed re-authentication on the
+   privileged realm <em>is</em> a hardware-key assertion. S5c read the flow and found a <strong><code>Username Password
+   Form</code> still present</strong>, with WebAuthn only as a conditional second factor. So the replacement gives
+   verified <strong>freshness</strong> and, today, <strong>no strength</strong>. Corrected in ADR-013 and tracked as S5d.
+   Anything user-facing must say <em>&ldquo;you signed in again just now&rdquo;</em>, never <em>&ldquo;you used your key just
+   now&rdquo;</em>, until that flow work is done.</p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by

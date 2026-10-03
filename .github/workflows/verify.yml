@@ -101,6 +101,50 @@ jobs:
         run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
+  # The freshness experiment (S5c). No browser needed: it builds its own
+  # throwaway realm and drives Keycloak over HTTP. This is the control that
+  # replaced the rejected LoA step-up, so it is worth keeping honest.
+  # ---------------------------------------------------------------------------
+  freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the lab toolchain
+        run: pip install -r requirements-lab.txt
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: S5c — force a fresh check, and judge it by auth_time
+        # Asserts 14 checks including five controls. The controls are the point:
+        # a reused session must NOT change auth_time, an old token must keep its
+        # old auth_time, and the policy must refuse both stale tokens and tokens
+        # with no auth_time at all.
+        #
+        # This step also prints FINDINGS separately from gates. A finding does not
+        # fail the build, so read the output — currently it reports that the
+        # privileged flow still accepts a password. See WORK.md S5d.
+        run: python3 lab/keycloak/scripts/freshness_spike.py
+
+      - name: Show the provider log on failure
+        if: failure()
+        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+
+  # ---------------------------------------------------------------------------
   # The hardware-key experiment (S3). Needs a browser with a virtual
   # authenticator, driven over the Chrome DevTools Protocol.
   # ---------------------------------------------------------------------------

@@ -43,7 +43,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S4b** | Do the other browsers behave the same way? | ⚠ **Chromium done** — Firefox/Safari manual |
 | **S5** | Does asking for a stronger check actually force one? | ❌ **UNRESOLVED** — the condition never gated |
 | **S5b** | Can step-up be made to work at all? | ✅ **answered — rejected (ADR-013)** |
-| **S5c** | Does the replacement actually force a fresh check? | ▶ **NEXT** |
+| **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
+| **S5d** | Make the privileged flow actually require a passkey | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -184,27 +185,66 @@ Full write-up: `lab/keycloak/SPIKE-5b-RESULTS.md`.
 
 ---
 
-## ▶ S5c — Does the replacement actually force a fresh check? — **NEXT**
+## ✅ S5c — Does the replacement actually force a fresh check? — **YES, 14/14**
 
-**In plain words.** S5b rejected the broken mechanism and proposed a replacement: make the user sign
-in again for sensitive actions, and judge how *recently* they did it rather than trusting a label the
-server writes into the token. That is a plan, not a proven control.
+**Result: the replacement is a working control, not a hope.** With one correction to the reasoning
+behind it.
 
-**What to test, with a control for each:**
+`prompt=login` genuinely forces a ceremony even with a live session. `auth_time` advances on that
+re-authentication and — critically — **does not retroactively change** on the earlier token. And the
+policy that consumes it refuses stale tokens and tokens with no `auth_time` at all (**fail closed**).
 
-1. Does forcing a sign-in genuinely produce a fresh ceremony, even with a live session? Asking an
-   already-signed-in user to "sign in again" is exactly the kind of thing that quietly does nothing.
-2. Does the `auth_time` claim update on that re-authentication?
-3. **Control:** does an older token keep its *older* `auth_time`? If the value moves when it should
-   not, then freshness is being faked, not measured.
-4. Does it work on the **privileged** realm, where re-authentication means a passkey ceremony?
+**Every claim had a control that had to come out the other way**, because the failure this experiment
+exists to catch is *"asking a signed-in user to sign in again quietly does nothing"* — exactly what
+S5 found in the mechanism we rejected. Observing a fresh sign-in proves nothing without showing that
+one does not happen otherwise.
 
-**Needs:** nothing. Runs on this machine.
-**Time:** half a day.
+**A false finding caught before it was published.** The first run reported `max_age=0` did not force
+re-authentication, which looked like a real defect. It was my test that was wrong: it requested
+`max_age=0` on a session 0 seconds old, and `elapsed > max_age` is `0 > 0` — false. Reusing the
+session was correct. Characterising it properly showed `max_age` is honoured, conditionally and
+correctly. **The lesson: a failing test is a hypothesis about the code, not a conclusion about it.**
 
-**Also to track (not a slice, a watch item):** an upstream fix for CVE-2026-97176. If one ships,
-LoA-based step-up becomes worth re-evaluating — but only against a test that **tries to exploit the
-bypass**, never on the strength of a patch note.
+**The finding: ADR-013's strength argument does not hold.** It claimed re-authentication on the
+privileged realm *is* a hardware-key assertion. S5c read the flow: a **`Username Password Form` is
+still present**, with WebAuthn only as a conditional second factor. So we get **freshness**, verified —
+and **not strength**. Corrected in ADR-013; the flow work is S5d.
+
+**Also worth noting:** `acr` *is* present and works here, reported as `"1"`. The problem with `acr` was
+never that it is missing — it is that it is a claim the issuer writes, and CVE-2026-97176 shows it can
+assert a level never performed. **Use `auth_time` regardless.**
+
+**The gate is negative-tested**, per the rule from the audit: real run exits 0 at 14/14; one check
+inverted exits 1. Findings print separately from gates, so a green run cannot hide an unmet premise.
+
+Full write-up: `lab/keycloak/SPIKE-5c-RESULTS.md`.
+
+---
+
+## ▶ S5d — Make the privileged flow actually require a passkey — **NEXT**
+
+**In plain words.** The privileged realm is supposed to be the one where only a hardware key gets you
+in. It currently still accepts a password. Until that changes, "prove yourself again" on this realm
+proves *you signed in just now* — not that you used your key.
+
+This is flow surgery on the privileged browser flow:
+
+1. Make the **`Username Password Form`** no longer REQUIRED — remove it, or make it ALTERNATIVE only
+   for a documented recovery path.
+2. Make **`WebAuthn Authenticator`** the primary path, REQUIRED.
+3. Keep the `Condition - credential` step, which is what lets a passkey satisfy 2FA without a second
+   prompt.
+4. **Prove it with a matrix in the S3 style**: a password alone must be **refused**; a passkey must be
+   **accepted**; and a control must show the harness can tell the difference.
+
+**Do not skip the refusal test.** The whole point is that a password stops working. A flow that
+"supports passkeys" while still accepting passwords is the exact gap this slice exists to close.
+
+⚠️ **Lockout risk.** Get this wrong and privileged administrators cannot sign in at all. Build and
+verify the recovery path *before* removing the password form, not after.
+
+**Needs:** nothing. Runs on this machine, using the virtual authenticator from S3.
+**Time:** one day, most of it on the recovery path.
 
 ---
 
