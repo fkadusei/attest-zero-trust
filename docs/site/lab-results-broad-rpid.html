@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: when it breaks — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The counter-case, measured: the same relay is refused under a narrow relying-party ID and answers under a broad one." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="evidence.html">Evidence register</a></li>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
+<li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
+<li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
+<li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-broad-rpid.html" class="current">Lab results: when it breaks</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-result">1. The result</a></li>
+<li><a href="#2-stated-precisely-what-was-and-was-not-measured">2. Stated precisely — what was and was not measured</a></li>
+<li><a href="#3-the-blocker-that-turned-out-to-be-the-real-lesson">3. The blocker that turned out to be the real lesson</a></li>
+<li><a href="#4-what-this-means-for-the-design">4. What this means for the design</a></li>
+<li><a href="#5-what-was-not-tested">5. What was NOT tested</a></li>
+<li><a href="#6-reproducing">6. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: when it breaks</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: when it breaks</h1>
+        <p class="blurb">The counter-case, measured: the same relay is refused under a narrow relying-party ID and answers under a broad one.</p>
+      </header>
+      <section id="overview"><p><strong>Status: RESOLVED — CONFIRMED BY MEASUREMENT. 6/6.</strong></p>
+<p>S9 proved a passkey cannot be used through a phishing proxy. What it could not show was the
+<strong>counter-case</strong>: that this depends on the relying-party ID being narrow, rather than on something else
+entirely.</p>
+<p><strong>It does, and here is the measurement.</strong></p>
+<hr></section>
+<section id="1-the-result"><h2>1. The result</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Narrow</strong> RP ID: a passkey registers</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Narrow</strong>: signs in at the real origin</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Narrow CONTROL: the phishing origin is REFUSED</strong></td>
+<td><strong>pass</strong> — <code>rejected:SecurityError</code></td>
+</tr>
+<tr>
+<td><strong>Broad</strong> RP ID: a passkey registers</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Broad</strong>: signs in at the real origin</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>THE COUNTER-CASE: the credential ANSWERS at the phishing origin</strong></td>
+<td><strong>pass</strong> — <code>resolved</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>The two rows that matter, side by side, same relay, same browser, same credential type — <strong>only the
+relying-party ID differs</strong>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>RP ID</th>
+<th>Origin attempted</th>
+<th>What the browser did</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app.attest.test</code> (narrow)</td>
+<td><code>evil.attest.test</code></td>
+<td><strong><code>SecurityError</code></strong> — no assertion</td>
+</tr>
+<tr>
+<td><code>attest.test</code> (broad)</td>
+<td><code>evil.attest.test</code></td>
+<td><strong><code>resolved</code></strong> — <strong>a valid assertion</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>That is the whole finding.</strong> Phishing resistance is not a property of passkeys in the abstract. It is
+a property of the <strong>relying-party ID</strong>, and the same relay succeeds or fails depending on how wide it
+is set.</p>
+</section>
+<section id="2-stated-precisely-what-was-and-was-not-measured"><h2>2. Stated precisely — what was and was not measured</h2>
+<p><strong>Measured:</strong> under a broad RP ID the <strong>browser produced a valid assertion for the attacker&rsquo;s origin.</strong>
+Under a narrow RP ID the same origin got <code>SecurityError</code> and produced nothing.</p>
+<p><strong>Not measured:</strong> the full session completing end to end through this hand-rolled relay. Our proxy did
+not complete it — irrelevant to the security question, because an attacker with a real site relays the
+assertion to the genuine server, and <em>the assertion is the thing that must not exist</em>. Its existence is
+the finding.</p>
+<p>The prose here is deliberately narrower than &ldquo;the attacker signs in&rdquo;, because a relay completing a
+session is plumbing while producing an assertion is the security boundary.</p>
+</section>
+<section id="3-the-blocker-that-turned-out-to-be-the-real-lesson"><h2>3. The blocker that turned out to be the real lesson</h2>
+<p>Two things had to be solved, and the second is worth more than the test.</p>
+<p><strong>DNS.</strong> The test needs two hostnames under a <strong>real registrable domain</strong>. <code>/etc/hosts</code> is the obvious
+route and it is root-owned here, with <code>sudo</code> wanting a password this environment does not have. Chrome
+can resolve them for itself:</p>
+<div class="codehilite"><pre><span></span><code>--host-resolver-rules="MAP app.attest.test 127.0.0.1,MAP evil.attest.test 127.0.0.1"
+</code></pre></div>
+
+<p><code>.test</code> <strong>is</strong> a reserved TLD treated as registrable, so a broad RP ID of <code>attest.test</code> is accepted.
+<strong>No system change was made — <code>/etc/hosts</code> was verified unchanged.</strong> The offer to edit it was
+appreciated and turned out not to be needed.</p>
+<p><strong>Secure context — and this is the finding.</strong> The first attempts failed with Keycloak reporting:</p>
+<div class="codehilite"><pre><span></span><code>web_authn_registration_error_detail="WebAuthnUnsupportedBrowser"
+</code></pre></div>
+
+<p><strong>WebAuthn only exists in a secure context.</strong> <code>*.localhost</code> is treated as trustworthy over plain HTTP,
+which is exactly why S9 worked. A real domain over HTTP is <strong>not</strong>, so <code>window.PublicKeyCredential</code> is
+undefined and the browser cannot do WebAuthn at all.</p>
+<blockquote>
+<p><strong>Resolvable hostnames would not have fixed this.</strong> It was never a DNS problem. It needs TLS — or, in
+a lab, this flag:</p>
+<p><code>--unsafely-treat-insecure-origin-as-secure=http://app.attest.test:8080,http://evil.attest.test:9001</code></p>
+</blockquote>
+<p><strong>This constrains anyone testing WebAuthn locally</strong>, and it is recorded because it cost real time and
+would cost it again.</p>
+</section>
+<section id="4-what-this-means-for-the-design"><h2>4. What this means for the design</h2>
+<p>Phishing resistance rests on one setting, and it is now measured rather than argued:</p>
+<ul>
+<li><strong>The relying-party ID must be a domain the attacker cannot serve a matching origin for.</strong> Set it to
+  a shared parent and every host under that parent can obtain assertions for the credential.</li>
+<li><strong>It must be as narrow as the deployment allows.</strong> A wider RP ID is a wider attack surface, and the
+  measurement above is what that costs.</li>
+<li><strong>Never</strong> point it at a value the application does not control.</li>
+</ul>
+<p>The honest trade-off: a narrow RP ID means a credential registered on one host will not work on
+another. <code>app.example.com</code> and <code>login.example.com</code> are different origins, and a credential bound to
+one does not answer for the other. That is the price of the property, and it is a design decision to
+make deliberately rather than by default.</p>
+</section>
+<section id="5-what-was-not-tested"><h2>5. What was NOT tested</h2>
+<ul>
+<li><strong>A real TLS environment.</strong> The secure-context requirement is satisfied here by a Chrome flag
+  standing in for the certificate a real deployment would have. The WebAuthn origin check does not
+  depend on the certificate, so the conclusion should hold — but that is reasoning.</li>
+<li><strong>The full session through the relay</strong>, for the reason in §2.</li>
+<li><strong>Whether real attackers would choose this path.</strong> Phishing the passkey fails; phishing the
+  <em>enrolment</em> paths the project built deliberately (S5e&rsquo;s window, S5f&rsquo;s link) does not depend on RP ID
+  at all. <strong>Those remain the soft spots.</strong></li>
+</ul>
+</section>
+<section id="6-reproducing"><h2>6. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code>./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/spike9b-meta.py<span class="w">    </span><span class="c1"># 6 checks, ~3 minutes</span>
+</code></pre></div>
+
+<p>Chrome is launched by the script with both flags; the relay runs on <code>0.0.0.0:9001</code> and rewrites URLs
+to <code>evil.attest.test:9001</code>, never to the address it binds. Negative-tested: inverting the counter-case
+check gives 5/6 and exit 1.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

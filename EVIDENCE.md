@@ -69,6 +69,8 @@ here, **this file is right and the other one is a bug.** Please report it.
 | **A passkey cannot be used through a phishing proxy**, even when the proxy relays the genuine page byte-for-byte | S9 T4 — the browser refuses with `SecurityError: The relying party ID is not a registrable domain suffix of, nor equal to the current domain` | **Verified** |
 | The **same credential signs in at the real origin**, so the refusal is a refusal and not a broken harness | S9 T2 — the positive control that makes T4 meaningful | **Verified** |
 | The relay is **faithful**: no reference to the real host survives in the served page | S9 T3/T3b — every absolute URL rewritten to the attacker's origin | **Verified** |
+| **A BROAD relying-party ID IS exploitable** — the browser produces a valid assertion for the attacker's origin | S9b — **the counter-case**, measured. Same relay, same credential: `app.attest.test` gives `SecurityError`, `attest.test` gives `resolved` | **Verified** |
+| **WebAuthn requires a secure context**; `*.localhost` is one over plain HTTP and a real domain is not | S9b — Keycloak reported `WebAuthnUnsupportedBrowser` until Chrome was told to treat the origins as secure. **Not a DNS problem** | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -144,7 +146,7 @@ the check failing. The check was validated by breaking the *enforcement*, not th
 
 | Not tested | Why it matters | Blocked on |
 |---|---|---|
-| The **broad-relying-party-ID** failure mode | S9's meta-test. `*.localhost` cannot demonstrate it: Chrome refuses a broad RP ID there because `.localhost` is not in the public suffix list. Needs two hostnames under a real registrable domain, i.e. an `/etc/hosts` edit | **Approval** |
+| A **real TLS** environment | S9b satisfies the secure-context requirement with a Chrome flag standing in for the certificate a real deployment has. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning | A deployed environment |
 | Phishing over **real TLS, DNS and a real certificate** | S9 runs over HTTP on loopback. WebAuthn's origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement | A deployed environment |
 | The **`DPoP` header survives** CloudFront → ALB → API Gateway | A hop that strips it breaks binding **silently** | AWS |
 | **Firefox and Safari** keep the session key | The two non-Chromium engines; Safari is the likeliest to evict | A manual minute each |
@@ -259,7 +261,21 @@ Recorded because the instruction is explicit: **say when you are not certain.**
     audited — but neither is protected by WebAuthn's origin binding. **The passkey is not the weak
     point; the deliberate exceptions around it are.**
 
-16. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+16. **Phishing resistance is a property of the relying-party ID — now measured, not argued.** S9b shows
+    the *same* relay, credential and browser being **refused** under a narrow RP ID (`SecurityError`) and
+    **answering** under a broad one (`resolved`). So the guidance is a measured result: set the RP ID to a
+    domain the attacker cannot serve a matching origin for, and keep it as narrow as the deployment
+    allows. The cost is real and should be chosen deliberately — a credential bound to
+    `app.example.com` will not answer for `login.example.com`.
+
+17. **WebAuthn requires a secure context, which constrains local testing.** `*.localhost` is treated as
+    trustworthy over plain HTTP; any other hostname is not, and `window.PublicKeyCredential` is simply
+    undefined. Keycloak reports it as `WebAuthnUnsupportedBrowser`, which reads like a browser problem.
+    **A resolvable hostname over HTTP is not enough** — this needs TLS, or Chrome's
+    `--unsafely-treat-insecure-origin-as-secure`. It was never a DNS problem, and time was spent on DNS
+    before the log said otherwise.
+
+18. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 

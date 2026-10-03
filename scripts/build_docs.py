@@ -121,7 +121,9 @@ PAGES: list[Page] = [
     Page("lab-results-enrolment-link", "lab/keycloak/SPIKE-5f-RESULTS.md", "Reference", "Lab results: enrolment by link",
          "Why impersonation cannot work, and the action-token link that does — verified by completing a real enrolment."),
     Page("lab-results-phishing", "lab/keycloak/SPIKE-9-RESULTS.md", "Reference", "Lab results: phishing resistance",
-         "The headline claim, tested with a real adversary-in-the-middle relay — and the counter-case that needs approval."),
+         "The headline claim, tested with a real adversary-in-the-middle relay."),
+    Page("lab-results-broad-rpid", "lab/keycloak/SPIKE-9b-RESULTS.md", "Reference", "Lab results: when it breaks",
+         "The counter-case, measured: the same relay is refused under a narrow relying-party ID and answers under a broad one."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

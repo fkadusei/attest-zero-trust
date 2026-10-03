@@ -143,10 +143,15 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--listen", default=f"{LISTEN_HOST}:{LISTEN_PORT}")
     ap.add_argument("--upstream", default=f"{UPSTREAM_HOST}:{UPSTREAM_PORT}")
+    # The address the VICTIM sees, which is not always the address we bind.
+    # Binding to 0.0.0.0 is necessary when Chrome maps a name to loopback itself,
+    # but rewriting URLs to "0.0.0.0:9001" would send the browser nowhere.
+    ap.add_argument("--public", default=None,
+                    help="host:port to rewrite URLs to (defaults to --listen)")
     a = ap.parse_args()
     LISTEN_HOST, _, LISTEN_PORT = a.listen.partition(":")
     UPSTREAM_HOST, _, UPSTREAM_PORT = a.upstream.partition(":")
-    Proxy.listen_authority = f"{LISTEN_HOST}:{LISTEN_PORT}"
+    Proxy.listen_authority = a.public or f"{LISTEN_HOST}:{LISTEN_PORT}"
     Proxy.upstream = f"http://{UPSTREAM_HOST}:{UPSTREAM_PORT}"
 
     srv = Threaded((LISTEN_HOST, int(LISTEN_PORT)), Proxy)

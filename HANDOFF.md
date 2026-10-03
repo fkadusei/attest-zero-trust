@@ -222,6 +222,19 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **WebAuthn only exists in a SECURE CONTEXT, and that constrains every local test.** `*.localhost` is
+  treated as trustworthy over plain HTTP; **any other hostname is not**, and `window.PublicKeyCredential`
+  is undefined. Keycloak reports it as `WebAuthnUnsupportedBrowser`, which reads like a browser problem
+  and is not. A resolvable hostname over HTTP is **not enough**. Use `*.localhost`, or tell Chrome
+  `--unsafely-treat-insecure-origin-as-secure=<origin>` (a lab stand-in for the TLS a real deployment
+  has). S9 worked because of this; S9b initially failed because of it, and time went into DNS first
+  because the symptom did not say so. **When WebAuthn "is not supported" and the browser is fine, check
+  whether the origin is a secure context.**
+- **Chrome can be told to resolve hostnames itself:**
+  `--host-resolver-rules="MAP app.attest.test 127.0.0.1"`. That is how S9b ran on a real registrable
+  domain with **no `/etc/hosts` edit** — which mattered, because the file is root-owned and `sudo`
+  wanted a password. Combine with `--public host:port` on a proxy that binds `0.0.0.0`, or the rewritten
+  URLs point at `0.0.0.0`.
 - **Every harness creates the fixtures it depends on.** The S5f CI job died with `no such user:
   spike-attest-privileged` — the user is made by another harness, and a fresh realm has none. **This is
   the third time** the same assumption has broken a job (S5e, its CI job, and S5f). Assume **no user
@@ -341,7 +354,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ⚠ S5e | Time-box and audit the enrolment window | — *14/14; per-user gate **unmet**, and it fails open* |
 | ✅ S5f | Can enrolment be made per-user? | — *yes, by emailed link; **impersonation ruled out*** |
 | ✅ S9 | Does a phishing proxy actually fail? | — ***YES*, proven with a real relay** |
-| **▶ S9b** | Is a broad relying-party ID exploitable? | **`/etc/hosts` approval** |
+| ✅ S9b | Is a broad relying-party ID exploitable? | — ***YES*, measured; no `/etc/hosts` needed** |
+| **▶ S4b** | Firefox and Safari — the last two engines | **~1 minute at the keyboard** |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

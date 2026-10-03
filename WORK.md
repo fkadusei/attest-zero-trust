@@ -48,7 +48,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5e** | Time-box and audit the enrolment window | ⚠ **done — bounded and audited, but not per-user** |
 | **S5f** | Can enrolment be made per-user with impersonation? | ✅ **done — impersonation ruled out; a link works** |
 | **S9** | Does a phishing proxy actually fail? | ✅ **done — YES, proven; counter-case needs approval** |
-| **S9b** | Is a BROAD relying-party ID actually exploitable? | ⏸ **needs `/etc/hosts` approval** |
+| **S9b** | Is a BROAD relying-party ID actually exploitable? | ✅ **done — YES, measured. No `/etc/hosts` needed** |
+| **S4b** | Firefox and Safari — the last two engines | ▶ **NEXT** — needs ~1 minute at the keyboard |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |

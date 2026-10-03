@@ -222,6 +222,84 @@ jobs:
           cat /tmp/proxy.log || true
 
   # ---------------------------------------------------------------------------
+  # The counter-case for phishing resistance (S9b). Chrome is launched by the
+  # script itself, with the DNS and secure-context flags it needs.
+  # ---------------------------------------------------------------------------
+  phishing-counter-case:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install the toolchains
+        run: |
+          pip install -r requirements-lab.txt
+          npm --prefix lab/keycloak install --no-audit --no-fund
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: Apply the WebAuthn policies
+        run: python3 lab/keycloak/scripts/configure-realms.py
+
+      - name: Seed the fixtures the suite reuses
+        # The user and client are created by spike9-matrix; this suite reuses them.
+        run: |
+          cd lab/keycloak
+          node scripts/spike5d-matrix.mjs >/dev/null 2>&1 || true
+          cd ../..
+          python3 - <<'PYEOF'
+          import json, urllib.request, urllib.parse
+          d = urllib.parse.urlencode({"grant_type":"password","client_id":"admin-cli",
+              "username":"admin","password":"lab-only-not-a-secret"}).encode()
+          T = json.load(urllib.request.urlopen(urllib.request.Request(
+              "http://localhost:8080/realms/master/protocol/openid-connect/token", data=d)))["access_token"]
+          def post(p, b):
+              r = urllib.request.Request(f"http://localhost:8080/admin/realms{p}",
+                                         data=json.dumps(b).encode(), method="POST")
+              r.add_header("Authorization", f"Bearer {T}"); r.add_header("Content-Type","application/json")
+              try: urllib.request.urlopen(r)
+              except Exception: pass
+          post("/attest-privileged/users", {"username":"spike-phishing","enabled":True,
+              "emailVerified":True,"email":"spike-phishing@example.test",
+              "firstName":"Spike","lastName":"Lab"})
+          post("/attest-privileged/clients", {"clientId":"phishing-lab","enabled":True,
+              "publicClient":True,"standardFlowEnabled":True,"directAccessGrantsEnabled":False,
+              "redirectUris":["http://app.attest.test:8080/callback",
+                              "http://evil.attest.test:9001/callback"],"webOrigins":["+"]})
+          print("fixtures seeded")
+          PYEOF
+
+      - name: S9b — is a broad relying-party ID exploitable?
+        run: |
+          set +e
+          python3 lab/keycloak/scripts/spike9b-meta.py > /tmp/s9b.log 2>&1
+          code=$?
+          cat /tmp/s9b.log
+          echo "===== end of S9b output (exit $code) ====="
+          exit $code
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f lab/keycloak/compose.yaml logs --tail 80
+
+  # ---------------------------------------------------------------------------
   # Enrolment by link (S5f). Needs a browser for the one check that matters —
   # completing a real enrolment through the emailed link — and a mail sink to
   # capture the link.

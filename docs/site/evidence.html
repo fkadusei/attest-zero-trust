@@ -62,6 +62,7 @@
 <li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 <li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
 <li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-broad-rpid.html">Lab results: when it breaks</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -362,6 +363,16 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong>A BROAD relying-party ID IS exploitable</strong> — the browser produces a valid assertion for the attacker&rsquo;s origin</td>
+<td>S9b — <strong>the counter-case</strong>, measured. Same relay, same credential: <code>app.attest.test</code> gives <code>SecurityError</code>, <code>attest.test</code> gives <code>resolved</code></td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>WebAuthn requires a secure context</strong>; <code>*.localhost</code> is one over plain HTTP and a real domain is not</td>
+<td>S9b — Keycloak reported <code>WebAuthnUnsupportedBrowser</code> until Chrome was told to treat the origins as secure. <strong>Not a DNS problem</strong></td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><code>http.cookiejar</code> <strong>cannot drive a Keycloak login</strong></td>
 <td>Cookies stored as <code>localhost.local</code> + <code>Secure</code>, so never sent over http; error is &ldquo;Restart login cookie not found&rdquo;</td>
 <td><strong>Verified</strong></td>
@@ -527,9 +538,9 @@ the check failing. The check was validated by breaking the <em>enforcement</em>,
 </thead>
 <tbody>
 <tr>
-<td>The <strong>broad-relying-party-ID</strong> failure mode</td>
-<td>S9&rsquo;s meta-test. <code>*.localhost</code> cannot demonstrate it: Chrome refuses a broad RP ID there because <code>.localhost</code> is not in the public suffix list. Needs two hostnames under a real registrable domain, i.e. an <code>/etc/hosts</code> edit</td>
-<td><strong>Approval</strong></td>
+<td>A <strong>real TLS</strong> environment</td>
+<td>S9b satisfies the secure-context requirement with a Chrome flag standing in for the certificate a real deployment has. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning</td>
+<td>A deployed environment</td>
 </tr>
 <tr>
 <td>Phishing over <strong>real TLS, DNS and a real certificate</strong></td>
@@ -700,6 +711,22 @@ remains <strong>unmet</strong>, and the obvious way to build it is unsafe.</p>
     <strong>enrolment link</strong> (S5f) is a bearer token. Neither is phishable <em>silently</em> — both are bounded and
     audited — but neither is protected by WebAuthn&rsquo;s origin binding. <strong>The passkey is not the weak
     point; the deliberate exceptions around it are.</strong></p>
+</li>
+<li>
+<p><strong>Phishing resistance is a property of the relying-party ID — now measured, not argued.</strong> S9b shows
+    the <em>same</em> relay, credential and browser being <strong>refused</strong> under a narrow RP ID (<code>SecurityError</code>) and
+    <strong>answering</strong> under a broad one (<code>resolved</code>). So the guidance is a measured result: set the RP ID to a
+    domain the attacker cannot serve a matching origin for, and keep it as narrow as the deployment
+    allows. The cost is real and should be chosen deliberately — a credential bound to
+    <code>app.example.com</code> will not answer for <code>login.example.com</code>.</p>
+</li>
+<li>
+<p><strong>WebAuthn requires a secure context, which constrains local testing.</strong> <code>*.localhost</code> is treated as
+    trustworthy over plain HTTP; any other hostname is not, and <code>window.PublicKeyCredential</code> is simply
+    undefined. Keycloak reports it as <code>WebAuthnUnsupportedBrowser</code>, which reads like a browser problem.
+    <strong>A resolvable hostname over HTTP is not enough</strong> — this needs TLS, or Chrome&rsquo;s
+    <code>--unsafely-treat-insecure-origin-as-secure</code>. It was never a DNS problem, and time was spent on DNS
+    before the log said otherwise.</p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by
