@@ -75,8 +75,9 @@
 <li><a href="#6-testing">6. Testing</a></li>
 <li class="lvl3"><a href="#three-habits-this-suite-follows-deliberately">Three habits this suite follows deliberately</a></li>
 <li class="lvl3"><a href="#two-failure-modes-the-suite-itself-fell-into">Two failure modes the suite itself fell into</a></li>
-<li><a href="#7-what-is-not-built">7. What is not built</a></li>
-<li><a href="#8-extending-it">8. Extending it</a></li>
+<li><a href="#7-l3-the-service">7. L3 — the service</a></li>
+<li><a href="#8-what-is-not-built">8. What is not built</a></li>
+<li><a href="#9-extending-it">9. Extending it</a></li>
 </ul></div>
   </aside>
 
@@ -93,9 +94,8 @@
 intended and what we verified. This describes what is running.</p>
 <hr></section>
 <section id="1-status-read-this-first"><h2>1. Status: read this first</h2>
-<p><strong>The application is a set of verified libraries. It is not yet a running service.</strong></p>
-<p>That distinction matters more than it might sound, and it is stated up front because a reader who
-skims the rest of this page could reasonably assume otherwise.</p>
+<p><strong>The API is a running service.</strong> It can be started, it listens, and requests to it are verified
+end to end. It is not a complete product.</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -118,11 +118,15 @@ skims the rest of this page could reasonably assume otherwise.</p>
 </tr>
 <tr>
 <td><strong>An HTTP server</strong></td>
-<td>❌ <strong>Does not exist.</strong> Nothing listens on a port.</td>
+<td>✅ <strong>Implemented.</strong> <code>src/server.ts</code>, entry point <code>src/index.ts</code></td>
 </tr>
 <tr>
 <td><strong>Wiring L1 + L2 into a request path</strong></td>
-<td>❌ <strong>Does not exist.</strong></td>
+<td>✅ <strong>Implemented.</strong> Every protected route runs the chain</td>
+</tr>
+<tr>
+<td><strong>End-to-end HTTP tests</strong></td>
+<td>✅ <strong>17 of them</strong>, through the real request path</td>
 </tr>
 <tr>
 <td>Cedar authorization (L3)</td>
@@ -132,18 +136,43 @@ skims the rest of this page could reasonably assume otherwise.</p>
 <td>Persistence, object storage</td>
 <td>❌ Interfaces only — no implementation</td>
 </tr>
+<tr>
+<td>Customer-facing features</td>
+<td>❌ None</td>
+</tr>
 </tbody>
 </table></div>
-<p><strong>Two consequences a reader should carry away:</strong></p>
-<ol>
-<li><strong>There is no end-to-end test</strong>, because there is no end-to-end path. Every test exercises a
-   function, not a request.</li>
-<li><strong>DPoP downgrade protection is available but not enforced.</strong>
-   <code>assertNotDowngraded</code> in <code>src/verify.ts</code> exists and is tested — but <strong>no production code calls
-   it</strong>, because there is no production code path to call it from. A control that nothing invokes is
-   a control that is not protecting anything yet.</li>
-</ol>
-<p>Both are closed by L3, which turns these libraries into a service.</p>
+<p><strong>The API surface today is two routes:</strong> <code>GET /health</code>, unauthenticated, and <code>GET /v1/session</code>,
+which runs the full verification chain and reports what was verified.</p>
+<p><strong>One finding is worth reading before anything else</strong>, because it is the reason the end-to-end tests
+exist at all. Keycloak issues DPoP-bound access tokens with a <strong>different payload <code>typ</code></strong> than
+ordinary ones:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Token</th>
+<th>payload <code>typ</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ordinary access token</td>
+<td><code>"Bearer"</code></td>
+</tr>
+<tr>
+<td><strong>DPoP-bound access token</strong></td>
+<td><strong><code>"DPoP"</code></strong></td>
+</tr>
+<tr>
+<td>ID token</td>
+<td><code>"ID"</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>An earlier version of <code>verify.ts</code> accepted only <code>"Bearer"</code>. <strong>It would therefore have rejected every
+DPoP-bound token — the entire feature — while passing all 70 unit tests</strong>, because no unit test
+verified a <em>bound</em> token through L1. The end-to-end HTTP test found it in its first run. Both
+access-token types are now accepted; <code>"ID"</code> is still refused, which is the check&rsquo;s purpose.</p>
 <hr>
 </section>
 <section id="2-how-it-is-structured"><h2>2. How it is structured</h2>
@@ -368,7 +397,7 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>70 tests</strong> across three files, all passing:</p>
+<p><strong>91 tests</strong> across four files, all passing:</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -389,9 +418,14 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 <td>L2, against real DPoP-bound tokens</td>
 </tr>
 <tr>
+<td><code>server.test.ts</code></td>
+<td>17</td>
+<td>End-to-end HTTP: the request path, scheme handling, opacity, ADR-006</td>
+</tr>
+<tr>
 <td><code>config.test.ts</code></td>
-<td>16</td>
-<td>Configuration, including its two security checks</td>
+<td>19</td>
+<td>Configuration, including its three security checks</td>
 </tr>
 </tbody>
 </table></div>
@@ -408,6 +442,12 @@ breaks. Each enforcement point was removed one at a time: <strong>7 of 7</strong
 <code>dpop.ts</code>, <strong>6 of 6</strong> in <code>config.ts</code> — with the unmutated control green each time. One of these found
 a genuine gap: deleting the <code>sub</code> check went undetected, because Keycloak always issues one. A
 synthetic issuer now mints the shapes Keycloak will not.</p>
+<p><strong>And a caution about reading mutation results.</strong> In <code>server.ts</code>, removing the early no-proof check —
+and then removing the downgrade guard as well — leaves the suite <strong>green</strong>. That is not a blind spot:
+<code>verifyDpopProof</code> independently refuses a missing proof, so <strong>the property never broke</strong>. A harness
+that only observes green/red cannot tell &ldquo;the suite is blind&rdquo; from &ldquo;another layer compensated&rdquo;, and
+will report defence in depth as a defect. <strong>Before calling a surviving mutant a problem, check whether
+the property still holds.</strong></p>
 <h3 id="two-failure-modes-the-suite-itself-fell-into">Two failure modes the suite itself fell into</h3>
 <p>Recorded because they are instructive, not embarrassing:</p>
 <ul>
@@ -421,12 +461,41 @@ synthetic issuer now mints the shapes Keycloak will not.</p>
 </ul>
 <hr>
 </section>
-<section id="7-what-is-not-built"><h2>7. What is not built</h2>
+<section id="7-l3-the-service"><h2>7. L3 — the service</h2>
+<p><code>server.ts</code>. Turns the verifiers into a policy <strong>enforcement point</strong>.</p>
+<p>The rule that shapes it: <strong>verification happens in one <code>authenticate</code> pre-handler, in a fixed order,
+before any handler runs.</strong> A handler cannot opt out, forget a step or reorder them, because it never
+sees an unverified request. The failure this avoids is an endpoint added later that reads
+<code>request.headers["x-tenant-id"]</code> and skips the chain. That header does not exist here, and there is
+no route that reaches a handler without passing through.</p>
+<div class="codehilite"><pre><span></span><code>1. Authorization parsed      scheme + credentials
+2. Token verified            L1 — nothing is trusted before this
+3. Binding established       does the token carry cnf.jkt?
+4. Scheme checked            a bound token MUST use DPoP, not Bearer
+5. Proof verified            L2 — signature, htu, htm, ath, jti, thumbprint
+6. Downgrade guard           fail closed if a bound token had no proof
+7. Tenant derived            from VERIFIED claims only (ADR-006)
+</code></pre></div>
+
+<p><strong>The expected request URI comes from configuration, not from the request.</strong> DPoP&rsquo;s <code>htu</code> check
+compares the proof against the URI the request was made to. Deriving that from <code>X-Forwarded-Proto</code> or
+<code>Host</code> would let the attacker choose the value their own proof is compared against, making the check
+vacuous while still appearing present. <code>PUBLIC_BASE_URL</code> is required for exactly this reason.</p>
+<p><strong>Every rejection returns exactly one body:</strong> <code>{"error":"unauthorized"}</code>. A response that
+distinguishes &ldquo;bad signature&rdquo; from &ldquo;expired&rdquo; from &ldquo;wrong audience&rdquo; is an oracle telling an attacker
+which part of a forgery to fix next. The reason is logged for operators; the caller learns only that
+it failed. A test asserts the body contains none of those words.</p>
+<p><strong>A bound token without a proof is refused by three independent layers</strong> — an early check, the
+downgrade guard, and the proof verifier&rsquo;s own input validation. Mutation testing reports removing the
+first two as &ldquo;surviving mutants&rdquo;, which reads like a blind spot and is not: the property never broke.
+The consequence for anyone reading the mutation results is written down in <code>HANDOFF.md</code>.</p>
+</section>
+<section id="8-what-is-not-built"><h2>8. What is not built</h2>
 <p>Stated plainly, because this list is as useful as the rest of the page:</p>
 <ul>
-<li><strong>No HTTP server.</strong> The libraries are not reachable over the network.</li>
-<li><strong>No request path</strong>, so <code>assertNotDowngraded</code> is enforced by nothing.</li>
-<li><strong>No Cedar policy evaluation.</strong> The port exists; nothing implements it.</li>
+<li><strong>No Cedar policy evaluation.</strong> The port exists; nothing implements it. Authorization today is
+  authentication only: the API proves who you are, it does not yet decide what you may do.</li>
+<li><strong>Two routes.</strong> No API surface beyond <code>/health</code> and <code>/v1/session</code>.</li>
 <li><strong>No persistence or storage.</strong> Interfaces only.</li>
 <li><strong>No admin console, no API surface, no customer-facing feature.</strong></li>
 <li><strong>No deployment.</strong> Running locally costs nothing; nothing is hosted anywhere.</li>
@@ -434,7 +503,7 @@ synthetic issuer now mints the shapes Keycloak will not.</p>
 </ul>
 <hr>
 </section>
-<section id="8-extending-it"><h2>8. Extending it</h2>
+<section id="9-extending-it"><h2>9. Extending it</h2>
 <p>The pattern is the same for every capability that varies by environment:</p>
 <ol>
 <li><strong>Declare the need as a port</strong> in <code>src/ports/</code> — an interface, with a contract written as

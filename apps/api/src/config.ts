@@ -35,6 +35,17 @@ export interface HttpConfig {
 
 export interface AppConfig {
   readonly identity: IdentityConfig;
+  /**
+   * The public base URL this API is reached at, e.g. `https://api.example.com`.
+   *
+   * REQUIRED, and deliberately trusted configuration rather than derived from the
+   * request. DPoP's `htu` check compares the proof against the URI the request was
+   * made to; deriving that from `X-Forwarded-Proto` or `Host` would let the
+   * ATTACKER choose the value the proof is compared against, making every `htu`
+   * check vacuous while still appearing present. A proxy may rewrite those
+   * headers; this value is ours.
+   */
+  readonly publicBaseUrl: string;
   /** Claim the tenant id is read from. Read only from a VERIFIED token (ADR-006). */
   readonly tenantClaim: string;
   /** Permitted clock skew against the identity provider, in seconds. */
@@ -101,8 +112,22 @@ export function loadConfig(env: Env = process.env): AppConfig {
     );
   }
 
+  const publicBaseUrl = required(env, "PUBLIC_BASE_URL").replace(/\/+$/, "");
+  let parsedBase: URL;
+  try {
+    parsedBase = new URL(publicBaseUrl);
+  } catch {
+    throw new ConfigError(`PUBLIC_BASE_URL is not a valid absolute URL: ${publicBaseUrl}`);
+  }
+  if (parsedBase.protocol !== "https:" && !isLoopback(parsedBase.hostname)) {
+    throw new ConfigError(
+      `PUBLIC_BASE_URL must use https:// unless it is loopback, got ${publicBaseUrl}`,
+    );
+  }
+
   return {
     identity: { issuer, jwksUri, audience: required(env, "API_AUDIENCE") },
+    publicBaseUrl,
     tenantClaim: env["TENANT_CLAIM"]?.trim() || "tenant_id",
     clockToleranceSec: integer(env, "CLOCK_TOLERANCE_SEC", 5, 0, 120),
     http: {

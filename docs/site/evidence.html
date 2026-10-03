@@ -369,6 +369,11 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong>Keycloak marks a DPoP-BOUND access token <code>typ: "DPoP"</code>, not <code>"Bearer"</code></strong></td>
+<td>L3 — decoded from live tokens. An L1 check that accepted only <code>"Bearer"</code> would have rejected <strong>every</strong> bound token, passing all 70 unit tests, none of which verified a bound token through L1</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><strong>Our DPoP proof verifier agrees with a real Keycloak-bound token</strong></td>
 <td>L2 — a genuinely <code>cnf.jkt</code>-bound token from the live provider plus a real proof verifies; 13 enforcement points each fail for their own asserted reason</td>
 <td><strong>Verified</strong></td>

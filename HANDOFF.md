@@ -222,6 +222,16 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A surviving mutant is NOT automatically a blind spot.** Removing the server's `if (!proof)`
+  check, and removing `assertNotDowngraded` too, both leave the suite GREEN — because
+  `verifyDpopProof` independently refuses a missing proof. **The property never broke.** A mutation
+  harness that only observes GREEN/RED cannot distinguish "the suite is blind" from "another layer
+  compensated", and will cry wolf. Before calling a surviving mutant a defect, **check whether the
+  property still holds**.
+- **A control that works by crashing is not a control.** The missing-proof case was originally
+  satisfied only because `decodeProtectedHeader(undefined)` throws. The property held by accident,
+  and a mutation that deleted the caller's own check went unnoticed. It is now an explicit,
+  separately-tested guard. If a security property depends on an incidental failure, name it.
 - **A suite that passes only because ANOTHER suite ran first is borrowing, not passing.** The L2
   suite called `ensureDpopClient()` but not `ensureLabFixtures()`. It passed locally because an
   earlier session had already created the realm; CI ran `dpop` before `verify` alphabetically, found

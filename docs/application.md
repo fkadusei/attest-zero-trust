@@ -10,31 +10,38 @@ intended and what we verified. This describes what is running.
 
 ## 1. Status: read this first
 
-**The application is a set of verified libraries. It is not yet a running service.**
-
-That distinction matters more than it might sound, and it is stated up front because a reader who
-skims the rest of this page could reasonably assume otherwise.
+**The API is a running service.** It can be started, it listens, and requests to it are verified
+end to end. It is not a complete product.
 
 | | Status |
 |---|---|
 | Token verification (L1) | ✅ Implemented, tested against real Keycloak |
 | DPoP proof verification (L2) | ✅ Implemented, tested against real bound tokens |
 | Configuration | ✅ Implemented and validated |
-| **An HTTP server** | ❌ **Does not exist.** Nothing listens on a port. |
-| **Wiring L1 + L2 into a request path** | ❌ **Does not exist.** |
+| **An HTTP server** | ✅ **Implemented.** `src/server.ts`, entry point `src/index.ts` |
+| **Wiring L1 + L2 into a request path** | ✅ **Implemented.** Every protected route runs the chain |
+| **End-to-end HTTP tests** | ✅ **17 of them**, through the real request path |
 | Cedar authorization (L3) | ❌ Not started — the port is declared, nothing implements it |
 | Persistence, object storage | ❌ Interfaces only — no implementation |
+| Customer-facing features | ❌ None |
 
-**Two consequences a reader should carry away:**
+**The API surface today is two routes:** `GET /health`, unauthenticated, and `GET /v1/session`,
+which runs the full verification chain and reports what was verified.
 
-1. **There is no end-to-end test**, because there is no end-to-end path. Every test exercises a
-   function, not a request.
-2. **DPoP downgrade protection is available but not enforced.**
-   `assertNotDowngraded` in `src/verify.ts` exists and is tested — but **no production code calls
-   it**, because there is no production code path to call it from. A control that nothing invokes is
-   a control that is not protecting anything yet.
+**One finding is worth reading before anything else**, because it is the reason the end-to-end tests
+exist at all. Keycloak issues DPoP-bound access tokens with a **different payload `typ`** than
+ordinary ones:
 
-Both are closed by L3, which turns these libraries into a service.
+| Token | payload `typ` |
+|---|---|
+| ordinary access token | `"Bearer"` |
+| **DPoP-bound access token** | **`"DPoP"`** |
+| ID token | `"ID"` |
+
+An earlier version of `verify.ts` accepted only `"Bearer"`. **It would therefore have rejected every
+DPoP-bound token — the entire feature — while passing all 70 unit tests**, because no unit test
+verified a *bound* token through L1. The end-to-end HTTP test found it in its first run. Both
+access-token types are now accepted; `"ID"` is still refused, which is the check's purpose.
 
 ---
 
@@ -173,13 +180,14 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**70 tests** across three files, all passing:
+**91 tests** across four files, all passing:
 
 | File | Tests | What it covers |
 |---|---|---|
 | `verify.test.ts` | 28 | L1, against real tokens from the running Keycloak |
 | `dpop.test.ts` | 26 | L2, against real DPoP-bound tokens |
-| `config.test.ts` | 16 | Configuration, including its two security checks |
+| `server.test.ts` | 17 | End-to-end HTTP: the request path, scheme handling, opacity, ADR-006 |
+| `config.test.ts` | 19 | Configuration, including its three security checks |
 
 ### Three habits this suite follows deliberately
 
@@ -198,6 +206,13 @@ breaks. Each enforcement point was removed one at a time: **7 of 7** in `verify.
 a genuine gap: deleting the `sub` check went undetected, because Keycloak always issues one. A
 synthetic issuer now mints the shapes Keycloak will not.
 
+**And a caution about reading mutation results.** In `server.ts`, removing the early no-proof check —
+and then removing the downgrade guard as well — leaves the suite **green**. That is not a blind spot:
+`verifyDpopProof` independently refuses a missing proof, so **the property never broke**. A harness
+that only observes green/red cannot tell "the suite is blind" from "another layer compensated", and
+will report defence in depth as a defect. **Before calling a surviving mutant a problem, check whether
+the property still holds.**
+
 ### Two failure modes the suite itself fell into
 
 Recorded because they are instructive, not embarrassing:
@@ -212,13 +227,48 @@ Recorded because they are instructive, not embarrassing:
 
 ---
 
-## 7. What is not built
+## 7. L3 — the service
+
+`server.ts`. Turns the verifiers into a policy **enforcement point**.
+
+The rule that shapes it: **verification happens in one `authenticate` pre-handler, in a fixed order,
+before any handler runs.** A handler cannot opt out, forget a step or reorder them, because it never
+sees an unverified request. The failure this avoids is an endpoint added later that reads
+`request.headers["x-tenant-id"]` and skips the chain. That header does not exist here, and there is
+no route that reaches a handler without passing through.
+
+```
+1. Authorization parsed      scheme + credentials
+2. Token verified            L1 — nothing is trusted before this
+3. Binding established       does the token carry cnf.jkt?
+4. Scheme checked            a bound token MUST use DPoP, not Bearer
+5. Proof verified            L2 — signature, htu, htm, ath, jti, thumbprint
+6. Downgrade guard           fail closed if a bound token had no proof
+7. Tenant derived            from VERIFIED claims only (ADR-006)
+```
+
+**The expected request URI comes from configuration, not from the request.** DPoP's `htu` check
+compares the proof against the URI the request was made to. Deriving that from `X-Forwarded-Proto` or
+`Host` would let the attacker choose the value their own proof is compared against, making the check
+vacuous while still appearing present. `PUBLIC_BASE_URL` is required for exactly this reason.
+
+**Every rejection returns exactly one body:** `{"error":"unauthorized"}`. A response that
+distinguishes "bad signature" from "expired" from "wrong audience" is an oracle telling an attacker
+which part of a forgery to fix next. The reason is logged for operators; the caller learns only that
+it failed. A test asserts the body contains none of those words.
+
+**A bound token without a proof is refused by three independent layers** — an early check, the
+downgrade guard, and the proof verifier's own input validation. Mutation testing reports removing the
+first two as "surviving mutants", which reads like a blind spot and is not: the property never broke.
+The consequence for anyone reading the mutation results is written down in `HANDOFF.md`.
+
+## 8. What is not built
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **No HTTP server.** The libraries are not reachable over the network.
-- **No request path**, so `assertNotDowngraded` is enforced by nothing.
-- **No Cedar policy evaluation.** The port exists; nothing implements it.
+- **No Cedar policy evaluation.** The port exists; nothing implements it. Authorization today is
+  authentication only: the API proves who you are, it does not yet decide what you may do.
+- **Two routes.** No API surface beyond `/health` and `/v1/session`.
 - **No persistence or storage.** Interfaces only.
 - **No admin console, no API surface, no customer-facing feature.**
 - **No deployment.** Running locally costs nothing; nothing is hosted anywhere.
@@ -226,7 +276,7 @@ Stated plainly, because this list is as useful as the rest of the page:
 
 ---
 
-## 8. Extending it
+## 9. Extending it
 
 The pattern is the same for every capability that varies by environment:
 

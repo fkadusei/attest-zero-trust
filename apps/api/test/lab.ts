@@ -137,6 +137,19 @@ export async function ensureLabFixtures(): Promise<void> {
     // Map the API client into `aud`, so the token is genuinely issued FOR the API.
     protocolMappers: [
       {
+        name: "tenant_id",
+        protocol: "openid-connect",
+        protocolMapper: "oidc-hardcoded-claim-mapper",
+        consentRequired: false,
+        config: {
+          "claim.name": "tenant_id",
+          "claim.value": "acme",
+          "jsonType.label": "String",
+          "id.token.claim": "false",
+          "access.token.claim": "true",
+        },
+      },
+      {
         name: "audience-attest-api",
         protocol: "openid-connect",
         protocolMapper: "oidc-audience-mapper",
@@ -162,6 +175,19 @@ export async function ensureLabFixtures(): Promise<void> {
     // `Unrecognized field "accessTokenLifespan"`. It lives in `attributes`.
     attributes: { "access.token.lifespan": "1" },
     protocolMappers: [
+      {
+        name: "tenant_id",
+        protocol: "openid-connect",
+        protocolMapper: "oidc-hardcoded-claim-mapper",
+        consentRequired: false,
+        config: {
+          "claim.name": "tenant_id",
+          "claim.value": "acme",
+          "jsonType.label": "String",
+          "id.token.claim": "false",
+          "access.token.claim": "true",
+        },
+      },
       {
         name: "audience-attest-api",
         protocol: "openid-connect",
@@ -245,6 +271,19 @@ export async function ensureDpopClient(): Promise<void> {
     directAccessGrantsEnabled: false,
     attributes: { "dpop.bound.access.tokens": "true" },
     protocolMappers: [
+      {
+        name: "tenant_id",
+        protocol: "openid-connect",
+        protocolMapper: "oidc-hardcoded-claim-mapper",
+        consentRequired: false,
+        config: {
+          "claim.name": "tenant_id",
+          "claim.value": "acme",
+          "jsonType.label": "String",
+          "id.token.claim": "false",
+          "access.token.claim": "true",
+        },
+      },
       {
         name: "audience-attest-api",
         protocol: "openid-connect",

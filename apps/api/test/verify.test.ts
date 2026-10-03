@@ -200,31 +200,36 @@ describe("token verification against the live lab", { skip: labUp ? false : "Key
     assert.equal(requireTenant(withTenant, "tenant_id"), "acme");
   });
 
-  it("a MISSING tenant claim is a hard failure, never a default", async () => {
-    try {
-      requireTenant(verified, "tenant_id");
-      assert.fail("expected missing_tenant, but a tenant was returned");
-    } catch (error) {
-      assert.ok(error instanceof TokenVerificationError);
-      assert.equal(error.reason, "missing_tenant");
-    }
-  });
-
-  it("ADR-006: a tenant supplied OUTSIDE the token has no effect", async () => {
-    // The token has no tenant claim. Supplying one as a header-like extra must not
-    // change the outcome — the API must still refuse, because the tenant can only
-    // come from the token.
-    const asIfHeaderSupplied = {
+  it("a MISSING tenant claim is a hard failure, never a default", () => {
+    // Built by hand rather than taken from the provider: real tokens now carry a
+    // `tenant_id` mapper, so no real token can exercise the absence. A defaulted
+    // tenant is how one customer's request reads another customer's data, so the
+    // absence has to be a hard failure and has to be tested.
+    const withoutTenant: VerifiedToken = {
       ...verified,
-      headers: { "x-tenant-id": "acme" },
       claims: { ...verified.claims },
-    } as unknown as VerifiedToken;
+    };
+    delete (withoutTenant.claims as Record<string, unknown>)["tenant_id"];
 
     assert.throws(
-      () => requireTenant(asIfHeaderSupplied, "tenant_id"),
+      () => requireTenant(withoutTenant, "tenant_id"),
       (error: unknown) =>
         error instanceof TokenVerificationError && error.reason === "missing_tenant",
     );
+  });
+
+  it("ADR-006: a tenant outside the token has NO effect on the result", () => {
+    // The token says `acme`. Extra context claiming otherwise — however it arrived
+    // — must not change what `requireTenant` returns, because it reads the verified
+    // claims and nothing else.
+    const withExtras = {
+      ...verified,
+      headers: { "x-tenant-id": "attacker-tenant" },
+      query: { tenant_id: "attacker-tenant" },
+      body: { tenant_id: "attacker-tenant" },
+    } as unknown as VerifiedToken;
+
+    assert.equal(requireTenant(withExtras, "tenant_id"), "acme");
   });
 
   // ---------------------------------------------------------------- DPoP downgrade

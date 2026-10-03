@@ -18,6 +18,7 @@ import { ConfigError, loadConfig } from "../src/config.ts";
 const VALID = {
   KEYCLOAK_ISSUER: "https://id.example.com/realms/attest",
   API_AUDIENCE: "attest-api",
+  PUBLIC_BASE_URL: "https://api.example.com",
 };
 
 function expectConfigError(env: Record<string, string | undefined>, match: RegExp): void {
@@ -65,11 +66,40 @@ describe("configuration", () => {
 
   // ------------------------------------------------------------ required values
   it("refuses to start without an issuer", () => {
-    expectConfigError({ API_AUDIENCE: "attest-api" }, /KEYCLOAK_ISSUER/);
+    expectConfigError(
+      { API_AUDIENCE: "attest-api", PUBLIC_BASE_URL: VALID.PUBLIC_BASE_URL },
+      /KEYCLOAK_ISSUER/,
+    );
   });
 
   it("refuses to start without an audience", () => {
-    expectConfigError({ KEYCLOAK_ISSUER: VALID.KEYCLOAK_ISSUER }, /API_AUDIENCE/);
+    expectConfigError(
+      { KEYCLOAK_ISSUER: VALID.KEYCLOAK_ISSUER, PUBLIC_BASE_URL: VALID.PUBLIC_BASE_URL },
+      /API_AUDIENCE/,
+    );
+  });
+
+  it("refuses to start without a public base URL", () => {
+    // Required because DPoP's htu check needs a TRUSTED expected URI. Defaulting it
+    // to something derived from the request would silently remove that check.
+    expectConfigError(
+      { KEYCLOAK_ISSUER: VALID.KEYCLOAK_ISSUER, API_AUDIENCE: VALID.API_AUDIENCE },
+      /PUBLIC_BASE_URL/,
+    );
+  });
+
+  it("REFUSES a plain-HTTP public base URL that is not loopback", () => {
+    expectConfigError(
+      { ...VALID, PUBLIC_BASE_URL: "http://api.example.com" },
+      /must use https/,
+    );
+  });
+
+  it("strips a trailing slash from the public base URL", () => {
+    assert.equal(
+      loadConfig({ ...VALID, PUBLIC_BASE_URL: "https://api.example.com/" }).publicBaseUrl,
+      "https://api.example.com",
+    );
   });
 
   it("treats an empty string as missing, not as a value", () => {

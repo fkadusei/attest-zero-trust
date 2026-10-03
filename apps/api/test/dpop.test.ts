@@ -287,6 +287,14 @@ describe("DPoP proof verification, against the live lab", { skip: labUp ? false 
     await verify(b, { replayCache: shared });
   });
 
+  it("an EMPTY or ABSENT proof is refused by an explicit check", async () => {
+    // Asserted directly, so the guard is mutation-visible. Previously this case was
+    // satisfied only because decoding an undefined header throws, which meant the
+    // caller's own check could be deleted without any test noticing.
+    await expectReason("", "malformed");
+    await expectReason(undefined as unknown as string, "malformed");
+  });
+
   it("a proof with NO jti is refused", async () => {
     const proof = await key.proof({ method: METHOD, uri: API_URI, accessToken: token, omitJti: true });
     await expectReason(proof, "malformed");

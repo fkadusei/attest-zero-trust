@@ -143,6 +143,16 @@ export async function verifyDpopProof(options: DpopVerifyOptions): Promise<Verif
   const maxAgeSec = options.maxAgeSec ?? 60;
   const futureSkewSec = options.futureSkewSec ?? 5;
 
+  // ---------------------------------------------------------------- input
+  // An EXPLICIT guard, not a reliance on the decoder happening to throw. Before
+  // this existed the property still held — because `decodeProtectedHeader` rejects
+  // a non-string — but it held by accident, and a mutation that removed the
+  // caller's own check went undetected. A control that works by crashing is not a
+  // control; it is a coincidence that has not been tested yet.
+  if (typeof options.proof !== "string" || options.proof === "") {
+    fail("malformed", "no DPoP proof was presented");
+  }
+
   // ---------------------------------------------------------------- header
   let header: Record<string, unknown>;
   try {

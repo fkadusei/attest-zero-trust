@@ -28,6 +28,13 @@ import { TokenVerificationError } from "./errors.ts";
  *   the live lab, after an early version of this file assumed `"Bearer"` in the
  *   header and was wrong.
  *
+ *   **There are TWO access-token types, not one.** Keycloak issues `"Bearer"` for
+ *   an ordinary access token and `"DPoP"` for a sender-constrained one. An earlier
+ *   version accepted only `"Bearer"` and would therefore have rejected EVERY
+ *   DPoP-bound token — the entire feature — while passing 70 unit tests, none of
+ *   which verified a bound token through this function. The end-to-end HTTP test
+ *   found it. Accepting `"ID"` remains refused: that is the check's purpose.
+ *
  * - **Issuer and audience are compared exactly**, not by prefix or substring. A
  *   `startsWith` check on an issuer is a bypass waiting for a clever hostname.
  *
@@ -45,8 +52,12 @@ export interface VerifyOptions {
   readonly audience: string;
   /** Leeway for clock skew between this service and the identity provider. */
   readonly clockToleranceSec?: number;
-  /** Token type to require. Defaults to Keycloak's access-token type. */
-  readonly expectedTyp?: string;
+  /**
+   * Acceptable payload `typ` values. Defaults to the access-token types Keycloak
+   * issues: `"Bearer"` (ordinary) and `"DPoP"` (sender-constrained). Both are
+   * access tokens; `"ID"` is deliberately absent.
+   */
+  readonly acceptedTyps?: readonly string[];
   /** Allowed signature algorithms. Defaults to the asymmetric set Keycloak uses. */
   readonly algorithms?: readonly string[];
 }
@@ -71,6 +82,12 @@ export interface VerifiedToken {
   readonly dpopThumbprint?: string;
   readonly claims: JWTPayload;
 }
+
+/**
+ * Keycloak's payload `typ` for ACCESS tokens. `"Bearer"` is an ordinary token;
+ * `"DPoP"` is one bound to a key. Both authorise requests; neither is an ID token.
+ */
+const DEFAULT_ACCESS_TOKEN_TYPES: readonly string[] = ["Bearer", "DPoP"];
 
 const DEFAULT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"];
 
@@ -112,8 +129,9 @@ function classify(error: unknown): TokenVerificationError {
 export async function verifyAccessToken(token: string, options: VerifyOptions): Promise<VerifiedToken> {
   const algorithms = [...(options.algorithms ?? DEFAULT_ALGORITHMS)];
   // The ACCESS-TOKEN marker. This is the payload `typ` claim, not the header's —
-  // see the note at the top of this file. Default is Keycloak's access-token value.
-  const expectedTyp = options.expectedTyp ?? "Bearer";
+  // see the note at the top of this file. BOTH Keycloak access-token types are
+  // accepted; only `"ID"` is refused.
+  const acceptedTyps = options.acceptedTyps ?? DEFAULT_ACCESS_TOKEN_TYPES;
 
   // Inspect the header BEFORE verifying, but only to reject cheaply. Nothing here
   // is trusted: `algorithms` is what constrains verification.
@@ -161,8 +179,11 @@ export async function verifyAccessToken(token: string, options: VerifyOptions): 
   // that actually separates an access token from an ID token, and it cannot be done
   // any earlier: an unverified claim proves nothing.
   const payloadTyp = payload["typ"];
-  if (typeof payloadTyp !== "string" || payloadTyp !== expectedTyp) {
-    throw new TokenVerificationError("wrong_token_type", `payload typ ${String(payloadTyp)}`);
+  if (typeof payloadTyp !== "string" || !acceptedTyps.includes(payloadTyp)) {
+    throw new TokenVerificationError(
+      "wrong_token_type",
+      `payload typ ${String(payloadTyp)} (accepted: ${acceptedTyps.join(", ")})`,
+    );
   }
   if (typeof payload.exp !== "number") {
     throw new TokenVerificationError("malformed", "no exp");
