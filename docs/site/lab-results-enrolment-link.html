@@ -68,6 +68,7 @@
 <li><a href="#2-what-works-instead">2. What works instead</a></li>
 <li><a href="#3-the-results">3. The results</a></li>
 <li><a href="#4-the-finding-the-link-is-a-bearer-token">4. The finding: the link is a bearer token</a></li>
+<li><a href="#4a-notes-from-making-this-run-in-ci-because-every-failure-was-environmental">4a. Notes from making this run in CI, because every failure was environmental</a></li>
 <li><a href="#5-what-was-not-tested">5. What was NOT tested</a></li>
 <li><a href="#6-why-this-is-better-than-the-window-it-replaces">6. Why this is better than the window it replaces</a></li>
 <li><a href="#7-reproducing">7. Reproducing</a></li>
@@ -81,7 +82,7 @@
         <h1>Lab results: enrolment by link</h1>
         <p class="blurb">Why impersonation cannot work, and the action-token link that does — verified by completing a real enrolment.</p>
       </header>
-      <section id="overview"><p><strong>Status: RESOLVED — 16/16 checks pass. Impersonation is ruled out with evidence, and the mechanism
+      <section id="overview"><p><strong>Status: RESOLVED — 19/19 checks pass. Impersonation is ruled out with evidence, and the mechanism
 that does work is verified end to end. One real property of it is recorded as a finding.</strong></p>
 <p>S5e left the per-user requirement unmet: the enrolment window was bounded and audited, but any user in
 the realm could use it. S5f set out to fix that with Keycloak impersonation.</p>
@@ -180,6 +181,10 @@ that captures messages to disk, running as a <strong>compose service on the same
 <td><strong>pass</strong></td>
 </tr>
 <tr>
+<td><strong>The enrolment actually completed</strong> (the required action cleared)</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
 <td><strong>Control:</strong> the link dies once the action completes</td>
 <td><strong>pass</strong></td>
 </tr>
@@ -249,6 +254,54 @@ be a conscious acceptance:</p>
   account it is will find they cannot sign in, which is a loud failure rather than a quiet one</li>
 </ul>
 <p>This is recorded as a <strong>finding, not a gate</strong>: it is a property of the mechanism, not a defect in it.</p>
+</section>
+<section id="4a-notes-from-making-this-run-in-ci-because-every-failure-was-environmental"><h2>4a. Notes from making this run in CI, because every failure was environmental</h2>
+<p>Seven CI-only failures, and <strong>all of them were an assumption that held on macOS and nowhere else</strong>.
+Recorded because the pattern is the finding, not the individual bugs:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Assumption</th>
+<th>Why it broke elsewhere</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The interpreter is at <code>.venv/bin/python</code></td>
+<td>CI installs into the system interpreter</td>
+</tr>
+<tr>
+<td><code>host.docker.internal</code> can be fixed in the <strong>runner&rsquo;s</strong> <code>/etc/hosts</code></td>
+<td>The container has its own hosts file</td>
+</tr>
+<tr>
+<td><code>extra_hosts</code> is enough</td>
+<td>The sink bound to <strong>loopback</strong>, and a bridge connection is not loopback</td>
+</tr>
+<tr>
+<td>The mail sink can live on the host</td>
+<td>Docker Desktop proxies to host loopback; a Linux runner does not</td>
+</tr>
+<tr>
+<td>The Node package path is an absolute macOS path</td>
+<td>It does not exist in CI</td>
+</tr>
+<tr>
+<td>Fixture users exist</td>
+<td><strong>They are made by other harnesses.</strong> Third occurrence</td>
+</tr>
+<tr>
+<td>The AAGUID policy stays relaxed</td>
+<td>It is restored after the first enrolment, so the <em>second</em> was silently refused</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Two of these were false results, not just failures.</strong> The last one — F5 passing locally and failing in
+CI — was the test reporting a false failure: a silently-refused enrolment left the link alive, which the
+check then read as &ldquo;the link is reusable&rdquo;. It passed locally only by ordering luck. F5 now asserts the
+intermediate fact that distinguishes the two states: <strong>that the required action actually cleared.</strong></p>
+<p>The sink is now a <strong>compose service on the same Docker network</strong>, which removes the whole class of host-
+networking problems rather than patching each symptom.</p>
 </section>
 <section id="5-what-was-not-tested"><h2>5. What was NOT tested</h2>
 <ul>

@@ -1,6 +1,6 @@
 # S5f Results — per-user enrolment by shareable link
 
-**Status: RESOLVED — 16/16 checks pass. Impersonation is ruled out with evidence, and the mechanism
+**Status: RESOLVED — 19/19 checks pass. Impersonation is ruled out with evidence, and the mechanism
 that does work is verified end to end. One real property of it is recorded as a finding.**
 
 S5e left the per-user requirement unmet: the enrolment window was bounded and audited, but any user in
@@ -85,6 +85,7 @@ Three faults were found in that sink, all worth recording because each was silen
 | **The enrolment is actually COMPLETED through the link** | **pass** |
 | **A new passkey appears on the named user** | **pass** |
 | **No passkey appears on any other user** | **pass** |
+| **The enrolment actually completed** (the required action cleared) | **pass** |
 | **Control:** the link dies once the action completes | **pass** |
 | **Control:** an expired link is refused | **pass** |
 | **Control:** a link for user A creates nothing for user B | **pass** |
@@ -120,6 +121,29 @@ be a conscious acceptance:
   account it is will find they cannot sign in, which is a loud failure rather than a quiet one
 
 This is recorded as a **finding, not a gate**: it is a property of the mechanism, not a defect in it.
+
+## 4a. Notes from making this run in CI, because every failure was environmental
+
+Seven CI-only failures, and **all of them were an assumption that held on macOS and nowhere else**.
+Recorded because the pattern is the finding, not the individual bugs:
+
+| Assumption | Why it broke elsewhere |
+|---|---|
+| The interpreter is at `.venv/bin/python` | CI installs into the system interpreter |
+| `host.docker.internal` can be fixed in the **runner's** `/etc/hosts` | The container has its own hosts file |
+| `extra_hosts` is enough | The sink bound to **loopback**, and a bridge connection is not loopback |
+| The mail sink can live on the host | Docker Desktop proxies to host loopback; a Linux runner does not |
+| The Node package path is an absolute macOS path | It does not exist in CI |
+| Fixture users exist | **They are made by other harnesses.** Third occurrence |
+| The AAGUID policy stays relaxed | It is restored after the first enrolment, so the *second* was silently refused |
+
+**Two of these were false results, not just failures.** The last one — F5 passing locally and failing in
+CI — was the test reporting a false failure: a silently-refused enrolment left the link alive, which the
+check then read as "the link is reusable". It passed locally only by ordering luck. F5 now asserts the
+intermediate fact that distinguishes the two states: **that the required action actually cleared.**
+
+The sink is now a **compose service on the same Docker network**, which removes the whole class of host-
+networking problems rather than patching each symptom.
 
 ## 5. What was NOT tested
 
