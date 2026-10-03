@@ -64,8 +64,7 @@ PY = sys.executable
 
 COMPLETE_JS = r"""
 import { createRequire } from 'node:module';
-const require = createRequire(
-  '/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/lab/keycloak/package.json');
+const require = createRequire(__PKG__);
 const puppeteer = require('puppeteer-core');
 const CDP = 'http://127.0.0.1:9222';
 const LINK = __LINK__;
@@ -202,7 +201,12 @@ def complete_enrolment(link: str) -> tuple[bool, list]:
     """
     import shutil
     script = pathlib.Path("/tmp/s5f-complete.mjs")
-    script.write_text(COMPLETE_JS.replace("__LINK__", json.dumps(link)))
+    # The package path is injected rather than hard-coded. An absolute macOS path
+    # worked locally and failed in CI at the module loader — the script runs from
+    # /tmp, so a relative specifier would resolve there instead.
+    pkg = (pathlib.Path(__file__).resolve().parent.parent / "package.json").as_posix()
+    script.write_text(
+        COMPLETE_JS.replace("__LINK__", json.dumps(link)).replace("__PKG__", json.dumps(pkg)))
     r = subprocess.run(["node", str(script)], capture_output=True, text=True, timeout=240,
                        cwd=str(pathlib.Path(__file__).resolve().parent.parent))
     out = (r.stdout + r.stderr).strip()
