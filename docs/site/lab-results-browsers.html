@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: other browsers — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The S4b experiment: three Chromium browsers pass; Firefox and Safari remain manual." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html" class="current">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-results">1. The results</a></li>
+<li class="lvl3"><a href="#the-two-engines-that-actually-matter-are-still-untested">The two engines that actually matter are still untested</a></li>
+<li><a href="#2-why-firefox-could-not-be-automated">2. Why Firefox could not be automated</a></li>
+<li class="lvl3"><a href="#why-a-fixed-profile-was-needed-at-all">Why a fixed profile was needed at all</a></li>
+<li><a href="#3-why-safari-is-not-automated">3. Why Safari is not automated</a></li>
+<li><a href="#4-closing-firefox-and-safari-out-about-a-minute-each">4. Closing Firefox and Safari out — about a minute each</a></li>
+<li><a href="#5-a-note-on-identifying-browsers">5. A note on identifying browsers</a></li>
+<li><a href="#6-reproducing">6. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: other browsers</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: other browsers</h1>
+        <p class="blurb">The S4b experiment: three Chromium browsers pass; Firefox and Safari remain manual.</p>
+      </header>
+      <section id="overview"><p><strong>Status: PARTLY RESOLVED — Chromium only (3 browsers, 6/6); Firefox and Safari need a manual minute.</strong></p>
+<p>This slice exists because S4 was reported as &ldquo;resolved&rdquo; when <strong>only Chrome</strong> had been tested. That
+deserved correcting: Chrome, Edge and Brave share one engine, so one engine had been tested and the
+result was being described as browser behaviour.</p>
+<hr></section>
+<section id="1-the-results"><h2>1. The results</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Browser</th>
+<th>Engine</th>
+<th>Method</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chrome</strong> 154.0.8037.95</td>
+<td>Chromium</td>
+<td>automated</td>
+<td><strong>6/6</strong></td>
+</tr>
+<tr>
+<td><strong>Edge</strong> 154.0.4258.53</td>
+<td>Chromium</td>
+<td>automated</td>
+<td><strong>6/6</strong></td>
+</tr>
+<tr>
+<td><strong>Brave</strong> 154.0.8037.58</td>
+<td>Chromium</td>
+<td>automated</td>
+<td><strong>6/6</strong></td>
+</tr>
+<tr>
+<td><strong>Firefox</strong> 156.0.1</td>
+<td><strong>Gecko</strong></td>
+<td>—</td>
+<td>⚪ <strong>not automated — manual</strong></td>
+</tr>
+<tr>
+<td><strong>Safari</strong> 26.6.2</td>
+<td><strong>WebKit</strong></td>
+<td>—</td>
+<td>⚪ <strong>not automated — manual</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>Every check in each run: the key survives a full quit and relaunch, still works, is provably the
+<strong>same</strong> key rather than a fresh one, and the <strong>control</strong> — a newly generated key — is correctly
+rejected.</p>
+<p>Across all three Chromium browsers, <code>persist()</code> was refused (<code>false</code>) and the key survived anyway,
+which is the same finding as S4: <strong>that API guards against eviction, not against restarts.</strong></p>
+<h3 id="the-two-engines-that-actually-matter-are-still-untested">The two engines that actually matter are still untested</h3>
+<p>Chromium is one engine in three skins. Gecko and WebKit are genuinely different, with their own
+storage and eviction behaviour — so <strong>Chrome passing tells us nothing about either.</strong></p>
+<p>That remains the honest state: <strong>one of three engines is automated.</strong> Firefox and Safari are covered
+by <code>manual.html</code>, which takes about a minute each.</p>
+</section>
+<section id="2-why-firefox-could-not-be-automated"><h2>2. Why Firefox could not be automated</h2>
+<p>Two separate toolchains were tried, and both failed in ways that are worth recording so nobody
+repeats the attempt.</p>
+<p><strong>Puppeteer</strong> (which drives Chrome well) failed with:</p>
+<div class="codehilite"><pre><span></span><code>session.subscribe timed out
+</code></pre></div>
+
+<p>under three different launch configurations — with a remote debugging port, with the remote-agent
+preference set explicitly, and plain with a 90-second timeout. This is a WebDriver-BiDi handshake
+problem between this puppeteer and this Firefox, not something a longer timeout fixes.</p>
+<p><strong>geckodriver</strong> (Mozilla&rsquo;s own driver) was then fetched as a standalone binary into <code>tools/bin</code>, since
+Homebrew is root-owned here and could not install it. It started correctly and created a session —
+and then failed:</p>
+<div class="codehilite"><pre><span></span><code>POST /session/.../execute/async -&gt; 404
+{"error":"no such window","message":"Browsing context has been discarded"}
+</code></pre></div>
+
+<p>So Firefox launched, the session existed, and the browsing context was thrown away before any script
+could run. A follow-up probe that tried the same thing with and without a fixed profile then <strong>hung</strong>
+on session creation.</p>
+<p><strong>Time-boxed and abandoned.</strong> Three attempts across two tools is enough to conclude that automating
+Firefox is a project, not a step. The manual page exists precisely for this, and the discipline of
+time-boxing was written down after S5 for exactly this reason.</p>
+<h3 id="why-a-fixed-profile-was-needed-at-all">Why a fixed profile was needed at all</h3>
+<p>WebDriver creates a <strong>throwaway profile per session</strong> by default. That would have made the test
+meaningless in the most dangerous way: the key would appear &ldquo;gone&rdquo; in phase 2 simply because it was a
+different browser, and the result would have been reported as <em>&ldquo;Firefox evicts storage&rdquo;</em> — a wrong
+finding that looks like a real one.</p>
+<p>So <code>run_firefox.py</code> pins the profile directory and writes a <strong>marker file</strong> into it before phase 1,
+checking it in phase 2. If the profile had not persisted, the script aborts rather than reporting a
+false negative. That guard was never reached, but it is the right guard to have.</p>
+</section>
+<section id="3-why-safari-is-not-automated"><h2>3. Why Safari is not automated</h2>
+<p>Unchanged from S4, and both reasons are about not doing something intrusive:</p>
+<ul>
+<li><strong>Safari is open with the user&rsquo;s own windows</strong>, and a meaningful restart test means quitting it.
+  Closing somebody&rsquo;s browser to satisfy an experiment is not a reasonable thing to do.</li>
+<li><strong>Remote automation is disabled</strong>, and enabling it is a settings change for the user to make, not
+  for a test script.</li>
+</ul>
+<p><code>safaridriver</code> itself is present and responds, so this is a permissions and politeness boundary, not a
+technical one.</p>
+</section>
+<section id="4-closing-firefox-and-safari-out-about-a-minute-each"><h2>4. Closing Firefox and Safari out — about a minute each</h2>
+<p><code>lab/browser/manual.html</code> runs the identical two-phase test with two buttons and works in <strong>any</strong>
+browser. It needs a real address rather than a file, because browsers keep storage per address:</p>
+<div class="codehilite"><pre><span></span><code>python3<span class="w"> </span>-m<span class="w"> </span>http.server<span class="w"> </span><span class="m">8099</span><span class="w"> </span>--directory<span class="w"> </span>lab/browser
+<span class="c1"># open http://localhost:8099/manual.html</span>
+</code></pre></div>
+
+<p>For each browser:</p>
+<ol>
+<li>Press <strong>Create and store a key</strong>.</li>
+<li><strong>Quit the browser completely</strong> — not just the tab.</li>
+<li>Reopen the same address and press <strong>Check the key</strong>.</li>
+</ol>
+<p>It reports whether the key survived, whether it is the <em>same</em> key, and includes the same negative
+control. One pass each for Firefox and Safari closes out the last two engines.</p>
+</section>
+<section id="5-a-note-on-identifying-browsers"><h2>5. A note on identifying browsers</h2>
+<p><strong>Brave reports itself as <code>Chrome/154.0.8037.58</code></strong> in its user-agent string. The version string cannot
+be used to tell Brave from Chrome — only the binary path can. Any future test that identifies the
+browser under test by parsing the user agent will silently mislabel Brave as Chrome.</p>
+<p>The runner therefore also <strong>aborts if the reported browser does not match the one requested</strong>, so a
+mis-wired run fails loudly instead of producing a result attributed to the wrong browser. That guard
+was added after an early attempt at this slice ran the <em>Chrome</em> binary while being invoked as <code>edge</code> —
+it reported a perfect 6/6, and it was worthless.</p>
+</section>
+<section id="6-reproducing"><h2>6. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code>node<span class="w"> </span>lab/browser/run.mjs<span class="w"> </span>chrome<span class="w">      </span><span class="c1"># or: edge, brave</span>
+./.venv/bin/python<span class="w"> </span>lab/browser/run_firefox.py<span class="w">   </span><span class="c1"># attempted; currently fails</span>
+python3<span class="w"> </span>-m<span class="w"> </span>http.server<span class="w"> </span><span class="m">8099</span><span class="w"> </span>--directory<span class="w"> </span>lab/browser<span class="w">   </span><span class="c1"># then manual.html, any browser</span>
+</code></pre></div>
+
+<p>Each browser gets its own profile directory (<code>/tmp/attest-s4-profile-&lt;browser&gt;</code>), deleted before the
+run, so a pass cannot be a leftover from a previous one.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-browser.html"><span>Previous</span><b>Lab results: browser keys</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

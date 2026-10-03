@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The big picture — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="What Zero Trust means here, the three planes, and the boundaries we treat as hostile." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html" class="current">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#zero-trust-in-one-sentence">Zero Trust in one sentence</a></li>
+<li><a href="#why-we-turned-on-mfa-is-not-zero-trust">Why “we turned on MFA” is not Zero Trust</a></li>
+<li><a href="#the-idea-that-makes-it-work-separating-the-decision-from-the-enforcement">The idea that makes it work: separating the decision from the enforcement</a></li>
+<li><a href="#three-planes">Three planes</a></li>
+<li><a href="#the-boundaries-we-assume-are-hostile">The boundaries we assume are hostile</a></li>
+<li><a href="#a-decision-we-made-deliberately-and-its-price">A decision we made deliberately, and its price</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Guide</span><span>/</span><b>The big picture</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>The big picture</h1>
+        <p class="blurb">What Zero Trust means here, the three planes, and the boundaries we treat as hostile.</p>
+      </header>
+      <section id="overview"><p>This page is the shape of the system: what Zero Trust actually means here, how the pieces divide up,
+and which boundaries we treat as hostile.</p></section>
+<section id="zero-trust-in-one-sentence"><h2>Zero Trust in one sentence</h2>
+<p><strong>No request is trusted because of where it came from.</strong></p>
+<p>That is the whole idea. There is no &ldquo;inside the network&rdquo; where things are safe by default. There is
+no VPN that makes you trustworthy, and no IP address that substitutes for a decision. Every request
+must prove who it is, and then be judged on its own merits.</p>
+<div class="admonition note">
+<p class="admonition-title">Why the name is slightly misleading</p>
+<p>&ldquo;Zero Trust&rdquo; does not mean trusting nothing and blocking everything. It means trust is never
+<em>assumed</em> from context — it is earned per request, from evidence, every time. A user who signed in
+perfectly thirty seconds ago still has to pass every check on their next call.</p>
+</div>
+</section>
+<section id="why-we-turned-on-mfa-is-not-zero-trust"><h2>Why &ldquo;we turned on MFA&rdquo; is not Zero Trust</h2>
+<p>Multi-factor authentication answers one question: <em>is this person who they say they are, at the
+moment they sign in?</em></p>
+<p>It says nothing about:</p>
+<ul>
+<li>Whether the token they are now carrying has been stolen.</li>
+<li>Whether their laptop is healthy.</li>
+<li>Whether they are entitled to <strong>this particular record</strong>.</li>
+<li>Whether access granted six hours ago should still be live now.</li>
+</ul>
+<p>A system that authenticates strongly and then trusts everything afterwards has a strong front door
+and no interior walls. Zero Trust is mostly about the interior walls.</p>
+</section>
+<section id="the-idea-that-makes-it-work-separating-the-decision-from-the-enforcement"><h2>The idea that makes it work: separating the decision from the enforcement</h2>
+<p>The most useful concept in Zero Trust, formalised in NIST SP 800-207, is that the thing which
+<strong>makes</strong> an access decision and the thing which <strong>enforces</strong> it should be different components.</p>
+<div class="grid">
+<div class="card">
+<p><strong>The decision point</strong></p>
+<p>Given a who, a what, which object, and the current circumstances, is this allowed? It holds the rules
+and nothing else. Here that is <strong>Amazon Verified Permissions</strong>, evaluating policies written in a
+language called <strong>Cedar</strong>.</p>
+</div>
+<div class="card">
+<p><strong>The enforcement point</strong></p>
+<p>Sits on the path of every request and refuses anything the decision point did not approve. It holds
+no rules of its own. Here that is <strong>API Gateway</strong> plus a small function that checks token binding.</p>
+</div>
+</div>
+<p>Keeping these apart buys two things. Authorization rules can change without deploying application
+code, because they are data. And a single compromised component does not gain both the ability to
+<em>decide</em> and the ability to <em>permit</em>.</p>
+</section>
+<section id="three-planes"><h2>Three planes</h2>
+<p>Everything in the system belongs to one of three planes. Each has a different job, a different
+failure mode, and a different reason to exist.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Plane</th>
+<th>Job</th>
+<th>Failure looks like</th>
+<th>Built from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Identity</strong></td>
+<td>Prove who is asking, and issue tokens</td>
+<td>Nobody can sign in; or the wrong person can</td>
+<td>Keycloak, run by us, in two separate realms</td>
+</tr>
+<tr>
+<td><strong>Decision</strong></td>
+<td>Decide whether a proven identity may do a specific thing to a specific object, right now</td>
+<td>The wrong access is allowed, or the right access is blocked</td>
+<td>Verified Permissions, plus posture and revocation signals</td>
+</tr>
+<tr>
+<td><strong>Data</strong></td>
+<td>Hold the evidence, and enforce tenant scope a second time</td>
+<td>One customer sees another&rsquo;s data</td>
+<td>DynamoDB and S3, with per-request scoping</td>
+</tr>
+</tbody>
+</table></div>
+<p>The separation matters because each plane can fail independently. If the policy engine is
+misconfigured, the data layer still constrains the query. If a token is stolen, the binding check
+still refuses it. Redundancy here is not waste — any one of these failing is a security incident
+rather than an outage, so they must not share a fate.</p>
+</section>
+<section id="the-boundaries-we-assume-are-hostile"><h2>The boundaries we assume are hostile</h2>
+<p>Every arrow below is somewhere an attacker can stand. Nothing is trusted for being on the &ldquo;inside&rdquo;,
+because there is no inside.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Boundary</th>
+<th>The rule at that boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B1</td>
+<td>Internet → content delivery</td>
+<td>Filtered by a web application firewall. Reaching this point confers no trust.</td>
+</tr>
+<tr>
+<td>B2</td>
+<td>Content delivery → load balancer and API</td>
+<td>Only our own distribution may call the origin.</td>
+</tr>
+<tr>
+<td>B3</td>
+<td>Load balancer → identity provider</td>
+<td>The identity provider accepts traffic only from the load balancer, never directly.</td>
+</tr>
+<tr>
+<td>B4</td>
+<td>API → application code</td>
+<td>Both the token-binding check <strong>and</strong> the policy decision must pass. Either one failing denies the request.</td>
+</tr>
+<tr>
+<td>B5</td>
+<td>Application code → data stores</td>
+<td>Least privilege per function, and tenant scope re-applied inside the query itself.</td>
+</tr>
+<tr>
+<td>B6</td>
+<td>Tenant ↔ tenant</td>
+<td>Enforced twice, independently: in policy, and in the data layer.</td>
+</tr>
+<tr>
+<td>B7</td>
+<td>Customer realm ↔ privileged realm</td>
+<td>Separate realms with separate signing keys. No credential or session crosses.</td>
+</tr>
+<tr>
+<td>B8</td>
+<td>Human ↔ machine identity</td>
+<td>Different mechanisms entirely, and no shared secrets.</td>
+</tr>
+<tr>
+<td>B9</td>
+<td>Our code ↔ administering the identity provider</td>
+<td>Configuration is declarative, so no human needs routine administrative access.</td>
+</tr>
+</tbody>
+</table></div>
+<div class="admonition info">
+<p class="admonition-title">The consequence people find surprising</p>
+<p>Because the network is assumed hostile, there is no VPN and no IP allowlist anywhere as a
+security control. Access is granted to a <em>person and a device</em>, not to an <em>address</em>. An employee
+on the corporate network gets no more trust than an auditor on a train, and that is the point.</p>
+</div>
+</section>
+<section id="a-decision-we-made-deliberately-and-its-price"><h2>A decision we made deliberately, and its price</h2>
+<p>We run the identity provider ourselves rather than buying a managed service.</p>
+<p>That is not the easy option. It makes us responsible for high availability and for patching an
+internet-facing authentication service quickly, forever. We chose it because it was the only way to
+make one specific requirement genuinely enforceable rather than approximately enforceable: that
+platform admins must hold <strong>physical hardware keys whose genuineness the server can check</strong>.</p>
+<p>The <a href="passwordless.html">passwordless</a> page explains why that requirement needs something the managed
+service we originally used could not provide, and the
+<a href="operating.html">operating</a> page is honest about what running it costs us.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="problem.html"><span>Previous</span><b>The problem it removes</b></a><a class="pn next" href="passwordless.html"><span>Next</span><b>Sign-in, end to end</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Threat model — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Every attack considered, its outcome, and the risks accepted deliberately." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html" class="current">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-method-and-scope">1. Method and scope</a></li>
+<li><a href="#2-assets-in-priority-order">2. Assets, in priority order</a></li>
+<li><a href="#3-adversaries">3. Adversaries</a></li>
+<li><a href="#4-attack-analysis">4. Attack analysis</a></li>
+<li class="lvl3"><a href="#t1-credential-phishing-static-clone">T1 — Credential phishing (static clone)</a></li>
+<li class="lvl3"><a href="#t2-adversary-in-the-middle-phishing-real-time-reverse-proxy">T2 — Adversary-in-the-middle phishing (real-time reverse proxy)</a></li>
+<li class="lvl3"><a href="#t3-sync-provider-compromise">T3 — Sync-provider compromise</a></li>
+<li class="lvl3"><a href="#t4-mfa-fatigue-push-bombing-sim-swap">T4 — MFA fatigue / push bombing / SIM swap</a></li>
+<li class="lvl3"><a href="#t5-session-token-theft">T5 — Session token theft</a></li>
+<li class="lvl3"><a href="#t6-xss-in-the-attest-origin">T6 — XSS in the Attest origin</a></li>
+<li class="lvl3"><a href="#t7-malicious-browser-extension-fully-compromised-device">T7 — Malicious browser extension / fully compromised device</a></li>
+<li class="lvl3"><a href="#t8-recovery-flow-downgrade">T8 — Recovery-flow downgrade</a></li>
+<li class="lvl3"><a href="#t9-help-desk-social-engineering">T9 — Help-desk social engineering</a></li>
+<li class="lvl3"><a href="#t10-cross-tenant-access-idor-bola">T10 — Cross-tenant access (IDOR / BOLA)</a></li>
+<li class="lvl3"><a href="#t11-auditor-over-reach">T11 — Auditor over-reach</a></li>
+<li class="lvl3"><a href="#t12-cicd-and-supply-chain-compromise">T12 — CI/CD and supply chain compromise</a></li>
+<li class="lvl3"><a href="#t13-platform-admin-abuse-insider">T13 — Platform admin abuse (insider)</a></li>
+<li class="lvl3"><a href="#t14-evidence-tampering">T14 — Evidence tampering</a></li>
+<li class="lvl3"><a href="#t15-compromise-of-the-keycloak-deployment-new">T15 — Compromise of the Keycloak deployment (new)</a></li>
+<li class="lvl3"><a href="#t16-unpatched-keycloak-vulnerability-new">T16 — Unpatched Keycloak vulnerability (new)</a></li>
+<li class="lvl3"><a href="#t17-realm-misconfiguration-and-configuration-drift-new">T17 — Realm misconfiguration and configuration drift (new)</a></li>
+<li><a href="#5-explicitly-accepted-risks">5. Explicitly accepted risks</a></li>
+<li><a href="#6-detection-and-response">6. Detection and response</a></li>
+<li><a href="#7-threat-model-maintenance">7. Threat model maintenance</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Threat model</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Threat model</h1>
+        <p class="blurb">Every attack considered, its outcome, and the risks accepted deliberately.</p>
+      </header>
+      <section id="overview"><p>What Attest defends against, how, and — just as importantly — what it does not.</p>
+<blockquote>
+<p><strong>Revision note:</strong> updated for the self-hosted Keycloak identity plane. This revision <strong>adds</strong>
+threats T15–T17, which are the risks you inherit by operating the identity provider yourself.
+They did not exist when AWS ran it for us.</p>
+</blockquote>
+<hr></section>
+<section id="1-method-and-scope"><h2>1. Method and scope</h2>
+<p><strong>Approach:</strong> STRIDE-style enumeration over the authentication and authorization paths, plus explicit
+attack trees for the attacks that matter most for this product. Written before implementation, to be
+revised after the Phase 6 red-team exercise.</p>
+<p><strong>In scope:</strong> the Attest application, its AWS infrastructure, its Keycloak deployment and realm
+configuration, and its build/deploy pipeline.</p>
+<p><strong>Explicitly out of scope:</strong> the security of AWS itself; the customer&rsquo;s own network; the security of
+the sync provider behind a synced passkey (treated as a trust assumption, see T3); the security of
+Keycloak&rsquo;s own codebase (we consume it, we do not audit it — but see T16).</p>
+<p><strong>Core assumption (NIST SP 800-207 tenet 2):</strong> the network is hostile. No request is trusted because
+of where it came from. There is no &ldquo;internal&rdquo; network. This is why the architecture has no VPN and
+no IP allowlist as a security control.</p>
+<hr>
+</section>
+<section id="2-assets-in-priority-order"><h2>2. Assets, in priority order</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Asset</th>
+<th>Why an attacker wants it</th>
+<th>Impact if lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>Cross-tenant evidence data</td>
+<td>Sell to competitors; extort multiple victims at once</td>
+<td>Existential</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>Platform admin capability</td>
+<td>Path to A1 at scale</td>
+<td>Existential</td>
+</tr>
+<tr>
+<td>A3</td>
+<td>Auditor credentials</td>
+<td>Externally held, often weakest personal security</td>
+<td>Severe</td>
+</tr>
+<tr>
+<td>A4</td>
+<td>Evidence integrity</td>
+<td>Fraudulent compliance attestation</td>
+<td>Severe</td>
+</tr>
+<tr>
+<td>A5</td>
+<td>Audit log</td>
+<td>Cover tracks; find other victims</td>
+<td>Severe</td>
+</tr>
+<tr>
+<td>A6</td>
+<td>Tenant admin capability</td>
+<td>Escalate within one tenant</td>
+<td>High</td>
+</tr>
+<tr>
+<td>A7</td>
+<td>Session/refresh tokens</td>
+<td>Impersonate users without breaking in again</td>
+<td>High</td>
+</tr>
+<tr>
+<td><strong>A8</strong></td>
+<td><strong>The Keycloak deployment and its database</strong> <em>(new)</em></td>
+<td><strong>Every credential and every token; direct path to A1 and A2</strong></td>
+<td><strong>Existential</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>A8 is new and is the structural consequence of self-hosting. When AWS ran the IdP, the identity
+provider was not part of our attack surface. Now it is the highest-value target we operate.</p>
+</section>
+<section id="3-adversaries"><h2>3. Adversaries</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Adversary</th>
+<th>Capability</th>
+<th>Primary interest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>External opportunistic</strong></td>
+<td>Credential stuffing, phishing kits, commodity tooling</td>
+<td>A1, A3</td>
+</tr>
+<tr>
+<td><strong>Phishing-as-a-service operator</strong></td>
+<td>Real-time AiTM reverse proxy, MFA relay, convincing clones</td>
+<td>A1, A3</td>
+</tr>
+<tr>
+<td><strong>Malicious insider (customer)</strong></td>
+<td>Legitimate but over-scoped access</td>
+<td>A1, A4</td>
+</tr>
+<tr>
+<td><strong>Malicious insider (Attest staff)</strong></td>
+<td>Platform admin access</td>
+<td>A1, A5, A8</td>
+</tr>
+<tr>
+<td><strong>Compromised integration</strong></td>
+<td>Valid service credentials</td>
+<td>A1, A6</td>
+</tr>
+<tr>
+<td><strong>Nation-state / targeted</strong></td>
+<td>Full toolchain, supply chain, patient</td>
+<td>A1, A2, A5, <strong>A8</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>The <strong>phishing-as-a-service</strong> row justifies the entire passwordless programme: those kits are built
+to defeat TOTP and push MFA in real time, and passkeys break their business model. The <strong>nation-state</strong>
+row is the one that becomes more worrying under self-hosting, because a self-hosted IdP is a
+reachable, patchable target that we must defend continuously.</p>
+<hr>
+</section>
+<section id="4-attack-analysis"><h2>4. Attack analysis</h2>
+<p>Legend: <strong>Stopped</strong> = control is effective · <strong>Mitigated</strong> = materially harder, not eliminated ·
+<strong>Out of scope</strong> = accepted risk, stated openly.</p>
+<h3 id="t1-credential-phishing-static-clone">T1 — Credential phishing (static clone)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Clone the login page, harvest credentials</td>
+</tr>
+<tr>
+<td><strong>Against passwords</strong></td>
+<td>Stopped only if MFA is present and not phishable</td>
+</tr>
+<tr>
+<td><strong>Against passkeys</strong></td>
+<td><strong>Stopped.</strong> The signature covers the origin; it will not verify at the attacker&rsquo;s domain</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>WebAuthn origin binding (Phase 1)</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>None for the credential itself; the attacker may pivot to T4</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t2-adversary-in-the-middle-phishing-real-time-reverse-proxy">T2 — Adversary-in-the-middle phishing (real-time reverse proxy)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Evilginx-class proxy relays the real login in real time, capturing the session <em>after</em> MFA succeeds</td>
+</tr>
+<tr>
+<td><strong>Against TOTP / SMS / push</strong></td>
+<td><strong>Defeated</strong> — the proxy relays the code. This is the attack that kills conventional MFA</td>
+</tr>
+<tr>
+<td><strong>Against passkeys</strong></td>
+<td><strong>Stopped at the ceremony.</strong> WebAuthn binds the assertion to the relying party ID, so the browser will not produce a valid assertion for the proxy&rsquo;s domain</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>WebAuthn origin binding + <code>userVerification: required</code> on <code>attest-privileged</code> (Phase 1)</td>
+</tr>
+<tr>
+<td><strong>Verification</strong></td>
+<td>Success criterion S2 — run a real AiTM kit against our flow and confirm it fails</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>If the proxy forwards the <em>token</em> rather than the ceremony, it still lacks the DPoP key. See T5</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>This is the attack the project exists to defeat.</strong> It is the reason &ldquo;passwordless&rdquo; here means
+FIDO2/WebAuthn and not &ldquo;password + a code from an app&rdquo;.</p>
+<h3 id="t3-sync-provider-compromise">T3 — Sync-provider compromise</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Compromise the consumer cloud account or the provider that syncs passkeys</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td>Yields the user&rsquo;s synced passkey material — a complete authentication bypass</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td><code>attest-privileged</code> enforces <code>authenticatorAttachment: cross-platform</code> <strong>plus an AAGUID allowlist</strong>, so synced passkeys <strong>cannot be registered at all</strong> (<a href="identity.html">identity doc §7</a>)</td>
+</tr>
+<tr>
+<td><strong>Residual for standard users</strong></td>
+<td><strong>Accepted.</strong> A synced passkey&rsquo;s trust root is the sync provider account. Deliberate UX/security trade on the customer realm</td>
+</tr>
+<tr>
+<td><strong>Residual for privileged users</strong></td>
+<td><strong>Low.</strong> This is the control that Cognito could not provide — enforcement is at registration, not inference after the fact</td>
+</tr>
+</tbody>
+</table></div>
+<p>Stated plainly because it is the most important accepted risk in the system: <strong>for standard users, we
+have moved the trust root from &ldquo;the user&rsquo;s device&rdquo; to &ldquo;the user&rsquo;s cloud account&rdquo;, and we consider
+that an acceptable trade at that privilege level.</strong> For privileged users we have not, and that is a
+real security improvement over the previous design.</p>
+<p><strong>Residual caveat — NOW RESOLVED BY SPIKE #3.</strong> The earlier concern was that an authenticator which
+<em>declines to attest</em> (reporting an all-zeros AAGUID) might be silently admitted, defeating the
+allowlist. <strong>It is not admitted — it is rejected.</strong> Verified in a controlled matrix
+(<a href="lab-results.html">SPIKE-3-RESULTS.md</a>). The remaining caveat is the inverse:
+because enforcement is real, a legitimate user whose authenticator cannot attest will be <em>locked
+out</em>, so the failure mode is availability rather than bypass. And note that the allowlist is only
+meaningful under <code>attestationConveyancePreference: direct</code> — under <code>none</code> the AAGUID is self-asserted
+and an allowlist can be spoofed. See <a href="identity.html">identity doc §7.3</a>.</p>
+<h3 id="t4-mfa-fatigue-push-bombing-sim-swap">T4 — MFA fatigue / push bombing / SIM swap</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Spam push notifications; or SIM-swap to intercept SMS</td>
+</tr>
+<tr>
+<td><strong>Against Attest</strong></td>
+<td><strong>Not applicable.</strong> No push approval and no SMS factor is configured on either realm</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Factor choice by design — we never deployed the vulnerable factors</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>The cheapest way to prevent an attack class is to not have the attack surface. Resist future requests to &ldquo;just add SMS as a backup&rdquo;</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t5-session-token-theft">T5 — Session token theft</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Steal an access token via XSS, a leaked log, a misconfigured proxy, or a shared machine</td>
+</tr>
+<tr>
+<td><strong>Against bearer tokens</strong></td>
+<td><strong>Not mitigated</strong> — possession is authorization</td>
+</tr>
+<tr>
+<td><strong>Against Attest</strong></td>
+<td><strong>Mitigated.</strong> Keycloak binds tokens to <code>cnf.jkt</code>; our DPoP Verifying Authorizer rejects proofs that do not match (<a href="authorization.html">authorization doc §3</a>)</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Keycloak DPoP + resource-server verification (Phase 2), 5-minute access tokens, <code>HttpOnly</code> cookies, CSP</td>
+</tr>
+<tr>
+<td><strong>Detection</strong></td>
+<td>A DPoP proof failure is a <strong>high-confidence token-theft signal</strong> — alerts, not just 401s</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>See T6</td>
+</tr>
+<tr>
+<td><strong>Critical caveat</strong></td>
+<td>This control is <strong>only</strong> real if our API verifies proofs. Keycloak binding the token is not sufficient. See T15 and risk R2</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t6-xss-in-the-attest-origin">T6 — XSS in the Attest origin</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Inject script into the app; use the victim&rsquo;s session</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td><strong>DPoP does not stop this.</strong> The script runs in the origin and can <em>use</em> the non-extractable key to sign valid proofs. <code>extractable: false</code> prevents key exfiltration, not key abuse</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Strict CSP (no <code>unsafe-inline</code>, nonce-based), SRI on third-party scripts, dependency review, no <code>localStorage</code> for tokens, aggressive output encoding</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td><strong>Real and non-trivial.</strong> Framework-level XSS is the most likely route to session compromise</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>This is the honest limit of DPoP and the reason Phase 4 posture and short TTLs are not redundant</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t7-malicious-browser-extension-fully-compromised-device">T7 — Malicious browser extension / fully compromised device</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Extension reads the DOM, calls the app&rsquo;s APIs in the user&rsquo;s context, or exfiltrates the key</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td>Full session compromise</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td><strong>Largely none from the browser.</strong> This is why real device posture needs an agent</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td><strong>Out of scope by design</strong> (<a href="plan.html">PLAN.md §10</a>). Mitigations are organisational (MDM for privileged staff) rather than technical in the web app</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t8-recovery-flow-downgrade">T8 — Recovery-flow downgrade</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Do not attack the passkey — attack the reset. Request account recovery, take over the mailbox, enrol a fresh passkey</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td>Complete bypass of phishing-resistant MFA</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Recovery never issues a session from an email link alone; <strong>Keycloak required action</strong> forces new-passkey enrolment rather than a credential reset; owner notification; hold-for-review on low-confidence signals; <strong>no self-service recovery for privileged users</strong> (<a href="identity.html">identity doc §9</a>)</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Medium. The most likely real-world bypass; needs telemetry from day one</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>Keycloak will happily perform a plain credential reset if asked. The control is that our recovery flow uses a required action, and that distinction must be asserted in configuration, not assumed</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t9-help-desk-social-engineering">T9 — Help-desk social engineering</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Persuade support to reset credentials or grant access</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Quorum approval for privileged recovery; support staff cannot self-authorize; out-of-band verification; every recovery logged and owner-notified</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Medium — depends on process discipline, not code. Needs periodic tabletop testing</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t10-cross-tenant-access-idor-bola">T10 — Cross-tenant access (IDOR / BOLA)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Use a valid session in tenant A to read tenant B&rsquo;s data — by changing an ID, a path, or a body parameter</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td><strong>A1 — the catastrophic outcome</strong></td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Four independent layers (<a href="authorization.html">authorization doc §4.5</a>): Cedar <code>forbid</code> failing closed; tenant ID sourced only from verified token claims; IAM scoping; CI-hosted cross-tenant IDOR suite</td>
+</tr>
+<tr>
+<td><strong>Verification</strong></td>
+<td>Success criterion S5 — an automated suite that must fail to breach on every deploy</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Low, <strong>provided no code path ever accepts a tenant ID from request input.</strong> That single rule is the control; everything else is backup</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t11-auditor-over-reach">T11 — Auditor over-reach</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>An auditor (legitimate third party) accesses engagements beyond their scope, or retains access after the engagement closes</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Cedar scoping to <code>engagement_ids</code>; <code>access_expires_at</code> evaluated per request; access expires on engagement close with <strong>no manual step</strong> (S7); auditor actions fully audited and tenant-visible</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Low. The auditor is <em>supposed</em> to see the engagement — the control is boundary and time</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t12-cicd-and-supply-chain-compromise">T12 — CI/CD and supply chain compromise</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Steal deployment credentials; inject code into the pipeline; compromise a dependency <strong>or the Keycloak image itself</strong></td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>GitHub OIDC → scoped IAM role per job (no static keys, S9); <code>cdk-nag</code> in CI; pinned dependencies and <strong>pinned, digest-referenced container images</strong>; branch protection and required review on infra and realm-config changes</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Medium — supply chain risk is genuinely hard. Under self-hosting the Keycloak image is now an explicit supply-chain dependency: pin by digest, and prefer building from an official <code>quay.io</code> image rather than a third-party rebuild</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t13-platform-admin-abuse-insider">T13 — Platform admin abuse (insider)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>An Attest staff member uses platform access to read customer data, or their credentials are compromised</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Device-bound hardware key enforced by AAGUID allowlist; <strong>no blanket cross-tenant permit</strong> — access is a distinct audited action; ACR-based fresh step-up (&lt; 5 min, bounded in policy); business justification recorded; tenant-visible audit; impersonation requires tenant consent and is time-boxed; quorum-approval break-glass with session recording</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Low-medium. The audit trail creates accountability rather than prevention — the realistic goal for privileged insiders</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t14-evidence-tampering">T14 — Evidence tampering</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Insider alters evidence to fake compliance</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>S3 Object Lock (WORM) on evidence and audit buckets; KMS CMK; CloudTrail data events; cryptographic hash of each artifact recorded at upload</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Low. Note this is a <strong>product integrity</strong> control as much as a security one</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h3 id="t15-compromise-of-the-keycloak-deployment-new">T15 — Compromise of the Keycloak deployment <em>(new)</em></h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Exploit a Keycloak vulnerability, steal admin credentials, or reach the database directly. Yields the ability to mint tokens for any user, read all credentials, or bypass authentication entirely</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td><strong>A8 — existential.</strong> This is a bigger blast radius than any single tenant&rsquo;s data</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Keycloak tasks in private subnets accepting traffic <strong>only</strong> from the ALB security group (B3); admin API never exposed publicly; RDS in private subnets, encrypted, <code>No public access</code>; DB credentials in Secrets Manager with rotation; <strong>no routine human use of the admin API</strong> because realm config is declarative (S12, B9); least-privilege IAM for the ECS task role; CloudTrail + Keycloak admin events to the immutable audit log</td>
+</tr>
+<tr>
+<td><strong>Detection</strong></td>
+<td>Keycloak admin events (realm/client/user creation, credential resets); unexpected <code>LOGIN</code> events for staff accounts; anomalous admin API access</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Medium. We are now a target that must be actively defended. This is the honest cost of the OSS route</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>The strongest structural mitigation is that <strong>no human has routine admin need</strong>: configuration is applied by CI, so admin-API credentials are used by a small number of automated systems rather than by people</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t16-unpatched-keycloak-vulnerability-new">T16 — Unpatched Keycloak vulnerability <em>(new)</em></h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Exploit a publicly disclosed CVE in an internet-facing Keycloak version. Keycloak has a history of serious authentication-bypass CVEs and ships releases frequently</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td>Potentially A8 — full authentication bypass</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Version pinning so the running version is always known; <strong>48-hour patch SLA for critical CVEs</strong> (S11); subscribed to Keycloak security advisories; rehearsed upgrade runbook; custom SPIs kept upgrade-compatible; <strong>no fork</strong> of Keycloak, so upstream patches apply cleanly</td>
+</tr>
+<tr>
+<td><strong>Verification</strong></td>
+<td>S11 — rehearse a patch end-to-end and measure the time</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td><strong>Medium-High, and accepted.</strong> This is the single largest risk introduced by self-hosting. It is mitigated by process, not by architecture — which means it degrades silently if the process slips. If the team cannot commit to the SLA, managed Keycloak (ADR-010) is the correct answer</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>A fork would make this unbounded. That is why forking is a non-goal (<a href="plan.html">PLAN.md §10</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="t17-realm-misconfiguration-and-configuration-drift-new">T17 — Realm misconfiguration and configuration drift <em>(new)</em></h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Attack</strong></td>
+<td>Not an attacker-initiated attack but an attacker-exploitable condition: a console change weakens a WebAuthn policy, re-enables a password authenticator on the privileged realm, empties the AAGUID allowlist, or disables DPoP enforcement on a client</td>
+</tr>
+<tr>
+<td><strong>Impact</strong></td>
+<td>Silent loss of the controls the whole design rests on. <strong>Worst case: a platform admin authenticates with a password</strong> and nobody notices</td>
+</tr>
+<tr>
+<td><strong>Control</strong></td>
+<td>Declarative realm config in CI (S12, ADR-011); admin access restricted and audited (B9); <strong>regression guards in CI</strong> asserting: no password authenticator on <code>attest-privileged</code>, non-empty AAGUID allowlist, DPoP required on all clients</td>
+</tr>
+<tr>
+<td><strong>Residual</strong></td>
+<td>Low if the CI gates exist and are taken seriously; High if they do not</td>
+</tr>
+<tr>
+<td><strong>Note</strong></td>
+<td>This threat is easy to dismiss because no attacker appears in it. It is nevertheless the most likely way the privileged-access guarantee is actually lost in practice — not through a clever exploit, but through a well-intentioned console click or an urgent production fix</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+</section>
+<section id="5-explicitly-accepted-risks"><h2>5. Explicitly accepted risks</h2>
+<p>Recorded so they are decisions rather than oversights.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Accepted risk</th>
+<th>Why acceptable</th>
+<th>Revisit if</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AR1</td>
+<td>Synced passkeys for standard users (T3)</td>
+<td>Trust moves to the sync provider account; acceptable at that privilege level</td>
+<td>Customers demand device-bound for all users</td>
+</tr>
+<tr>
+<td>AR2</td>
+<td>Browser posture is weak evidence (T7)</td>
+<td>Cannot attest to a device we do not control</td>
+<td>Phase 4b device agent is funded</td>
+</tr>
+<tr>
+<td>AR3</td>
+<td>XSS is the primary residual session risk (T6)</td>
+<td>DPoP cannot defend against same-origin script abuse</td>
+<td>CSP is bypassed in production</td>
+</tr>
+<tr>
+<td>AR4</td>
+<td>Malicious extensions / compromised endpoints</td>
+<td>Out of technical scope for a web application</td>
+<td>Privileged staff lack MDM</td>
+</tr>
+<tr>
+<td>AR5</td>
+<td>Supply chain risk (T12)</td>
+<td>Mitigated, not eliminated; Keycloak image pinned by digest</td>
+<td>A dependency or image incident occurs</td>
+</tr>
+<tr>
+<td>AR6</td>
+<td>Physical coercion</td>
+<td>Outside this threat model</td>
+<td>Product moves into a higher-risk vertical</td>
+</tr>
+<tr>
+<td>AR7</td>
+<td>AWS and the passkey sync provider as trust roots</td>
+<td>We are a relying party</td>
+<td>A relevant incident occurs</td>
+</tr>
+<tr>
+<td><strong>AR8</strong></td>
+<td><strong>We operate the identity provider (T15, T16)</strong></td>
+<td><strong>Chosen deliberately: native DPoP, AAGUID allowlist, and no per-MAU cost were worth the operational burden</strong></td>
+<td><strong>The 48-hour patch SLA cannot be met, or the team lacks IdP operational capacity → migrate to managed Keycloak (ADR-010)</strong></td>
+</tr>
+<tr>
+<td><strong>AR9</strong></td>
+<td><strong>Loss of managed adaptive/risk-based authentication</strong></td>
+<td>Keycloak has no official equivalent to Cognito Plus threat protection. Partly self-mitigating because the privileged realm has no passwords; replaced by ADR-012</td>
+<td>Risk detection proves materially weaker in practice</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>AR8 and AR9 are the real price of the switch, written down so they cannot be forgotten.</strong> AR8 in
+particular is a commitment to ongoing engineering work, not a one-time setup cost.</p>
+<hr>
+</section>
+<section id="6-detection-and-response"><h2>6. Detection and response</h2>
+<p>&ldquo;Assume breach&rdquo; is only meaningful if you can <strong>detect</strong> the breach. Under Zero Trust, logging is a
+security control, not an observability nice-to-have.</p>
+<p><strong>High-signal detections to build in Phase 6:</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Detection</th>
+<th>Signal</th>
+<th>Severity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DPoP proof failure</td>
+<td>Token held without its key → <strong>token theft</strong></td>
+<td>Critical</td>
+</tr>
+<tr>
+<td>Cross-tenant authorization denial spike</td>
+<td>Probing, or a broken policy</td>
+<td>High</td>
+</tr>
+<tr>
+<td>Passkey enrolment immediately after recovery</td>
+<td>Likely account takeover in progress</td>
+<td>High</td>
+</tr>
+<tr>
+<td>Impossible travel on a privileged session</td>
+<td>Credential compromise</td>
+<td>Critical</td>
+</tr>
+<tr>
+<td>Revoked credential reuse</td>
+<td>Token replay after revocation</td>
+<td>Critical</td>
+</tr>
+<tr>
+<td><strong>Keycloak admin event outside CI</strong> <em>(new)</em></td>
+<td>Manual realm change — drift, or an attacker</td>
+<td>High</td>
+</tr>
+<tr>
+<td><strong>Keycloak admin event burst</strong> <em>(new)</em></td>
+<td>Attempted mass credential or client manipulation</td>
+<td>Critical</td>
+</tr>
+<tr>
+<td><strong>Brute-force lockout surge</strong> <em>(new)</em></td>
+<td>Distributed password attack on <code>attest-users</code></td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>Unexpected <code>attest-privileged</code> login</strong> <em>(new)</em></td>
+<td>Staff login outside change windows</td>
+<td>High</td>
+</tr>
+<tr>
+<td>Posture downgrade followed by sensitive action</td>
+<td>Compromised endpoint</td>
+<td>High</td>
+</tr>
+<tr>
+<td>Platform admin cross-tenant burst</td>
+<td>Insider exfiltration</td>
+<td>Critical</td>
+</tr>
+<tr>
+<td>Cedar <code>forbid</code> on tenant isolation</td>
+<td>Active attack <strong>or</strong> policy deployment bug</td>
+<td>Critical</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Response principles:</strong></p>
+<ul>
+<li><strong>Revocation must be one action</strong>, not a runbook of twelve console clicks. Build the kill switch
+  before the incident.</li>
+<li><strong>Keycloak&rsquo;s event system is a detection asset.</strong> It exposes more authentication detail than
+  Cognito&rsquo;s managed threat protection did, so detection can end up <em>better</em> even though the managed
+  risk scoring was better. Both statements are true, and the first is worth exploiting.</li>
+<li><strong>Break-glass is pre-provisioned and tested.</strong> An untested break-glass procedure is not a control.</li>
+<li><strong>Every auth/authz decision is retained</strong> (S8) in tamper-evident storage.</li>
+<li><strong>The audit log is a target.</strong> S3 Object Lock, separate KMS key, restricted write access.</li>
+<li><strong>A patch SLA that has never been exercised is a hope.</strong> Rehearsing the upgrade (S11) is part of
+  the control, not preparation for it.</li>
+</ul>
+</section>
+<section id="7-threat-model-maintenance"><h2>7. Threat model maintenance</h2>
+<p>This document is a living artifact with explicit revision triggers:</p>
+<ul>
+<li>After every red-team exercise (Phase 6, and annually thereafter)</li>
+<li>On any change to the authentication flow or realm configuration</li>
+<li><strong>On every Keycloak version upgrade</strong> — the CVE-patching cadence under self-hosting means this
+  document should be reviewed more often than it was under a managed IdP</li>
+<li>On any new integration or service identity</li>
+<li>On a relevant CVE in Keycloak, AVP, or a browser&rsquo;s WebAuthn implementation</li>
+<li>On any incident, regardless of severity</li>
+</ul>
+<p><strong>A threat model that is not revised after an incident is documentation, not security.</strong></p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="authorization.html"><span>Previous</span><b>Sessions and authorization</b></a><a class="pn next" href="adr.html"><span>Next</span><b>Decision register</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

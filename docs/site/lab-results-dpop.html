@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: token binding — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The Spike #1 experiment: DPoP enforcement, and the traps that would cost real time." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html" class="current">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-question">1. The question</a></li>
+<li><a href="#2-method">2. Method</a></li>
+<li><a href="#3-results">3. Results</a></li>
+<li class="lvl3"><a href="#issuance-the-binding-is-real">Issuance — the binding is real</a></li>
+<li class="lvl3"><a href="#enforcement-keycloak-as-resource-server">Enforcement — Keycloak as resource server</a></li>
+<li class="lvl3"><a href="#our-verifier-the-code-we-would-actually-ship">Our verifier — the code we would actually ship</a></li>
+<li><a href="#4-the-findings-that-matter">4. The findings that matter</a></li>
+<li class="lvl3"><a href="#a-a-bound-token-must-use-the-dpop-authorization-scheme-not-bearer">(a) A bound token must use the DPoP authorization scheme, not Bearer</a></li>
+<li class="lvl3"><a href="#b-a-resource-server-proof-must-carry-the-ath-claim">(b) A resource-server proof MUST carry the ath claim</a></li>
+<li class="lvl3"><a href="#c-keycloak-ignores-the-query-string-when-comparing-htu-observation">(c) Keycloak ignores the query string when comparing htu (observation)</a></li>
+<li class="lvl3"><a href="#d-the-dpop-nonce-challenge-was-never-triggered">(d) The DPoP-Nonce challenge was never triggered</a></li>
+<li><a href="#5-what-this-changes-in-the-design">5. What this changes in the design</a></li>
+<li><a href="#6-what-this-did-not-prove">6. What this did NOT prove</a></li>
+<li><a href="#7-reproducing">7. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: token binding</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: token binding</h1>
+        <p class="blurb">The Spike #1 experiment: DPoP enforcement, and the traps that would cost real time.</p>
+      </header>
+      <section id="overview"><p><strong>Status: RESOLVED for the local half.</strong> The binding is real, it is enforced, and the verification
+logic our API must implement has been prototyped and tested. Run against Keycloak <strong>26.8.0</strong>.</p>
+<p>The remaining half — whether the <code>DPoP</code> header survives CloudFront → ALB → API Gateway — needs
+deployed infrastructure and is still open.</p>
+<hr></section>
+<section id="1-the-question"><h2>1. The question</h2>
+<p>The plan asserts that a stolen session token is useless because it is bound to a key the thief does
+not have. That claim has two halves, and they fail differently:</p>
+<ol>
+<li><strong>Is the binding real?</strong> Does Keycloak actually write the key thumbprint into the token, and does a
+   resource server actually refuse a bound token that arrives without a valid proof?</li>
+<li><strong>Can we implement the check?</strong> Keycloak verifies the proof when it <em>issues</em> a token, but it is not
+   in the request path for our API. So our API must verify the proof itself. That is the one piece of
+   genuinely custom security code in the system.</li>
+</ol>
+<p>Only the second is our code, and it is the one worth prototyping before building around it.</p>
+</section>
+<section id="2-method"><h2>2. Method</h2>
+<p>No browser and no passkeys are needed, which makes this spike much cheaper than #3. A password grant
+against a public client with <code>dpop.bound.access.tokens</code> enabled exercises exactly the same DPoP
+machinery.</p>
+<p>Proofs are generated in Python with a real P-256 key: a <code>dpop+jwt</code> header carrying the public JWK, a
+payload of <code>jti</code>/<code>htm</code>/<code>htu</code>/<code>iat</code> (plus <code>ath</code> where required), and an ES256 signature in raw <code>r||s</code>
+form as JWS expects.</p>
+<p>Keycloak&rsquo;s own <strong>userinfo</strong> endpoint is used as the reference resource server. Keycloak 26.4+ applies
+DPoP to every endpoint accepting a bearer token, which gives us a known-correct implementation to
+test against before writing our own.</p>
+</section>
+<section id="3-results"><h2>3. Results</h2>
+<h3 id="issuance-the-binding-is-real">Issuance — the binding is real</h3>
+<div class="codehilite"><pre><span></span><code>cnf claim in token : {'jkt': 'EWxxlBSTXQakwn7Pd03fduq28c-cfrFMXtFtqo8LyJI', 'kc-jkt-type': 'DPoP'}
+matches our key    : YES
+</code></pre></div>
+
+<p>The token carries <code>cnf.jkt</code>, the RFC 7638 thumbprint of the client&rsquo;s public key. Keycloak adds a
+non-standard <code>kc-jkt-type: DPoP</code> marker alongside it.</p>
+<h3 id="enforcement-keycloak-as-resource-server">Enforcement — Keycloak as resource server</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Behaviour</th>
+<th>Result</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Token presented with <strong>no proof at all</strong></td>
+<td>HTTP 401</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Bound token sent under the <strong><code>Bearer</code></strong> scheme</td>
+<td>HTTP 401</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Token with a <strong>valid proof</strong></td>
+<td><strong>HTTP 200</strong></td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Proof signed by a <strong>different key</strong></td>
+<td>HTTP 401</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Proof whose <code>htu</code> names a <strong>different path</strong></td>
+<td>HTTP 401</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Replayed</strong> proof (same <code>jti</code>)</td>
+<td>HTTP 401</td>
+<td>Correct</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>6/6.</strong> A bound token without a matching proof is genuinely inert, and replay is refused.</p>
+<h3 id="our-verifier-the-code-we-would-actually-ship">Our verifier — the code we would actually ship</h3>
+<p>A minimal implementation of the checks a Lambda authorizer must perform:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Behaviour</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Valid proof accepted</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>Proof from another key refused (<code>cnf.jkt</code> mismatch)</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>Wrong HTTP method refused</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>Wrong URL refused</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>Proof with no <code>ath</code> refused</td>
+<td>Correct</td>
+</tr>
+<tr>
+<td>Proof minted for a <strong>different token</strong> refused</td>
+<td>Correct</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>6/6.</strong> The authorizer is implementable, and the logic is now proven rather than assumed.</p>
+</section>
+<section id="4-the-findings-that-matter"><h2>4. The findings that matter</h2>
+<p>Three of these would have cost real debugging time in production, and one of them changes the design.</p>
+<h3 id="a-a-bound-token-must-use-the-dpop-authorization-scheme-not-bearer">(a) A bound token must use the <code>DPoP</code> authorization scheme, not <code>Bearer</code></h3>
+<p>Sending the correct token with a correct proof under <code>Bearer</code> returns <strong>401</strong>, and the challenge
+<code>WWW-Authenticate</code> header even says <code>Bearer</code> — pointing the investigation at the wrong layer. RFC 9449
+requires the <code>DPoP</code> scheme for a sender-constrained token, and Keycloak enforces it.</p>
+<p><strong>Consequence for us:</strong> the DPoP Verifying Authorizer must accept — and arguably require — the <code>DPoP</code>
+scheme. A client that falls back to <code>Bearer</code> must be rejected outright, not quietly downgraded. This
+is a legitimate place to be strict, because an unbound token is exactly what the control exists to
+prevent.</p>
+<h3 id="b-a-resource-server-proof-must-carry-the-ath-claim">(b) A resource-server proof MUST carry the <code>ath</code> claim</h3>
+<p>The first working attempt failed with <code>error="invalid_token"</code>, <code>error_description="Token verification
+failed"</code> — a message that reads like a signature or audience problem and mentions DPoP nowhere.</p>
+<p>The cause: RFC 9449 requires a proof for a <em>resource</em> request to include <code>ath</code>, the base64url SHA-256
+of the access token. A proof for a <em>token</em> request omits it (and ours did — correctly, for issuance).
+Adding <code>ath</code> produced HTTP 200 immediately.</p>
+<p><strong>Consequence for us:</strong> this is a mandatory check in our authorizer, and verifying <code>ath</code> also closes a
+real gap — without it, a proof minted for one token would authorise a different one. Our test suite now
+covers both: an absent <code>ath</code> and an <code>ath</code> for a different token are both refused.</p>
+<h3 id="c-keycloak-ignores-the-query-string-when-comparing-htu-observation">(c) Keycloak ignores the query string when comparing <code>htu</code> <em>(observation)</em></h3>
+<p>A proof minted for <code>…/userinfo?decoy=1</code> and presented to <code>…/userinfo</code> was <strong>accepted</strong> (HTTP 200). The
+same proof with a different <em>path</em> was correctly refused (HTTP 401).</p>
+<p>So <code>htu</code> is enforced at path level but not query level.</p>
+<p><strong>Consequence for us:</strong> this is not a vulnerability in itself — <code>jti</code> replay protection and the <code>ath</code>
+binding still hold — but it means the query string is not covered by the proof&rsquo;s URL binding. Our own
+authorizer compares the <strong>full</strong> URI including the query, which is stricter than the reference
+implementation, and deliberately so. This is recorded as an observation rather than a pass/fail.</p>
+<h3 id="d-the-dpop-nonce-challenge-was-never-triggered">(d) The <code>DPoP-Nonce</code> challenge was never triggered</h3>
+<p>The harness implements nonce handling (retry on a <code>DPoP-Nonce</code> header), but no nonce was ever
+demanded for these endpoints in this configuration. <strong>Nonce behaviour is therefore untested</strong>, and
+the authorizer should not assume either way. It is a small, contained thing to establish later.</p>
+</section>
+<section id="5-what-this-changes-in-the-design"><h2>5. What this changes in the design</h2>
+<p>Nothing structural — and that is the good outcome. The design assumed Keycloak binds tokens and that
+our API must verify proofs; both are confirmed. Three implementation details are now pinned:</p>
+<ol>
+<li>The authorizer must require the <strong><code>DPoP</code></strong> authorization scheme and reject <code>Bearer</code>.</li>
+<li>It must verify the <strong><code>ath</code></strong> claim against the presented access token.</li>
+<li>It should compare <code>htu</code> including the query string, being stricter than Keycloak.</li>
+</ol>
+<p>The prototype in <code>lab/keycloak/scripts/dpop_spike.py</code> is a working reference for the Phase 2
+implementation, including the proof-construction side that clients need.</p>
+</section>
+<section id="6-what-this-did-not-prove"><h2>6. What this did NOT prove</h2>
+<ul>
+<li><strong>Header survival.</strong> Whether the <code>DPoP</code> header survives CloudFront → ALB → API Gateway is
+  <strong>untested</strong>. A hop that strips it breaks the binding silently, and the tempting &ldquo;fix&rdquo; would be to
+  disable verification — precisely the trap this spike exists to prevent. This needs infrastructure.</li>
+<li><strong>Browser-side key handling.</strong> That a real browser can generate a non-extractable key, persist it in
+  IndexedDB, and sign proofs across restarts remains unverified (Spike #4). Everything here used a
+  Python key, which is a stronger position than a browser has.</li>
+<li><strong>Nonce behaviour</strong>, as noted above.</li>
+<li><strong>The token request path with a real passkey ceremony.</strong> A password grant was used deliberately to
+  isolate DPoP; the two mechanisms are independent, but they have not been exercised together.</li>
+</ul>
+</section>
+<section id="7-reproducing"><h2>7. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>lab/keycloak
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+../../.venv/bin/python<span class="w"> </span>scripts/dpop_spike.py
+</code></pre></div>
+
+<p>The script creates its own client and test user, applies the policies, and asserts persistence before
+testing, so it is safe to re-run.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results.html"><span>Previous</span><b>Lab results: hardware keys</b></a><a class="pn next" href="lab-results-browser.html"><span>Next</span><b>Lab results: browser keys</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

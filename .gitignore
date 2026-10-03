@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Node
+node_modules/
+.npm-cache/
+
+# Fetched binaries (geckodriver — ~4 MB, re-fetchable, see lab/browser/run_firefox.py)
+tools/bin/
+
+# macOS
+.DS_Store
+
+# Runtime state from `scripts/docs.sh serve`
+.docs-server.pid
+
+# Lab runtime state (containers are disposable; the config is committed)
+lab/keycloak/.npm-cache/

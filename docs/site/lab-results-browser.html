@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: browser keys — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The S4 experiment: does a browser keep the session key after a restart?" />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html" class="current">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-question">1. The question</a></li>
+<li><a href="#2-first-which-key">2. First, which key</a></li>
+<li><a href="#3-method">3. Method</a></li>
+<li><a href="#4-results">4. Results</a></li>
+<li><a href="#5-findings">5. Findings</a></li>
+<li class="lvl3"><a href="#the-non-extractable-key-survives-a-full-restart-and-it-is-the-same-key">The non-extractable key survives a full restart, and it is the same key</a></li>
+<li class="lvl3"><a href="#persist-returning-false-did-not-matter-and-knowing-why-matters">persist() returning false did not matter — and knowing why matters</a></li>
+<li class="lvl3"><a href="#the-design-must-define-what-happens-when-the-key-is-missing">The design must define what happens when the key is missing</a></li>
+<li><a href="#6-what-was-not-proven">6. What was NOT proven</a></li>
+<li class="lvl3"><a href="#closing-safari-out">Closing Safari out</a></li>
+<li><a href="#7-what-this-changes-in-the-design">7. What this changes in the design</a></li>
+<li><a href="#8-reproducing">8. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: browser keys</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: browser keys</h1>
+        <p class="blurb">The S4 experiment: does a browser keep the session key after a restart?</p>
+      </header>
+      <section id="overview"><p><strong>Status: RESOLVED for Chrome.</strong> The key survives a full browser quit and comes back as the <em>same</em>
+key. <strong>Safari is untested</strong> — see section 6, which explains why and how to close it in a minute.</p>
+<p>Tested against <strong>Chrome 154.0.8037.95</strong> on macOS.</p>
+<hr></section>
+<section id="1-the-question"><h2>1. The question</h2>
+<p>After sign-in our page creates a secret key and stores it in the browser&rsquo;s own storage. Every request
+afterwards is signed with it. That is what makes a stolen session pass useless.</p>
+<p>If the browser throws that key away, then either the user signs in again on every visit, or — far
+worse — we quietly stop checking, because a check that always fails is a check somebody disables. The
+second outcome is the failure this whole design exists to prevent.</p>
+</section>
+<section id="2-first-which-key"><h2>2. First, which key</h2>
+<p>There are two keys in this design and they are stored in completely different places. Confusing them
+makes this experiment look like it is about passkeys, and it is not.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>The passkey</th>
+<th>The session key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it is for</td>
+<td>Logging in</td>
+<td>Protecting the session afterwards</td>
+</tr>
+<tr>
+<td>Who stores it</td>
+<td>The user&rsquo;s device — iCloud Keychain, another password manager, or a hardware key</td>
+<td><strong>Us</strong>, in the browser&rsquo;s IndexedDB for our site</td>
+</tr>
+<tr>
+<td>Do we ever see it</td>
+<td><strong>No.</strong> We keep only the public half</td>
+<td>Yes, in the sense that our page reads it back</td>
+</tr>
+<tr>
+<td>This experiment</td>
+<td>not covered</td>
+<td><strong>this is what was tested</strong></td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="3-method"><h2>3. Method</h2>
+<p>Two phases against a real Chrome with a real profile directory on disk:</p>
+<ol>
+<li><strong>Phase 1</strong> — create the keys, store them, confirm they work, then <strong>quit the browser entirely</strong>.</li>
+<li><strong>Phase 2</strong> — relaunch with the <em>same</em> profile, look for the keys, and use them.</li>
+</ol>
+<p>The quit in between is the whole point. Anything held only in memory is gone, so whatever still works
+in phase 2 genuinely came off disk.</p>
+<p><strong>Two keys are stored, and the difference between them is the only variable.</strong> The real design uses a
+<em>non-extractable</em> key — the page can use it but no script can ever read it out. That is the right thing
+to ship, and it also means we cannot read it back to prove it is the <em>same</em> key. So:</p>
+<ul>
+<li><code>session-key</code> — non-extractable, faithful to the design. Proves it persists and still works.</li>
+<li><code>probe-key</code> — extractable, so its public half can be recorded before the restart and compared after.
+  Persistence behaviour is identical; only exportability differs. Proves it is the same key.</li>
+</ul>
+</section>
+<section id="4-results"><h2>4. Results</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The session key survived the restart</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>It still works — produced a signature</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>The probe key survived</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>The probe key still works</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td>It is the <strong>same</strong> key, not a freshly generated one</td>
+<td><strong>PASS</strong></td>
+</tr>
+<tr>
+<td><strong>Control:</strong> a brand-new key is correctly rejected</td>
+<td><strong>PASS</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>6 of 6.</strong></p>
+<p>The control is not decoration. Without it, a comparison that always returned &ldquo;same&rdquo; would have looked
+exactly like a pass. Forcing a freshly generated key through the same comparison and requiring it to
+<em>fail</em> is what makes the &ldquo;same key&rdquo; result mean anything.</p>
+<p>Storage reported <code>persist() → false</code>, <code>persisted() → false</code>, with roughly 3 KB used of a ~10 GB quota.</p>
+</section>
+<section id="5-findings"><h2>5. Findings</h2>
+<h3 id="the-non-extractable-key-survives-a-full-restart-and-it-is-the-same-key">The non-extractable key survives a full restart, and it is the same key</h3>
+<p>This was the main risk and it does not exist. A key that no script can read is still written to disk
+and read back by the browser, intact, across a complete application quit.</p>
+<h3 id="persist-returning-false-did-not-matter-and-knowing-why-matters"><code>persist()</code> returning false did not matter — and knowing why matters</h3>
+<p>The browser <strong>declined</strong> to mark our storage as persistent, and the key survived anyway.</p>
+<p>Those two facts are not in tension once you see what the API is actually for. A normal quit-and-relaunch
+is not an eviction event, so nothing was at risk. Persistent storage protects against the things that
+<em>do</em> evict:</p>
+<ul>
+<li>storage pressure, when the browser reclaims space</li>
+<li>Safari&rsquo;s rule of deleting site data after roughly seven days without a visit</li>
+</ul>
+<p>So the practical conclusion is narrower and more useful than &ldquo;we need <code>persist()</code> to succeed&rdquo;:
+<strong>persistent storage is not required for the key to survive a restart, and we should not assume we
+will ever be granted it.</strong> The design has to tolerate the key disappearing — which brings us to the
+next point.</p>
+<h3 id="the-design-must-define-what-happens-when-the-key-is-missing">The design must define what happens when the key is missing</h3>
+<p>If the key is gone, the only safe behaviour is to treat it as <strong>no session</strong> and ask the user to sign
+in again with their passkey, which creates a fresh key. The unsafe behaviour — falling back to
+unbound tokens so the user is not inconvenienced — is exactly the silent downgrade this project exists
+to prevent, and it must be explicitly forbidden in the code and in a test.</p>
+<p>Sessions are short by design (30 minutes idle, 10 hours maximum), so this is a rare event, and the
+cost of it is a sign-in rather than a support ticket.</p>
+</section>
+<section id="6-what-was-not-proven"><h2>6. What was NOT proven</h2>
+<p><strong>Only one browser was tested: Chrome.</strong> S4b later extended this to Edge and Brave — all three
+Chromium browsers pass 6/6 — leaving Firefox and Safari manual. See
+<a href="lab-results-browsers.html">SPIKE-4b-RESULTS.md</a>. That is the honest headline. Everything else on this
+machine — Firefox, Edge, Brave and Safari — is untested. An earlier draft of this section mentioned
+only Safari, which understated the gap.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Browser</th>
+<th>Engine</th>
+<th>Status</th>
+<th>How to close it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chrome</strong> 154</td>
+<td>Chromium</td>
+<td>✅ <strong>tested, 6/6</strong></td>
+<td>done</td>
+</tr>
+<tr>
+<td><strong>Edge</strong> 154</td>
+<td>Chromium</td>
+<td>⚪ untested</td>
+<td>Automated. <em>Same engine as Chrome</em>, so this adds little beyond confirming it</td>
+</tr>
+<tr>
+<td><strong>Brave</strong> 154</td>
+<td>Chromium</td>
+<td>⚪ untested</td>
+<td>As above</td>
+</tr>
+<tr>
+<td><strong>Firefox</strong> 156</td>
+<td>Gecko</td>
+<td>⚪ <strong>untested — a genuinely different engine</strong></td>
+<td>Not automatable with the tools here (see below). Manual, or a different driver</td>
+</tr>
+<tr>
+<td><strong>Safari</strong> 26</td>
+<td>WebKit</td>
+<td>⚪ <strong>untested — a genuinely different engine</strong></td>
+<td>Manual — see below</td>
+</tr>
+</tbody>
+</table></div>
+<p>The two that matter are <strong>Firefox and Safari</strong>, because they are the only ones that are not Chromium.
+Chrome passing tells us about Chrome&rsquo;s storage engine, not about Gecko or WebKit.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Not proven</th>
+<th>Why it matters</th>
+<th>How to close it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Firefox</strong> (Gecko)</td>
+<td>A different engine with its own storage and eviction behaviour</td>
+<td>Manual, or <code>geckodriver</code> — puppeteer cannot drive it here</td>
+</tr>
+<tr>
+<td><strong>Safari</strong> (WebKit)</td>
+<td>The browser most likely to evict storage, and widely used by the customers this product targets</td>
+<td>A one-minute manual test — see below</td>
+</tr>
+<tr>
+<td>A full <strong>laptop reboot</strong></td>
+<td>A clean application quit is a good proxy, but not the same thing</td>
+<td>Needs a machine restart, so it is a manual step</td>
+</tr>
+<tr>
+<td>Behaviour after <strong>7+ days</strong> idle</td>
+<td>Safari&rsquo;s eviction rule fires on elapsed time, which cannot be simulated quickly</td>
+<td>Leave a tab and return next week, or trust the rule&rsquo;s documentation</td>
+</tr>
+<tr>
+<td><strong>Private / incognito</strong> windows</td>
+<td>Users may expect to sign in every time there; worth confirming it degrades safely rather than silently</td>
+<td>Quick manual check</td>
+</tr>
+<tr>
+<td>Eviction <strong>under storage pressure</strong></td>
+<td>Hard to provoke deliberately</td>
+<td>Not planned</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Firefox could not be automated.</strong> Puppeteer&rsquo;s Firefox support failed on every attempt —
+<code>session.subscribe timed out</code> — with three different launch configurations. Driving it would mean a
+different tool (<code>geckodriver</code>), which is a dependency to add rather than a setting to change.</p>
+<p><strong>Safari was not tested because it could not be tested safely.</strong> Safari was open with the user&rsquo;s own
+windows, and a meaningful test requires quitting it completely. Its automation setting was also
+disabled. Closing someone&rsquo;s browser to satisfy an experiment is not a reasonable thing to do, so the
+test was left to a manual step instead.</p>
+<h3 id="closing-safari-out">Closing Safari out</h3>
+<p><code>lab/browser/manual.html</code> is a self-contained page that runs the same two-phase test with two buttons,
+and it works in <strong>any</strong> browser — so it closes Firefox, Edge, Brave and Safari in one pass. It needs a
+real web address rather than a file, because browsers keep storage per address:</p>
+<div class="codehilite"><pre><span></span><code>python3<span class="w"> </span>-m<span class="w"> </span>http.server<span class="w"> </span><span class="m">8099</span><span class="w"> </span>--directory<span class="w"> </span>lab/browser
+<span class="c1"># then open http://localhost:8099/manual.html in Safari</span>
+</code></pre></div>
+
+<p>Press <strong>Create and store a key</strong>, quit Safari completely, reopen the same address, and press
+<strong>Check the key</strong>. It reports whether the key survived, whether it is the same key, and includes the
+same negative control.</p>
+</section>
+<section id="7-what-this-changes-in-the-design"><h2>7. What this changes in the design</h2>
+<p>Nothing structural. The design assumed the key persists across a restart and must be regenerated from
+a fresh sign-in if it does not; both are now confirmed as workable. Two things are pinned down:</p>
+<ol>
+<li><strong>The safe fallback is mandatory and must be tested.</strong> Key missing ⇒ no session ⇒ sign in again.
+   Never fall back to an unbound token.</li>
+<li><strong>We cannot rely on being granted persistent storage</strong>, so the design must be correct without it.
+   If we ever want longer-lived sessions, that becomes a question worth revisiting — and it would make
+   Safari&rsquo;s eviction rule matter for the first time.</li>
+</ol>
+</section>
+<section id="8-reproducing"><h2>8. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code>node<span class="w"> </span>lab/browser/run.mjs<span class="w">                  </span><span class="c1"># Chrome, fully automated, ~30 seconds</span>
+python3<span class="w"> </span>-m<span class="w"> </span>http.server<span class="w"> </span><span class="m">8099</span><span class="w"> </span>--directory<span class="w"> </span>lab/browser<span class="w">   </span><span class="c1"># then Safari, by hand</span>
+</code></pre></div>
+
+<p>The script deletes its profile directory first, so a pass cannot be a leftover from a previous run.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-dpop.html"><span>Previous</span><b>Lab results: token binding</b></a><a class="pn next" href="lab-results-browsers.html"><span>Next</span><b>Lab results: other browsers</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

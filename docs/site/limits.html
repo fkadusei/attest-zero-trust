@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Limits and non-goals — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="What this deliberately does not do, and the risks we accept." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html" class="current">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#why-write-this-down-at-all">Why write this down at all</a></li>
+<li><a href="#it-does-not-implement-passkeys-itself">It does not implement passkeys itself</a></li>
+<li><a href="#it-is-not-an-identity-product">It is not an identity product</a></li>
+<li><a href="#it-is-not-multi-region-active-active">It is not multi-region active-active</a></li>
+<li><a href="#the-login-pages-are-not-custom-themed">The login pages are not custom-themed</a></li>
+<li><a href="#keycloak-is-extended-never-forked">Keycloak is extended, never forked</a></li>
+<li><a href="#it-does-not-defend-against-a-compromised-device">It does not defend against a compromised device</a></li>
+<li><a href="#it-does-not-defend-against-physical-coercion">It does not defend against physical coercion</a></li>
+<li><a href="#it-is-not-certified-by-anyone">It is not certified by anyone</a></li>
+<li><a href="#there-is-no-device-agent">There is no device agent</a></li>
+<li><a href="#accepted-risk-synced-passkeys-for-standard-users">Accepted risk: synced passkeys for standard users</a></li>
+<li><a href="#accepted-risk-browser-posture-is-weak-evidence">Accepted risk: browser posture is weak evidence</a></li>
+<li><a href="#accepted-risk-cross-site-scripting">Accepted risk: cross-site scripting</a></li>
+<li><a href="#accepted-risk-supply-chain">Accepted risk: supply chain</a></li>
+<li><a href="#accepted-risk-we-operate-the-identity-provider">Accepted risk: we operate the identity provider</a></li>
+<li><a href="#what-verified-means-here-and-what-it-does-not">What “verified” means here, and what it does not</a></li>
+<li><a href="#the-most-likely-way-this-project-fails">The most likely way this project fails</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Guide</span><span>/</span><b>Limits and non-goals</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Limits and non-goals</h1>
+        <p class="blurb">What this deliberately does not do, and the risks we accept.</p>
+      </header>
+      <section id="overview"><p>Every security document contains a list of things it defends against. This page is the other list:
+what this system deliberately does not do, the risks it accepts with its eyes open, and what the word
+&ldquo;verified&rdquo; does and does not mean here.</p>
+<p>A claim of security that has never been bounded is not a claim anybody can evaluate. A reader who
+knows where the walls are is far better placed than one who is told there are none.</p></section>
+<section id="why-write-this-down-at-all"><h2>Why write this down at all</h2>
+<p>A non-goal is a decision not to spend effort. Left unwritten, those decisions get made accidentally —
+usually at the worst moment, by whoever is under pressure to close a deal or fix an incident. Written
+down, they can be renegotiated deliberately, with the cost visible.</p>
+<p>The accepted risks are recorded for the same reason. A risk nobody has written down is not an
+accepted risk; it is an unexamined one.</p>
+</section>
+<section id="it-does-not-implement-passkeys-itself"><h2>It does not implement passkeys itself</h2>
+<p>We run an established identity provider (<a href="operating.html">Keycloak</a>) rather than writing our own
+implementation of <strong>WebAuthn</strong>, the browser standard behind passkeys, or <strong>FIDO2</strong>, the specification
+family it belongs to.</p>
+<p>The reason is not difficulty. It is that <strong>a subtle mistake here degrades security silently, and that
+is the worst possible failure mode.</strong></p>
+<p>Passkeys work because the signature a device produces is bound to the address of the site that asked
+for it. That site is called the <strong>relying party</strong>, and the check that the signature covers the correct
+relying party is what makes a passkey phishing-resistant. Get it subtly wrong and everything still
+appears to work: users register, sign in, and see no error. The only difference is that the credential
+would also work at an attacker&rsquo;s lookalike site — precisely the outcome passkeys exist to prevent.</p>
+<div class="admonition note">
+<p class="admonition-title">The general principle</p>
+<p>When a component&rsquo;s failure mode is <em>invisible but total</em>, prefer a well-used implementation over
+a bespoke one. Novelty is a cost, and here it would be paid in the one place we can least afford
+it.</p>
+</div>
+</section>
+<section id="it-is-not-an-identity-product"><h2>It is not an identity product</h2>
+<p>We operate an identity provider for one application: this one. We are not offering
+identity-as-a-service, not hosting separate identity environments for customers, and not letting
+customers run their own identity provider inside our deployment.</p>
+<p>Federation <em>inward</em> is a different matter and is plausible later: Keycloak supports signing in
+through a customer&rsquo;s own corporate identity provider. Federation <em>outward</em> — becoming the identity
+provider for a customer&rsquo;s other systems — is not on the table.</p>
+</section>
+<section id="it-is-not-multi-region-active-active"><h2>It is not multi-region active-active</h2>
+<p>The target is a single region with a database replicated across availability zones, plus a rehearsed
+restore procedure. <strong>Active-active</strong> — running live copies in two places at once and accepting writes
+in both — is a substantially larger project, out of scope until a contract requires it.</p>
+<p>The honest consequence: a regional cloud outage takes sign-in down for its duration. We treat that as
+an availability risk rather than a security one, and we would rather have a restore we have rehearsed
+than a failover we have never tested.</p>
+</section>
+<section id="the-login-pages-are-not-custom-themed"><h2>The login pages are not custom-themed</h2>
+<p>We use the identity provider&rsquo;s stock sign-in screens. A <strong>theme</strong> is the visual layer — logos, fonts,
+colours — layered over those screens.</p>
+<p>Themes are cosmetic work with a real recurring cost: they hook into markup that changes between
+versions, so every security upgrade becomes a small front-end project. <strong>We are not willing to let a
+font choice slow down a security patch</strong>, which is exactly the trade a theme asks for. The risk this
+avoids is not hypothetical; see <a href="threat-model.html">T16</a> on unpatched vulnerabilities.</p>
+</section>
+<section id="keycloak-is-extended-never-forked"><h2>Keycloak is extended, never forked</h2>
+<p>A <strong>fork</strong> means copying the project&rsquo;s source and maintaining our own version. Every extension we
+build uses the documented plugin hooks, called <strong>SPIs</strong>.</p>
+<p>The moment we fork, we own every future security fix ourselves: upstream patches stop applying
+cleanly, and the effort to stay current stops being bounded. That converts a manageable patching
+obligation into an unbounded one.</p>
+</section>
+<section id="it-does-not-defend-against-a-compromised-device"><h2>It does not defend against a compromised device</h2>
+<p>This is the most important boundary here, and the one most often glossed over.</p>
+<p>A web application runs inside a browser, on a device it does not control. If that browser is
+compromised — by a malicious extension, by malware with equivalent access, or because the device
+itself is owned — then <strong>there is no technical control available from inside the page.</strong></p>
+<p>Consider the session-binding mechanism (<a href="sessions.html">described on its own page</a>). Each session is
+tied to a private key the browser generates and will not reveal. A malicious extension runs inside the
+same browser context. It cannot steal that key, and it does not need to: it can ask the browser to use
+it, and the browser will, because from its point of view the request is legitimate.</p>
+<p>Mitigation here is organisational, not technical. Our own staff, who hold the most powerful accounts,
+work on managed devices. We cannot demand that of customers and do not pretend to.</p>
+</section>
+<section id="it-does-not-defend-against-physical-coercion"><h2>It does not defend against physical coercion</h2>
+<p>If someone is physically compelled to unlock their device and authenticate, no cryptography in this
+system intervenes. This is out of scope for a compliance product&rsquo;s risk profile.</p>
+<p>It would not be out of scope for a system holding, say, dissident identities. A reader from that world
+should treat this page as a list of reasons not to reuse this design unmodified.</p>
+</section>
+<section id="it-is-not-certified-by-anyone"><h2>It is not certified by anyone</h2>
+<p>The design maps onto recognised frameworks: NIST SP 800-207 for Zero Trust architecture, NIST SP
+800-63B for authenticator assurance, OMB M-22-09 for phishing-resistant multi-factor authentication,
+and the CISA Zero Trust Maturity Model.</p>
+<p><strong>Mapping is not certification.</strong> A mapping argues that a design <em>intends</em> to satisfy a requirement.
+Certification is an independent party examining evidence and agreeing. <strong>No external auditor has
+reviewed any of this.</strong> A procurement process needing a certified claim will not be satisfied by these
+pages, and should not be.</p>
+</section>
+<section id="there-is-no-device-agent"><h2>There is no device agent</h2>
+<p>A <strong>device agent</strong> is installed software reporting on a machine&rsquo;s health: whether it is patched,
+whether disk encryption is on, whether it is enrolled in mobile device management. Real device posture
+needs one.</p>
+<p>We have deferred it until a customer asks. What we have instead is much weaker, as the next section
+explains.</p>
+</section>
+<section id="accepted-risk-synced-passkeys-for-standard-users"><h2>Accepted risk: synced passkeys for standard users</h2>
+<p>A passkey can live in two quite different places. A <strong>device-bound</strong> passkey never leaves a piece of
+hardware, such as a security key on a keyring. A <strong>synced</strong> passkey is copied between a person&rsquo;s
+devices by a cloud service — iCloud Keychain, Google Password Manager and similar.</p>
+<p>Syncing is far better for ordinary people: losing a phone no longer means losing the account. But it
+moves the trust root, because the credential is now protected by <strong>the user&rsquo;s cloud account</strong> rather
+than by a physical object they hold.</p>
+<p>For a customer&rsquo;s contributor account we consider that an acceptable trade. For a <strong>platform admin</strong>,
+who can reach every tenant&rsquo;s data at once, we do not — which is exactly why privileged accounts are
+configured differently, restricted to genuine hardware. <a href="passwordless.html">The passkey page</a> covers how
+that restriction is enforced.</p>
+<div class="admonition warning">
+<p class="admonition-title">What this means in plain terms</p>
+<p>For standard users, the security of their Attest account is now bounded by the security of their
+personal cloud account. If that is compromised, so is their access here. We have accepted that
+consciously rather than inherited it by accident.</p>
+</div>
+</section>
+<section id="accepted-risk-browser-posture-is-weak-evidence"><h2>Accepted risk: browser posture is weak evidence</h2>
+<p><strong>Device posture</strong> is an assessment of how trustworthy the device making a request is.</p>
+<p>A web application learns about a device only from what the page in front of it reports. That page runs
+on the device under assessment, so <strong>anything it claims is attacker-controlled</strong> — a compromised
+device simply reports that it is healthy.</p>
+<p>We therefore lean on signals the server observes for itself: the network characteristics of the
+connection, the reputation of the address it came from, the properties of the authenticator used.
+Client-reported signals are hints, never evidence. This is why a real device agent stays on the list
+above.</p>
+</section>
+<section id="accepted-risk-cross-site-scripting"><h2>Accepted risk: cross-site scripting</h2>
+<p><strong>Cross-site scripting</strong>, or XSS, is where an attacker gets their own code to run inside our pages. It
+is among the most common ways web applications are compromised, and our defences — a strict content
+security policy, dependency review, careful output encoding — reduce it without eliminating it.</p>
+<p>It matters here because <strong>session binding does not fix XSS.</strong> Binding a session to a key the browser
+defends stops a <em>stolen</em> token being used elsewhere. It does not stop code running in our own page
+from using that key. The key was designed so it cannot be copied out; that does not stop it being
+<em>used</em> while the attacker is present.</p>
+<p>This is the honest limit of the design, and it is why shorter session lifetimes and posture signals
+are not redundant.</p>
+</section>
+<section id="accepted-risk-supply-chain"><h2>Accepted risk: supply chain</h2>
+<p>We depend on software written by others, including the identity provider&rsquo;s container image.</p>
+<p>We pin exact versions, prefer official images, and use short-lived credentials in our build pipeline
+rather than long-lived keys. None of that makes the risk zero. A compromised dependency or upstream
+image remains a genuine path to compromise — reduced, not closed.</p>
+</section>
+<section id="accepted-risk-we-operate-the-identity-provider"><h2>Accepted risk: we operate the identity provider</h2>
+<p>This is the largest accepted risk in the system, and the one with the clearest ongoing cost.</p>
+<p>By running Keycloak ourselves instead of paying a provider to run it, we took ownership of high
+availability, database backups, disaster recovery, and <strong>prompt patching of security vulnerabilities
+in an internet-facing authentication service.</strong></p>
+<p>That last item is the sharp one. Keycloak has a history of serious authentication-bypass
+vulnerabilities and releases frequently. Our commitment is a documented <strong>48-hour patch window for
+critical issues, rehearsed at least once.</strong> It is fulfilled by process, not by architecture — which
+means <strong>it degrades silently if attention slips.</strong></p>
+<p>If the team cannot sustain that commitment, the correct answer is to migrate to a managed Keycloak
+service. That option is deliberately kept open; see <a href="operating.html">operating</a> and
+<a href="decisions.html">decisions and why</a>.</p>
+</section>
+<section id="what-verified-means-here-and-what-it-does-not"><h2>What &ldquo;verified&rdquo; means here, and what it does not</h2>
+<p>One claim in this documentation has been tested rather than argued. The central claim about privileged
+access — that only genuine hardware keys can register, enforced by an allowlist of approved
+authenticator models — was checked in a <strong>controlled experiment</strong>: a series of enrolment attempts in
+which exactly one setting changed at a time, with control runs confirming that each rejection came
+from the setting under test rather than something incidental.</p>
+<p><strong>That result is real.</strong> It is reported in full on <a href="verification.html">the verification page</a>, including
+a false positive that was caught and corrected.</p>
+<p>What it does not mean:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Not proven</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>That a <strong>physical hardware key</strong> enrols successfully</td>
+<td>The experiment used a simulated authenticator, which can only exercise the <em>rejection</em> path. The known failure mode is a user wrongly locked out, not an attacker let in.</td>
+</tr>
+<tr>
+<td>That the recorded device model identifiers are correct</td>
+<td>Those values came from published vendor documentation and were never confirmed against physical hardware.</td>
+</tr>
+<tr>
+<td>That real platform passkeys behave as assumed</td>
+<td>Whether the major password managers and operating systems report an identifiable model is unverified, and it determines which of the two controls is actually doing the rejecting.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Everything else here is <strong>design</strong>. Design is not nothing — it is where the thinking is exposed to
+challenge — but &ldquo;we will&rdquo; is an intention, not a result. The
+<a href="verification.html">verification page</a> tracks what remains untested; the
+<a href="decisions.html">decisions page</a> lists what still needs a human answer.</p>
+</section>
+<section id="the-most-likely-way-this-project-fails"><h2>The most likely way this project fails</h2>
+<p>Not a clever attack. Not a flaw in the cryptography. Not even a mistake in the policy engine.</p>
+<p><strong>The most likely way this project fails is that the list on this page gets quietly shortened.</strong></p>
+<p>It will not look like a compromise. It will look like a reasonable request at a moment when something
+else is more urgent:</p>
+<ul>
+<li>A prospective customer asks for single sign-on, and federation inward becomes federation outward.</li>
+<li>A sales deck looks unfinished without our logo on the sign-in screen, so a theme gets built.</li>
+<li>A security patch is awkward to apply because of a local change, and the change gets carried
+  &ldquo;temporarily&rdquo; instead of removed.</li>
+<li>An identity vendor&rsquo;s contract lapses, and running our own identity provider &ldquo;for a while&rdquo; becomes
+  permanent — with nobody owning the patching.</li>
+<li>The 48-hour patch window slips once, then again, and nobody notices because nothing has gone wrong
+  yet.</li>
+</ul>
+<p>Each is defensible in isolation. Together they are how a careful design becomes an ordinary one. This
+page exists to be quoted in those conversations — not to win them automatically, but to make sure the
+cost is stated aloud before it is paid.</p>
+<div class="admonition danger">
+<p class="admonition-title">The one to watch</p>
+<p><strong>Patching.</strong> Every other limit here fails loudly or not at all. A missed patch fails silently,
+for months, and then all at once. If attention is spent anywhere on this page, spend it there.</p>
+</div></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="operating.html"><span>Previous</span><b>Running the identity provider</b></a><a class="pn next" href="verification.html"><span>Next</span><b>What we tested</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

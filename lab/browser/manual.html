@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>S4 — does this browser keep its session key?</title>
+<style>
+  :root{--bg:#0b0f16;--surface:#131a24;--surface2:#182231;--line:#24304a;--ink:#e8eef7;
+        --muted:#8d9bb0;--accent:#8fb4ff;--green:#6ee7a8;--red:#ff9d92;--amber:#f0c56a;--faint:#64738a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;padding:28px 22px 80px}
+  .wrap{max-width:720px;margin:0 auto}
+  h1{font-size:1.5rem;margin:0 0 .3rem}
+  .sub{color:var(--muted);margin:0 0 22px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .step{display:flex;gap:14px;align-items:flex-start}
+  .n{flex:0 0 auto;width:28px;height:28px;border-radius:8px;background:var(--surface2);
+     border:1px solid var(--line);display:grid;place-items:center;font-size:.8rem;color:var(--muted)}
+  button{font:inherit;background:var(--surface2);color:var(--ink);border:1px solid var(--line);
+         border-radius:9px;padding:9px 15px;cursor:pointer;margin-top:10px}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button:disabled{opacity:.5;cursor:default}
+  pre{background:#0e131c;border:1px solid var(--line);border-radius:9px;padding:12px 14px;
+      overflow-x:auto;font-size:.8rem;margin:12px 0 0;color:var(--muted)}
+  .ok{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--amber)}.dim{color:var(--faint)}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.85em;background:var(--surface2);
+       border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  ol{padding-left:20px}li{margin:.35rem 0}
+  .banner{border-left:3px solid var(--accent);background:#16233c;border-radius:9px;padding:12px 15px;margin:16px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Does this browser keep its session key?</h1>
+  <p class="sub">Part of experiment S4. Takes about a minute, and tells us whether Safari will
+  hold on to the key that protects your session after you log in.</p>
+
+  <div class="banner">
+    <b>What this is testing.</b> After sign-in our page makes a secret key that is never allowed to
+    leave the browser. Every later request is signed with it. If the browser throws that key away,
+    users have to sign in again more often. This page finds out whether it does.
+    <br><br>
+    <b>Nothing is sent anywhere.</b> Everything happens in this page, and no data leaves your machine.
+  </div>
+
+  <div class="card">
+    <div class="step">
+      <div class="n">1</div>
+      <div>
+        <b>Create a test key</b>
+        <div class="dim">Stores a key in this browser's storage for this page.</div>
+        <button id="create">Create and store a key</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step">
+      <div class="n">2</div>
+      <div>
+        <b>Quit the browser completely, then come back</b>
+        <div class="dim">Not just close the tab — actually quit the application. Then reopen this
+        page. This is the part that matters: anything held only in memory will be gone.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step">
+      <div class="n">3</div>
+      <div>
+        <b>Check whether it survived</b>
+        <div class="dim">Looks for the key, and confirms it is the same one rather than a new one.</div>
+        <button id="check">Check the key</button>
+      </div>
+    </div>
+  </div>
+
+  <pre id="out">Ready. Browser: <span id="ua"></span></pre>
+
+  <p class="dim" style="margin-top:26px">
+    Serving from: <code id="origin"></code> — the address matters, because a browser keeps storage
+    per web address. Reload and reopen at the same address.
+  </p>
+</div>
+
+<script>
+(function () {
+  var out = document.getElementById('out');
+  document.getElementById('ua').textContent = navigator.userAgent;
+  document.getElementById('origin').textContent = location.origin;
+
+  function log(html) { out.innerHTML += '\n' + html; }
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+
+  function idb() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open('attest-s4-manual', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('keys'); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function put(k, v) {
+    return idb().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction('keys', 'readwrite');
+        tx.objectStore('keys').put(v, k);
+        tx.oncomplete = function () { res(true); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function get(k) {
+    return idb().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction('keys', 'readonly');
+        var rq = tx.objectStore('keys').get(k);
+        rq.onsuccess = function () { res(rq.result === undefined ? null : rq.result); };
+        rq.onerror = function () { rej(rq.error); };
+      });
+    });
+  }
+
+  var ALG = { name: 'ECDSA', namedCurve: 'P-256' };
+  var SIGN = { name: 'ECDSA', hash: 'SHA-256' };
+  var MSG = new TextEncoder().encode('attest-s4-manual');
+
+  document.getElementById('create').addEventListener('click', async function () {
+    this.disabled = true;
+    try {
+      if (!window.isSecureContext) {
+        log('<span class="bad">Not a secure context.</span> ' +
+            'Browsers only allow this over https or on localhost.');
+        return;
+      }
+      // The real thing: usable but never readable by any script.
+      var session = await crypto.subtle.generateKey(ALG, false, ['sign', 'verify']);
+      await put('session', session.privateKey);
+
+      // A readable twin, so we can prove later it is the *same* key.
+      var probe = await crypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+      await put('probe', probe.privateKey);
+      var jwk = await crypto.subtle.exportKey('jwk', probe.publicKey);
+      await put('probe-pub', JSON.stringify(jwk));
+
+      var persist = 'unsupported';
+      if (navigator.storage && navigator.storage.persist) {
+        persist = await navigator.storage.persist().catch(function () { return 'error'; });
+      }
+      var persisted = navigator.storage && navigator.storage.persisted
+        ? await navigator.storage.persisted().catch(function () { return 'error'; }) : 'unsupported';
+
+      log('');
+      log('<span class="ok">KEY STORED.</span> extractable=' + session.privateKey.extractable +
+          ' (false is correct)');
+      log('persist() asked the browser to protect this data → <b>' + persist + '</b>');
+      log('persisted() now → ' + persisted);
+      log('');
+      log('<b>Now: quit the browser completely, reopen this page at the same address, ' +
+          'and press "Check the key".</b>');
+    } catch (e) {
+      log('<span class="bad">FAILED: ' + esc(e.name + ': ' + e.message) + '</span>');
+    }
+  });
+
+  document.getElementById('check').addEventListener('click', async function () {
+    this.disabled = true;
+    try {
+      var session = await get('session');
+      var probe = await get('probe');
+      var pubStored = await get('probe-pub');
+      log('');
+      log('--- result ---');
+
+      if (!session) {
+        log('<span class="bad">THE KEY IS GONE.</span> This browser did not keep it across a ' +
+            'restart. Users would have to sign in again on every visit.');
+      } else {
+        log('<span class="ok">The session key survived.</span>');
+        var sig = await crypto.subtle.sign(SIGN, session, MSG);
+        log('It still works: produced a ' + sig.byteLength + '-byte signature.');
+      }
+
+      if (probe && pubStored) {
+        var storedPub = await crypto.subtle.importKey('jwk', JSON.parse(pubStored), ALG, true, ['verify']);
+        var sig2 = await crypto.subtle.sign(SIGN, probe, MSG);
+        var same = await crypto.subtle.verify(SIGN, storedPub, sig2, MSG);
+        log(same
+          ? '<span class="ok">It is the SAME key</span>, not a fresh one — so it genuinely came off disk.'
+          : '<span class="bad">It is a DIFFERENT key.</span> Something regenerated it.');
+
+        // Control: a brand-new key must NOT satisfy the stored public key,
+        // otherwise this check would pass no matter what.
+        var fresh = await crypto.subtle.generateKey(ALG, true, ['sign', 'verify']);
+        var freshSig = await crypto.subtle.sign(SIGN, fresh.privateKey, MSG);
+        var rejected = !(await crypto.subtle.verify(SIGN, storedPub, freshSig, MSG));
+        log(rejected
+          ? '<span class="dim">Control passed: a fresh key is correctly rejected.</span>'
+          : '<span class="bad">Control FAILED: the check accepts anything.</span>');
+      } else if (!probe) {
+        log('<span class="warn">The probe key is gone too.</span>');
+      }
+
+      log('');
+      log('Please send this result back.');
+    } catch (e) {
+      log('<span class="bad">FAILED: ' + esc(e.name + ': ' + e.message) + '</span>');
+    }
+  });
+})();
+</script>
+</body>
+</html>

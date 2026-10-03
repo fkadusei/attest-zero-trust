@@ -1,0 +1,11 @@
+# Documentation toolchain.
+#
+#   python3 -m venv .venv
+#   ./.venv/bin/pip install -r requirements-docs.txt
+#   ./.venv/bin/python scripts/build_docs.py
+#
+# Only two packages, both pure Python: the Markdown renderer and the syntax
+# highlighter. Diagrams additionally need Node (see tools/), but that is
+# optional — the build degrades to a visible notice if diagrams are missing.
+markdown>=3.6
+Pygments>=2.17

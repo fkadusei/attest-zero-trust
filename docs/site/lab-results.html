@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: hardware keys — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The Spike #3 experiment, reproducible step by step." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html" class="current">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-question">1. The question</a></li>
+<li><a href="#2-method">2. Method</a></li>
+<li><a href="#3-results">3. Results</a></li>
+<li class="lvl3"><a href="#what-each-result-establishes">What each result establishes</a></li>
+<li class="lvl3"><a href="#test-f-requiring-attestation-blocks-enrolment">Test F — requiring attestation blocks enrolment</a></li>
+<li><a href="#4-the-design-consequence-a-false-sense-of-strength">4. The design consequence — a false sense of strength</a></li>
+<li><a href="#5-corrections-to-the-plan-verified-against-the-live-realm-not-documentation">5. Corrections to the plan (verified against the live realm, not documentation)</a></li>
+<li class="lvl3"><a href="#two-further-findings">Two further findings</a></li>
+<li><a href="#6-automation-gotcha-worth-recording">6. Automation gotcha worth recording</a></li>
+<li><a href="#7-residual-risk-what-this-spike-did-not-prove">7. Residual risk — what this spike did NOT prove</a></li>
+<li><a href="#8-reproducing">8. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: hardware keys</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: hardware keys</h1>
+        <p class="blurb">The Spike #3 experiment, reproducible step by step.</p>
+      </header>
+      <section id="overview"><p><strong>Status: RESOLVED — the control works, and it works for a subtler reason than assumed.</strong>
+Run against Keycloak <strong>26.8.0</strong> (not 26.6 as the plan pinned), local Docker lab.</p>
+<hr></section>
+<section id="1-the-question"><h2>1. The question</h2>
+<p><a href="adr.html">ADR-003</a> rests on a claim: that Keycloak&rsquo;s realm-level
+<code>webAuthnPolicyPasswordlessAcceptableAaguids</code> allowlist actually <strong>rejects</strong> a non-approved
+authenticator at enrolment, rather than merely storing the setting. Config persistence is not
+enforcement. This spike tests enforcement.</p>
+</section>
+<section id="2-method"><h2>2. Method</h2>
+<p>Chrome 154 driven over CDP by <code>puppeteer-core</code>, using a <strong>CDP virtual authenticator</strong> to complete
+real WebAuthn ceremonies against Keycloak&rsquo;s <code>webauthn-register-passwordless</code> required action.</p>
+<p>A virtual authenticator lets us vary <code>transport</code> and backup-eligibility, but <strong>not</strong> the AAGUID
+(<code>VirtualAuthenticatorOptions</code> has no <code>aaguid</code> field). That constraint turned out to be ideal: the
+virtual authenticator reports <code>aaguid: 00000000-0000-0000-0000-000000000000</code> with
+<code>attestationStatementFormat: none</code> — i.e. <strong>an authenticator that declines to attest</strong>, which is
+precisely the bypass case the threat model worried about.</p>
+<p>Every test changes exactly one variable, and <strong>two of the five are controls</strong>. Controls are what make
+the rejections attributable rather than coincidental.</p>
+</section>
+<section id="3-results"><h2>3. Results</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Realm</th>
+<th>Allowlist</th>
+<th>Attachment</th>
+<th>Conveyance</th>
+<th>Transport</th>
+<th>Result</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td><code>attest-users</code></td>
+<td><code>[]</code></td>
+<td>not specified</td>
+<td>none</td>
+<td>usb</td>
+<td><strong>ACCEPTED</strong></td>
+<td>ACCEPT</td>
+</tr>
+<tr>
+<td>B</td>
+<td><code>attest-privileged</code></td>
+<td><code>[YubiKey]</code></td>
+<td>cross-platform</td>
+<td>none</td>
+<td>usb</td>
+<td><strong>REJECTED</strong></td>
+<td>REJECT</td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>attest-privileged</code></td>
+<td><code>[]</code></td>
+<td>cross-platform</td>
+<td>none</td>
+<td>usb</td>
+<td><strong>ACCEPTED</strong></td>
+<td>ACCEPT</td>
+</tr>
+<tr>
+<td>D</td>
+<td><code>attest-privileged</code></td>
+<td><code>[]</code></td>
+<td>cross-platform</td>
+<td>none</td>
+<td><strong>internal</strong></td>
+<td><strong>REJECTED</strong></td>
+<td>REJECT</td>
+</tr>
+<tr>
+<td>E</td>
+<td><code>attest-privileged</code></td>
+<td><code>[]</code></td>
+<td>not specified</td>
+<td>none</td>
+<td><strong>internal</strong></td>
+<td><strong>ACCEPTED</strong></td>
+<td>ACCEPT</td>
+</tr>
+<tr>
+<td>F</td>
+<td><code>attest-privileged</code></td>
+<td><code>[]</code></td>
+<td>not specified</td>
+<td><strong>direct</strong></td>
+<td>usb</td>
+<td><strong>REJECTED</strong></td>
+<td>(unexpected)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>All five predictions passed. Test F was the surprise.</strong></p>
+<h3 id="what-each-result-establishes">What each result establishes</h3>
+<ul>
+<li><strong>B vs C</strong> — same realm, same attachment, same conveyance, same transport, same authenticator. The
+  only difference is the allowlist contents. B rejected, C accepted ⇒ <strong>the AAGUID allowlist is
+  genuinely enforced at enrolment.</strong></li>
+<li><strong>D vs E</strong> — identical except <code>authenticatorAttachment</code>. D rejected, E accepted ⇒ <strong>the
+  attachment restriction is genuinely enforced.</strong> E also proves the <code>internal</code> transport works in
+  this harness, so D&rsquo;s rejection cannot be an artefact of the transport.</li>
+<li><strong>B also rejects the all-zeros AAGUID.</strong> An authenticator that <em>declines to attest</em> is <strong>not</strong>
+  silently admitted. This <strong>falsifies</strong> the risk recorded in
+  <a href="threat-model.html">threat-model.md T3</a> that &ldquo;if a client declines to send attestation and
+  Keycloak admits the enrolment with an empty AAGUID rather than rejecting it, this control fails
+  silently.&rdquo; It does not fail silently. The control holds.</li>
+</ul>
+<h3 id="test-f-requiring-attestation-blocks-enrolment">Test F — requiring attestation blocks enrolment</h3>
+<p>F differs from A only in <code>attestationConveyancePreference</code> (<code>direct</code> vs <code>none</code>), with the allowlist
+empty and attachment unrestricted. It <strong>rejected</strong>.</p>
+<p>So <code>direct</code> is not a passive preference. Requesting it causes enrolment to fail for any authenticator
+that cannot produce an attestation statement — which includes the majority of platform authenticators
+and anything reporting <code>attestationStatementFormat: none</code>.</p>
+</section>
+<section id="4-the-design-consequence-a-false-sense-of-strength"><h2>4. The design consequence — a false sense of strength</h2>
+<p>This is the most valuable outcome of the spike, and it inverts a naive reading of the results.</p>
+<p>With <code>conveyance = none</code>, <strong>there is no attestation statement to verify.</strong> The AAGUID then travels in
+the authenticator data signed only by the credential&rsquo;s own private key — meaning it is
+<strong>self-asserted</strong>. A software authenticator can claim any AAGUID it likes. So:</p>
+<blockquote>
+<p><strong>An allowlist evaluated under <code>conveyance: none</code> is weaker than it appears.</strong> It reliably rejects
+honest authenticators, but a determined attacker using a software authenticator could assert an
+allowlisted AAGUID and pass.</p>
+</blockquote>
+<p><code>conveyance: direct</code> is what makes the AAGUID <em>trustworthy</em>, because attestation is what
+cryptographically binds the AAGUID to a genuine hardware authenticator. The allowlist and <code>direct</code>
+are therefore <strong>not redundant</strong> — they are complementary:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Rejects synced/platform passkeys</th>
+<th>AAGUID is trustworthy</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Allowlist + <code>none</code></td>
+<td>Yes</td>
+<td><strong>No — self-asserted</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td>Allowlist + <code>direct</code></td>
+<td>Yes</td>
+<td><strong>Yes</strong></td>
+<td>Excludes non-attesting authenticators</td>
+</tr>
+<tr>
+<td><code>direct</code> only</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No per-model control</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recommendation: keep <code>direct</code> on <code>attest-privileged</code>.</strong> The population is small and holds hardware
+keys by policy anyway, so excluding non-attesting authenticators is acceptable — and it is the only
+configuration in which the allowlist means what it claims. The availability cost must be <em>accepted
+deliberately</em> and the enrolment error must be intelligible to a user whose key was refused.</p>
+</section>
+<section id="5-corrections-to-the-plan-verified-against-the-live-realm-not-documentation"><h2>5. Corrections to the plan (verified against the live realm, not documentation)</h2>
+<p>The plan&rsquo;s WebAuthn configuration was written from documentation. Several details were wrong:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Plan said</th>
+<th>Reality</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>avoidSameAuthenticatorRegistration</code></td>
+<td><strong><code>webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister</code></strong> (no &ldquo;‑ion&rdquo;)</td>
+<td>The documented setting would have been <strong>silently ignored on import</strong></td>
+</tr>
+<tr>
+<td><code>requireResidentKey</code> (one field)</td>
+<td><strong>Two fields</strong>: <code>...RequireResidentKey</code> (default <code>not specified</code>) and <code>...ResidentKey</code> (default <code>required</code>)</td>
+<td>Ambiguous; both must be set deliberately</td>
+</tr>
+<tr>
+<td>UV defaults to be overridden</td>
+<td>Passwordless policy <strong>already defaults to <code>required</code></strong></td>
+<td>The standard realm must be <em>lowered</em> to <code>preferred</code>, not raised</td>
+</tr>
+<tr>
+<td><code>rpId</code> set explicitly</td>
+<td>Defaults to <code>''</code> (derived from request host); <code>rpEntityName</code> defaults to <code>keycloak</code></td>
+<td>Explicit values are a real change from default — fine, but worth knowing</td>
+</tr>
+<tr>
+<td>Attestation defaults to <code>none</code></td>
+<td>Defaults to <code>not specified</code></td>
+<td>Must be set explicitly</td>
+</tr>
+<tr>
+<td>Pin Keycloak 26.6</td>
+<td>Current is <strong>26.8.0</strong></td>
+<td>Update the pin and the patch policy</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="two-further-findings">Two further findings</h3>
+<ul>
+<li><strong>Keycloak does not validate AAGUID format.</strong> <code>"not-a-guid"</code> was accepted and stored verbatim. A
+  typo therefore creates a silently dead allowlist entry. Under an exact-match allowlist this fails
+  <em>closed</em> (lockout — discoverable), not open, but it means <strong>S12&rsquo;s CI gate must validate AAGUID
+  format itself</strong>, since Keycloak will not.</li>
+<li><strong>The default browser flow has <code>Username Password Form</code> set to <code>REQUIRED</code>, and
+  <code>webauthn-authenticator-passwordless</code> is not in the flow at all.</strong> Success criterion S1 (&ldquo;no
+  password path exists on the privileged realm&rdquo;) is therefore <strong>not satisfied by realm
+  configuration</strong>. During this spike I authenticated to <code>attest-privileged</code> <strong>with a password</strong>
+  — proof that S1 requires real flow surgery, not a toggle.</li>
+</ul>
+</section>
+<section id="6-automation-gotcha-worth-recording"><h2>6. Automation gotcha worth recording</h2>
+<p>Keycloak&rsquo;s <code>webauthnRegister.js</code> calls <strong><code>window.prompt()</code></strong> to ask for the credential label
+(<code>returnSuccess()</code>). In headless Chrome an unhandled prompt <strong>blocks the renderer indefinitely</strong>, so
+the ceremony never completes and <em>no</em> credential is ever created — which initially looked like a
+policy rejection. Any E2E test for passkey registration must register a dialog handler (this harness
+accepts with a label). This cost the most time in the spike and is worth an hour for anyone else.</p>
+</section>
+<section id="7-residual-risk-what-this-spike-did-not-prove"><h2>7. Residual risk — what this spike did NOT prove</h2>
+<p>Stated explicitly so it is not mistaken for a green light.</p>
+<ol>
+<li><strong>The acceptance path with real hardware is unproven.</strong> No test demonstrated that a genuine,
+   allowlisted YubiKey successfully enrols under <code>direct</code> + allowlist. The virtual authenticator
+   cannot attest, so it can only exercise rejection. <strong>A physical security key is still required</strong>
+   to validate the happy path. Until then, the failure mode we know about is <em>lockout</em>, not bypass.</li>
+<li><strong>Real platform-authenticator AAGUIDs are unverified.</strong> Whether iCloud Keychain, Google Password
+   Manager, and Windows Hello report all-zeros or a real AAGUID under <code>none</code>/<code>direct</code> is unknown.
+   This determines whether the allowlist or the <code>direct</code> requirement is doing the rejecting in
+   production.</li>
+<li><strong>The AAGUID allowlist values themselves are unverified.</strong> <code>fa2b99dc-...</code> came from Yubico&rsquo;s
+   published list and was not confirmed against a physical device.</li>
+<li><strong>Single-node <code>start-dev</code> only.</strong> Clustering, session replication, and behaviour behind a real
+   reverse proxy are unaddressed here — that is Spike #7.</li>
+</ol>
+</section>
+<section id="8-reproducing"><h2>8. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>lab/keycloak
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+python3<span class="w"> </span>scripts/configure-realms.py<span class="w">     </span><span class="c1"># apply + assert policies persist</span>
+bash<span class="w"> </span>scripts/run-matrix.sh<span class="w">              </span><span class="c1"># the A–F matrix above</span>
+</code></pre></div>
+
+<p>Requires Chrome on <code>--remote-debugging-port=9222</code>. Note that Chrome needs <code>--no-sandbox</code> when
+launched from the DSH sandbox, because its own sandbox initialisation is blocked.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="adr.html"><span>Previous</span><b>Decision register</b></a><a class="pn next" href="lab-results-dpop.html"><span>Next</span><b>Lab results: token binding</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

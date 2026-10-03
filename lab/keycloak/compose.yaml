@@ -1,0 +1,61 @@
+name: attest-idp-lab
+
+# Spike #3 lab: does Keycloak actually ENFORCE the AAGUID allowlist and
+# authenticator-attachment restriction at enrolment?
+#
+# Deliberately local-only and throwaway. Passwords below are hardcoded and
+# intentionally obvious -- this stack must never be exposed beyond localhost
+# and must never be reused for anything real.
+#
+# WebAuthn note: browsers treat http://localhost as a SECURE CONTEXT, so real
+# WebAuthn ceremonies work here without TLS. RP ID is therefore "localhost".
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: attest-lab-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: lab-only-not-a-secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [labnet]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0
+    container_name: attest-lab-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Keycloak 26 renamed the bootstrap admin vars to KC_BOOTSTRAP_ADMIN_*.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: lab-only-not-a-secret
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: lab-only-not-a-secret
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      # start-dev is intentional: no hostname strictness, HTTP allowed.
+      KC_LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"   # HTTP / admin console
+      - "9000:9000"   # management: /health, /metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # --import-realm reads every *.json in this directory at startup.
+      - ./realm-config:/opt/keycloak/data/import:ro
+    networks: [labnet]
+
+volumes:
+  pgdata:
+
+networks:
+  labnet:

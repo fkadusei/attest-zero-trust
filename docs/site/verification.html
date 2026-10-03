@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>What we tested — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="The verification spikes: what was actually run, what passed, and what is still open." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html" class="current">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#how-verification-works-here">How verification works here</a></li>
+<li><a href="#the-first-can-we-actually-enforce-hardware-keys">The first: can we actually enforce hardware keys?</a></li>
+<li class="lvl3"><a href="#the-question">The question</a></li>
+<li class="lvl3"><a href="#how-it-was-tested">How it was tested</a></li>
+<li class="lvl3"><a href="#the-results">The results</a></li>
+<li class="lvl3"><a href="#what-it-proved">What it proved</a></li>
+<li class="lvl3"><a href="#the-unexpected-result-which-mattered-most">The unexpected result, which mattered most</a></li>
+<li class="lvl3"><a href="#corrections-the-spike-forced">Corrections the spike forced</a></li>
+<li><a href="#the-second-is-a-stolen-token-really-useless">The second: is a stolen token really useless?</a></li>
+<li class="lvl3"><a href="#the-question_1">The question</a></li>
+<li class="lvl3"><a href="#how-it-was-tested_1">How it was tested</a></li>
+<li class="lvl3"><a href="#the-results_1">The results</a></li>
+<li class="lvl3"><a href="#the-three-traps-and-why-they-are-worth-writing-down">The three traps, and why they are worth writing down</a></li>
+<li class="lvl3"><a href="#what-this-changes">What this changes</a></li>
+<li><a href="#the-third-does-the-browser-keep-the-key">The third: does the browser keep the key?</a></li>
+<li class="lvl3"><a href="#how-it-was-tested_2">How it was tested</a></li>
+<li class="lvl3"><a href="#the-results_2">The results</a></li>
+<li class="lvl3"><a href="#what-it-settled-and-the-surprise">What it settled, and the surprise</a></li>
+<li><a href="#the-one-that-failed-requiring-a-stronger-check">The one that failed: requiring a stronger check</a></li>
+<li><a href="#what-is-not-yet-proven">What is NOT yet proven</a></li>
+<li><a href="#how-this-is-reproducible">How this is reproducible</a></li>
+<li><a href="#what-this-means-for-the-rest-of-these-pages">What this means for the rest of these pages</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Evidence</span><span>/</span><b>What we tested</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>What we tested</h1>
+        <p class="blurb">The verification spikes: what was actually run, what passed, and what is still open.</p>
+      </header>
+      <section id="overview"><p>A design document that claims a control works is worth very little until something has tried to break
+it. This page records what has actually been run, what it proved, and — just as importantly — what it
+did not.</p>
+<div class="admonition warning">
+<p class="admonition-title">Four experiments are done. One of them failed.</p>
+<p>It would be easy to read this page as &ldquo;the security is verified&rdquo;. It is not. Two specific claims —
+that hardware keys can be enforced, and that token binding is real and implementable — have been
+demonstrated with controlled experiments. Everything in the list further down is not, and that
+list is longer.</p>
+</div></section>
+<section id="how-verification-works-here"><h2>How verification works here</h2>
+<p>The project runs <strong>verification spikes</strong>: short, focused experiments that each answer one question
+before the design is frozen. A spike is deliberately cheap and deliberately bounded — the goal is to
+be wrong early, when being wrong is inexpensive.</p>
+<p>The reasoning is simple. Some assumptions, if wrong, force a redesign. Those are worth testing before
+any code is written, not after. Others are cheap to change later and can wait.</p>
+</section>
+<section id="the-first-can-we-actually-enforce-hardware-keys"><h2>The first: can we actually enforce hardware keys?</h2>
+<h3 id="the-question">The question</h3>
+<p>The design says privileged accounts must use hardware security keys. Does the identity provider
+actually <strong>reject</strong> a non-approved authenticator at registration — or does it merely store the setting
+and do nothing with it?</p>
+<p>This matters because a saved setting is not an enforced control, and the difference is invisible from
+the configuration screen. It would have been easy to configure the allowlist, see it persist, and
+declare the requirement met.</p>
+<h3 id="how-it-was-tested">How it was tested</h3>
+<p>A local Keycloak instance, a real Postgres database, and a browser driven by automation using a
+<strong>virtual authenticator</strong> — a simulated security key that completes genuine WebAuthn ceremonies and
+whose properties we control.</p>
+<p>The critical detail: a virtual authenticator reports an <strong>all-zero AAGUID</strong> and <strong>no attestation</strong>.
+That makes it behave exactly like the case we were most worried about — an authenticator that
+declines to prove what it is.</p>
+<h3 id="the-results">The results</h3>
+<p>Each row changes exactly one thing, so every rejection has exactly one possible cause. Two of the six
+are <strong>controls</strong>, and they are the reason the others mean anything.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Realm</th>
+<th>Allowlist</th>
+<th>Authenticator type</th>
+<th>Attestation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>Customer</td>
+<td>empty</td>
+<td>external</td>
+<td>not requested</td>
+<td>Accepted</td>
+</tr>
+<tr>
+<td>B</td>
+<td>Privileged</td>
+<td>hardware only</td>
+<td>external</td>
+<td>not requested</td>
+<td><strong>Refused</strong></td>
+</tr>
+<tr>
+<td>C</td>
+<td>Privileged</td>
+<td><strong>empty</strong></td>
+<td>external</td>
+<td>not requested</td>
+<td>Accepted <em>(control)</em></td>
+</tr>
+<tr>
+<td>D</td>
+<td>Privileged</td>
+<td>empty</td>
+<td><strong>built-in</strong></td>
+<td>not requested</td>
+<td><strong>Refused</strong></td>
+</tr>
+<tr>
+<td>E</td>
+<td>Privileged</td>
+<td>empty</td>
+<td><strong>built-in</strong></td>
+<td>not requested</td>
+<td>Accepted <em>(control)</em></td>
+</tr>
+<tr>
+<td>F</td>
+<td>Privileged</td>
+<td>empty</td>
+<td>external</td>
+<td><strong>required</strong></td>
+<td><strong>Refused</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>B against C isolates the allowlist.</strong> Both rows are the same realm, the same authenticator type, the
+same attestation setting and the same transport. Only the allowlist contents differ, and only the
+allowlist changed the outcome. The allowlist is genuinely enforced.</p>
+<p><strong>D against E isolates the authenticator-type restriction</strong> the same way. Row E proves that the
+built-in authenticator type works at all in this setup, so row D&rsquo;s refusal cannot be an artefact of
+the test harness.</p>
+<h3 id="what-it-proved">What it proved</h3>
+<div class="admonition success">
+<p class="admonition-title">Established by experiment</p>
+<ul>
+<li>The AAGUID allowlist is <strong>enforced at registration</strong>, not merely stored.</li>
+<li>The authenticator-type restriction is <strong>enforced</strong>.</li>
+<li>An authenticator that <strong>declines to attest is refused</strong>, not quietly admitted. Its all-zero
+  AAGUID does not match the allowlist. This disproves the silent-bypass risk we had recorded in
+  the threat model.</li>
+<li>The identity provider <strong>does expose the AAGUID</strong> of registered credentials, so this can be
+  audited after the fact rather than only enforced at the door.</li>
+</ul>
+</div>
+<h3 id="the-unexpected-result-which-mattered-most">The unexpected result, which mattered most</h3>
+<p>Row F differs from row A in exactly one setting: attestation is <em>required</em> rather than not requested.
+It was refused.</p>
+<p>That showed requiring attestation is an <strong>active requirement</strong>, not a passive preference — it will
+refuse anything that cannot provide proof. On its own that is a cost.</p>
+<p>But combined with the reasoning above, it is also the finding that changed the design. Without
+attestation, the AAGUID is a self-declared claim and an allowlist built on it can be spoofed by a
+software authenticator. Requiring attestation is what makes the allowlist meaningful rather than
+decorative.</p>
+<div class="admonition info">
+<p class="admonition-title">This is what a spike is for</p>
+<p>We set out to test whether the allowlist works. The more valuable result was discovering <em>why it
+works when it works</em>, and therefore which configuration is the one worth shipping. That would not
+have come out of reading documentation.</p>
+</div>
+<h3 id="corrections-the-spike-forced">Corrections the spike forced</h3>
+<p>Testing found several things that reading documentation had got wrong. They are listed because the
+pattern matters more than the specifics: <strong>the identity provider silently ignores setting names it
+does not recognise</strong>, so a wrong name produces configuration that looks applied and does nothing.</p>
+<ul>
+<li>Three setting names in the original design were wrong, including one that would have been ignored
+  without complaint.</li>
+<li>There are <strong>two</strong> separate resident-key settings with different defaults, not one.</li>
+<li>The default user-verification level for the passwordless policy is already the stricter value, so
+  the customer realm has to <em>lower</em> it rather than raise it.</li>
+<li>The identity provider <strong>does not validate AAGUID format</strong>. A typo is accepted verbatim, producing a
+  silently dead allowlist entry that fails closed — a lockout rather than a bypass, but a real
+  operational hazard. The build checks now validate the format themselves.</li>
+<li>The default sign-in flow <strong>requires a password form</strong>, and the passkey authenticator is not in it at
+  all. Removing the password from the privileged realm is therefore real configuration work, not a
+  toggle — and during testing a password login to the privileged realm succeeded, confirming it.</li>
+</ul>
+</section>
+<section id="the-second-is-a-stolen-token-really-useless"><h2>The second: is a stolen token really useless?</h2>
+<p>Sign-in being unphishable closes one door. This experiment tests the other one: that a session token
+stolen afterwards cannot be used.</p>
+<h3 id="the-question_1">The question</h3>
+<p>We claim a stolen token is inert because it is bound to a key the thief does not have. Two halves, and
+they fail differently:</p>
+<ol>
+<li><strong>Is the binding real?</strong> Does the identity provider actually write the key&rsquo;s fingerprint into the
+   token, and does a resource server actually refuse a bound token that arrives without a valid proof?</li>
+<li><strong>Can we implement the check?</strong> The identity provider verifies the proof when it <em>issues</em> a token,
+   but it is not in the request path for our own API — so our API has to verify the proof itself. That
+   is the one piece of genuinely custom security code in the whole system.</li>
+</ol>
+<h3 id="how-it-was-tested_1">How it was tested</h3>
+<p>No browser and no passkeys were needed, which made this much cheaper than the first experiment. A
+password grant against a client configured to require bound tokens exercises the same machinery.</p>
+<p>Proofs were generated with a real P-256 key — a small signed statement carrying the request method,
+the URL, a one-time identifier, and a hash of the access token. The identity provider&rsquo;s own user
+information endpoint was then used as a <strong>reference resource server</strong>: because it implements the
+standard correctly, it gives us something known-good to test our own logic against.</p>
+<h3 id="the-results_1">The results</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Behaviour</th>
+<th>Expected</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token presented with no proof at all</td>
+<td>Refused</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>Bound token sent the ordinary bearer way</td>
+<td>Refused</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>Token with a valid proof</td>
+<td>Accepted</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>Proof signed by a different key</td>
+<td>Refused</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>Proof naming a different URL path</td>
+<td>Refused</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>The same proof replayed</td>
+<td>Refused</td>
+<td><strong>Correct</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Six of six.</strong> A bound token without a matching proof is genuinely inert, and replay is refused.</p>
+<p>Our own verification logic — the code that would actually ship — was then tested against the same
+cases plus two of its own, and passed all six. So the authorizer is not merely designed; the logic is
+demonstrated, including the cases that matter most: a proof for a <em>different</em> token is refused, and a
+proof with the token binding missing entirely is refused.</p>
+<h3 id="the-three-traps-and-why-they-are-worth-writing-down">The three traps, and why they are worth writing down</h3>
+<div class="admonition warning">
+<p class="admonition-title">These would each have cost real debugging time in production</p>
+<p><strong>A bound token must be sent a different way.</strong> Presenting it the ordinary way — the
+<code>Authorization: Bearer</code> scheme everyone knows — fails, and the error the server returns points at
+the <em>bearer</em> mechanism, sending you to investigate the wrong layer entirely. The standard requires
+a distinct <code>DPoP</code> scheme for bound tokens, and it is enforced. Our authorizer must require that
+scheme and refuse the ordinary one rather than quietly accepting it, because an unbound token is
+exactly what this control exists to prevent.</p>
+<p><strong>The proof must carry a hash of the token it is for.</strong> Without it, the server returns
+&ldquo;token verification failed&rdquo; — a message that mentions neither the proof nor the missing field. This
+was the single hardest thing to diagnose in the experiment. The silver lining is that checking the
+hash closes a real gap: otherwise a proof captured for one token could authorise a different one.</p>
+<p><strong>The reference implementation is slightly more relaxed than we will be.</strong> It compares the proof&rsquo;s
+URL at path level but ignores the query string, so a proof minted for one query was accepted for
+another. That is not a hole on its own, because replay and the token hash still hold, but it means
+the query string is not covered by the binding. Our authorizer compares the full URL, and does so
+deliberately.</p>
+</div>
+<h3 id="what-this-changes">What this changes</h3>
+<p>Nothing structural, which is the good outcome. The design assumed the identity provider binds tokens
+and that our API must verify proofs; both are now confirmed rather than assumed. Three implementation
+details are pinned down, and the working prototype becomes the reference for the real implementation.</p>
+</section>
+<section id="the-third-does-the-browser-keep-the-key"><h2>The third: does the browser keep the key?</h2>
+<p>Two keys exist in this design, and they live in different places. <strong>The passkey</strong> — what you log in
+with — lives on the user&rsquo;s own device and we never see it. <strong>The session key</strong> is made by our page
+after login and kept in the browser&rsquo;s own storage, and it is what signs every later request.</p>
+<p>This experiment is about the second one. If the browser throws it away, either the user signs in
+repeatedly, or — much worse — the check quietly stops being enforced, because a check that always
+fails is a check somebody eventually disables.</p>
+<h3 id="how-it-was-tested_2">How it was tested</h3>
+<p>Two steps against a real browser with a real profile on disk: create the keys and store them, then
+<strong>quit the browser completely</strong>, then relaunch and look for them. The quit in between is the whole
+point — anything held only in memory is gone, so whatever still works genuinely came off disk.</p>
+<p>Two keys were stored, differing in one respect only. The real one is <strong>non-extractable</strong>: the page can
+use it but no script can ever read it out. That is the right thing to ship, and it also means we cannot
+read it back to prove it is the <em>same</em> key. So a second, readable twin was stored alongside purely so
+its public half could be recorded before the restart and compared after.</p>
+<h3 id="the-results_2">The results</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The session key survived the restart</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>It still works — produced a signature</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td>It is the <strong>same</strong> key, not a freshly generated one</td>
+<td><strong>Correct</strong></td>
+</tr>
+<tr>
+<td><strong>Control:</strong> a brand-new key is correctly rejected</td>
+<td><strong>Correct</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>All four.</strong> The control matters: without also feeding a <em>fresh</em> key through the same comparison and
+requiring it to fail, a check that always answered &ldquo;same&rdquo; would have looked exactly like a pass.</p>
+<h3 id="what-it-settled-and-the-surprise">What it settled, and the surprise</h3>
+<div class="admonition info">
+<p class="admonition-title">Asking the browser to protect our storage is not what keeps the key safe</p>
+<p>The browser <strong>declined</strong> to mark our storage as protected — and the key survived anyway.</p>
+<p>Those two facts are not in conflict once you see what that protection is actually for. Closing and
+reopening a browser is not an eviction event, so nothing was ever at risk. The protection guards
+against the things that <em>do</em> evict: storage pressure, and Safari&rsquo;s rule of deleting site data
+after roughly seven days without a visit.</p>
+<p>The practical conclusion is therefore narrower and more useful: <strong>we do not need that protection
+for this to work, and we must not assume we will ever be granted it.</strong></p>
+</div>
+<p>That leads directly to a rule the software must enforce and test:</p>
+<div class="admonition warning">
+<p class="admonition-title">If the key is missing, the session is over</p>
+<p>The only safe behaviour is to treat a missing key as <em>no session</em> and ask the user to sign in
+again, which creates a fresh key. The unsafe behaviour — quietly falling back to an unprotected
+pass so as not to inconvenience anyone — is precisely the silent downgrade this project exists to
+prevent. Sessions are short by design, so the cost is a sign-in rather than a support ticket.</p>
+</div>
+<p><strong>Not yet done:</strong> the same test in <strong>Safari</strong>, which is the browser most likely to evict stored data,
+and a full laptop restart. Both are manual jobs; a page is provided that makes the Safari one a
+one-minute task.</p>
+</section>
+<section id="the-one-that-failed-requiring-a-stronger-check"><h2>The one that failed: requiring a stronger check</h2>
+<p>Not every experiment succeeds, and this page would be misleading if it only listed the ones that did.</p>
+<p><strong>The claim:</strong> for sensitive actions — exporting who can see what, or an administrator looking across
+all customers — the user should be made to prove themselves again, right then. The plan assumed the
+identity provider could enforce this through an &ldquo;authentication level&rdquo;: the application asks for a
+higher level, and the provider demands whatever extra credential that level requires.</p>
+<p><strong>The result: it did not work.</strong> The extra check fired regardless of the level requested — a higher
+one, a lower one, or none at all. So there is currently no working step-up.</p>
+<p>This was not a configuration mistake. The setting was verified by reading it back from the server, and
+<strong>five different ways of requesting a level</strong> all behaved identically. What is <em>not</em> known is whether
+the fault lies in the flow arrangement or in the feature itself; there is one cheap test left that
+would tell the two apart.</p>
+<div class="admonition warning">
+<p class="admonition-title">What this invalidates</p>
+<p>A claim in the identity reference — that this mechanism was an improvement over the previous
+design — is now marked unsupported. <strong>The project should not build on this until it is resolved.</strong>
+Two honest fallbacks exist: force a full re-authentication, which proves the check is <em>fresh</em>
+rather than <em>stronger</em>, or stop using the identity provider for this and require a fresh passkey
+assertion at the moment of the action.</p>
+<p>A follow-up is time-boxed at half a day. If it does not resolve, the fallback is taken and the
+limitation stated plainly rather than left as a permanent open question.</p>
+</div>
+</section>
+<section id="what-is-not-yet-proven"><h2>What is NOT yet proven</h2>
+<p>This list is the honest counterpart to the section above. None of it is a surprise or a defect; it is
+simply work that has not been done.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Not proven</th>
+<th>Why it matters</th>
+<th>What it needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>That a <strong>real</strong> approved hardware key registers successfully</td>
+<td>The virtual authenticator can only demonstrate refusal, because it cannot attest. The failure mode we know about is lockout, not bypass — but the happy path is unconfirmed</td>
+<td>A physical security key</td>
+</tr>
+<tr>
+<td>What AAGUIDs real platform passkeys report</td>
+<td>Determines which control is actually doing the rejecting in production</td>
+<td>Testing across iCloud Keychain, Google Password Manager, Windows Hello</td>
+</tr>
+<tr>
+<td>That sign-in survives a <strong>phishing proxy</strong></td>
+<td>This is the headline claim of the whole project</td>
+<td>A live relay test against the real flow</td>
+</tr>
+<tr>
+<td>That token binding works <strong>end to end</strong></td>
+<td>The <em>logic</em> is now proven, but not that the required header survives every network hop. A hop that strips it breaks the binding silently — and the tempting &ldquo;fix&rdquo; would be to disable the check</td>
+<td>A header-survival test through the real edge, plus deployed infrastructure</td>
+</tr>
+<tr>
+<td>That <strong>Firefox</strong> and <strong>Safari</strong> keep the key — the two non-Chromium engines</td>
+<td>Chromium (Chrome, Edge, Brave) is automated and passes 6/6, but all three share one engine, so that says nothing about Gecko or WebKit</td>
+<td>A one-minute manual test each; a page is provided</td>
+</tr>
+<tr>
+<td>That a <strong>browser</strong> keeps its key across a full laptop restart</td>
+<td>Chrome holds it correctly, but Safari is the browser most likely to throw stored data away, and it is widely used. If it evicts, users sign in more often — annoying, but safe, provided the safe fallback is actually implemented</td>
+<td>A one-minute manual test; a page is provided</td>
+</tr>
+<tr>
+<td>That revocation takes effect in under a minute</td>
+<td>Token expiry alone is far too slow to be the answer</td>
+<td>A revocation-latency measurement</td>
+</tr>
+<tr>
+<td>That the identity provider <strong>clusters</strong> on our chosen platform</td>
+<td>A single instance is not a viable production target</td>
+<td>Two instances, session replication, failover</td>
+</tr>
+<tr>
+<td>The NIST analysis for syncable authenticators</td>
+<td>Determines whether an assurance claim can be made publicly</td>
+<td>Independent review, not self-certification</td>
+</tr>
+</tbody>
+</table></div>
+<div class="admonition note">
+<p class="admonition-title">Why the first row is the important one</p>
+<p>Every other gap is engineering that can be scheduled. The first is the one where a wrong
+assumption would mean the privileged-access requirement does not work as intended for real users,
+and it needs hardware rather than more code.</p>
+</div>
+</section>
+<section id="how-this-is-reproducible"><h2>How this is reproducible</h2>
+<p>The lab lives in <code>lab/keycloak/</code> and runs in containers. The results above were produced by scripts
+committed alongside it, so anyone who doubts the conclusion can re-run it:</p>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>lab/keycloak
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w">                            </span><span class="c1"># identity provider + database</span>
+python3<span class="w"> </span>scripts/configure-realms.py<span class="w">             </span><span class="c1"># apply WebAuthn policies, assert they persisted</span>
+bash<span class="w"> </span>scripts/run-matrix.sh<span class="w">                      </span><span class="c1"># the hardware-key matrix</span>
+../../.venv/bin/python<span class="w"> </span>scripts/dpop_spike.py<span class="w">    </span><span class="c1"># token binding, and our own verifier</span>
+</code></pre></div>
+
+<p>The same directory holds the raw write-ups for both experiments, including the automation details and
+the workarounds required to drive a browser through a real WebAuthn ceremony.</p>
+</section>
+<section id="what-this-means-for-the-rest-of-these-pages"><h2>What this means for the rest of these pages</h2>
+<p>Read the other pages as <strong>design</strong>: considered, documented, and in three important places demonstrated.
+Read this page as <strong>evidence</strong>, and take the unproven list seriously.</p>
+<p>When someone asks whether the system is secure, the honest answer is that two of its load-bearing
+claims have been tested and hold, that the failures we were most worried about turned out not to
+exist, and that roughly a dozen other claims remain design work. That is a better position than most
+projects at this stage, and it is not the same as being finished.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="limits.html"><span>Previous</span><b>Limits and non-goals</b></a><a class="pn next" href="decisions.html"><span>Next</span><b>Decisions and why</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

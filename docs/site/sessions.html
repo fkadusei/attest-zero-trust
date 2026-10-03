@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>After sign-in — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Token binding, per-request policy, keeping tenants apart, and revocation." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html" class="current">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#a-token-works-for-whoever-is-holding-it">A token works for whoever is holding it</a></li>
+<li><a href="#dpop-in-plain-language">DPoP, in plain language</a></li>
+<li><a href="#the-mistake-that-makes-all-of-this-worthless">The mistake that makes all of this worthless</a></li>
+<li><a href="#every-request-layer-by-layer">Every request, layer by layer</a></li>
+<li><a href="#policy-written-down-and-tested">Policy, written down and tested</a></li>
+<li><a href="#keeping-tenants-apart">Keeping tenants apart</a></li>
+<li><a href="#revocation-or-making-sign-out-mean-something">Revocation, or making “sign out” mean something</a></li>
+<li><a href="#what-dpop-does-not-fix">What DPoP does not fix</a></li>
+<li><a href="#what-is-still-unproven">What is still unproven</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Guide</span><span>/</span><b>After sign-in</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>After sign-in</h1>
+        <p class="blurb">Token binding, per-request policy, keeping tenants apart, and revocation.</p>
+      </header>
+      <section id="overview"><p>Making sign-in unphishable closes one door. It does nothing at all about what happens next.</p>
+<p>Once someone is signed in, the browser holds a <strong>token</strong>: a small block of data, signed by the
+identity provider, that it presents with every request to prove who it is. Everything this page
+describes is about making that token — and every request carrying it — stand up to scrutiny on its
+own, rather than being trusted because it arrived.</p></section>
+<section id="a-token-works-for-whoever-is-holding-it"><h2>A token works for whoever is holding it</h2>
+<p>A token issued by a normal sign-in is a <strong>bearer token</strong>. The name is literal: whoever bears it, wins.
+The server checks that it is validly signed and has not expired, and then does what it is asked.</p>
+<p>There is no connection between the token and the machine using it. Copy the token onto another
+computer and it works exactly as well there. This is not a bug in any particular product; it is how
+almost all web sessions work.</p>
+<p>The practical consequence is uncomfortable:</p>
+<div class="admonition danger">
+<p class="admonition-title">Phishing-resistant sign-in does not stop token theft</p>
+<p>We spent a great deal of effort making sure an attacker cannot phish a credential. If they can
+instead steal the token that sign-in produces, <strong>that effort buys nothing at all</strong>. They skip the
+front door entirely, because the door is already open and the token is the key.</p>
+</div>
+<p>Tokens leak through mundane routes rather than dramatic ones:</p>
+<ul>
+<li><strong>Logs.</strong> A proxy, a debugging session, or an error reporter captures a request header by accident.</li>
+<li><strong>Injected script.</strong> A cross-site scripting flaw — usually shortened to <strong>XSS</strong> — lets an attacker
+  run their own code inside our page, in the user&rsquo;s session, with full access to the session.</li>
+<li><strong>Browser extensions.</strong> An extension runs inside the same browser and reads the same pages.</li>
+<li><strong>A shared or stolen laptop</strong>, where the session is simply already open.</li>
+<li><strong>Support tooling</strong>, where a well-meaning engineer pastes a request into a ticket to debug it.</li>
+</ul>
+<p>Every one of these produces the same outcome: a fully authenticated session in the wrong hands. So
+the question after sign-in is not &ldquo;is this token real?&rdquo; but &ldquo;<strong>is this the machine the token was
+issued to?</strong>&ldquo;</p>
+</section>
+<section id="dpop-in-plain-language"><h2>DPoP, in plain language</h2>
+<p><strong>DPoP</strong> stands for Demonstrating Proof-of-Possession, and it answers that question. (The name comes
+from a formal specification, RFC 9449, if you ever need to look it up.)</p>
+<div class="admonition info">
+<p class="admonition-title">There are two different keys in this design, and they live in different places</p>
+<p>This trips people up, so it is worth stating plainly.</p>
+<p><strong>The passkey</strong> is what you log in with. <strong>We never store it and never see it.</strong> It lives on the
+user&rsquo;s own device — in iCloud Keychain or another password manager if it is a &ldquo;synced&rdquo; passkey, or
+on a hardware security key. Our server keeps only the <em>public</em> half, which is useless for
+impersonating anyone.</p>
+<p><strong>The session key</strong> is created by our own web page <em>after</em> you log in, and it is stored by us in
+the browser&rsquo;s own storage for our site. It is not a passkey and it is not in any password manager.
+It exists only to protect the session, and it is thrown away with the session.</p>
+<p>So &ldquo;where is the key stored?&rdquo; has two different answers depending on which key is meant, and
+neither answer involves us holding anything secret.</p>
+</div>
+<p>The mechanism has three parts:</p>
+<ol>
+<li><strong>The browser generates a second key pair.</strong> This is separate from the passkey used to sign in. It
+   exists only for talking to our API. As with the passkey, the private half never leaves the browser.</li>
+<li><strong>The token records which key it belongs to.</strong> When the identity provider issues the token, it
+   writes in the fingerprint — called a <strong>thumbprint</strong> — of that browser&rsquo;s public key.</li>
+<li><strong>Every request carries a small signed voucher.</strong> Alongside the token, the browser sends a tiny
+   signed statement proving it holds the matching private key. The statement is tied to that exact
+   request: the HTTP method and the full URL are inside it, and it carries a one-time identifier so
+   the same voucher cannot be used twice.</li>
+</ol>
+<p>Now a stolen token is inert. The attacker has the token, but not the private key, so they cannot
+produce a valid voucher. They can replay the token as many times as they like; every request fails
+the proof check.</p>
+<p>There is one more detail that makes this worth the trouble. The browser key is created as
+<strong>non-extractable</strong>:</p>
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">keyPair</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">generateKey</span><span class="p">(</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">'ECDSA'</span><span class="p">,</span><span class="w"> </span><span class="nx">namedCurve</span><span class="o">:</span><span class="w"> </span><span class="s1">'P-256'</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="kc">false</span><span class="p">,</span><span class="w">                       </span><span class="c1">// extractable = false</span>
+<span class="w">  </span><span class="p">[</span><span class="s1">'sign'</span><span class="p">,</span><span class="w"> </span><span class="s1">'verify'</span><span class="p">],</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<p>That single <code>false</code> means JavaScript can <em>use</em> the key but can never <em>read it out</em>. So even code
+running inside our own page — including an attacker&rsquo;s injected script — cannot copy the key
+elsewhere. It converts &ldquo;steal the token&rdquo; into the far harder &ldquo;steal the token <em>and</em> run code in the
+same browser, in the same profile, at the same moment&rdquo;.</p>
+</section>
+<section id="the-mistake-that-makes-all-of-this-worthless"><h2>The mistake that makes all of this worthless</h2>
+<p>This is the single most important paragraph on the page, and it is a trap that a competent engineer
+walks into naturally.</p>
+<div class="admonition danger">
+<p class="admonition-title">The identity provider is not in the path of your API</p>
+<p>Keycloak verifies the DPoP voucher when it <strong>issues</strong> the token, and it is entirely correct to
+describe that as &ldquo;Keycloak supports DPoP&rdquo;.</p>
+<p>But Keycloak is not sitting in front of our API. When a browser calls our application, that
+request goes to our API and never touches Keycloak at all. So <strong>our API must verify the voucher
+itself, on every single request.</strong></p>
+<p>Skip that step and you get the worst possible outcome: tokens that <em>advertise</em> a binding nobody
+ever checks, and an API that accepts a stolen token from anywhere. <strong>That is worse than not
+having DPoP at all</strong>, because it produces confident answers to security questionnaires while
+providing no protection.</p>
+</div>
+<p>This is why we build a small, deliberately narrow component — a <strong>DPoP verifying authoriser</strong> — that
+does nothing but check these proofs. It is the one piece of genuinely custom security code in the
+system. Keeping it small is the point: small security code can be read carefully by a human, and code
+that cannot be read carefully is not really reviewed.</p>
+</section>
+<section id="every-request-layer-by-layer"><h2>Every request, layer by layer</h2>
+<p>A request to our API passes through all of the following. Each layer can reject it independently,
+and that redundancy is deliberate — a failure in one should be an incident, not an outage.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Layer</th>
+<th>The question it asks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Edge filtering</td>
+<td>Is this request plausible at all, or is it part of a flood or a known attack pattern?</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Token validity</td>
+<td>Is the token genuinely signed by us, and unexpired?</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Key possession</td>
+<td>Does the caller hold the private key the token was issued to?</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Revocation</td>
+<td>Has this session been cancelled since the token was issued?</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Device posture</td>
+<td>How much do we trust the device making the request?</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Policy decision</td>
+<td>Is this specific action, on this specific resource, allowed for this person?</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Tenant scoping</td>
+<td>Does the database query itself refuse to cross a tenant boundary?</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Audit</td>
+<td>Is the decision recorded where it cannot be altered afterwards?</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Layers 2 and 6 answer completely different questions</strong>, and confusing them is the classic mistake
+in this kind of system:</p>
+<ul>
+<li>Layer 2 asks <strong>&ldquo;is this token valid?&rdquo;</strong> — a question about identity.</li>
+<li>Layer 6 asks <strong>&ldquo;is this action allowed?&rdquo;</strong> — a question about entitlement.</li>
+</ul>
+<p>A valid token is not a permission slip. It tells you who is calling. It says nothing whatsoever about
+what they should be permitted to do. A system that treats a valid token as sufficient has no
+authorisation at all; it has authentication wearing a disguise.</p>
+</section>
+<section id="policy-written-down-and-tested"><h2>Policy, written down and tested</h2>
+<p>Layer 6 is not implemented as <code>if</code> statements scattered through our code. It is a set of rules in
+<strong>Cedar</strong>, a policy language, evaluated by a separate service (Amazon Verified Permissions). We call
+that service the <strong>policy decision point</strong>: the one place that decides, and a place our application
+code cannot quietly overrule.</p>
+<p>The most important rule is the one that keeps tenants apart:</p>
+<div class="codehilite"><pre><span></span><code>// Baseline: no cross-tenant access, ever. A FORBID, so no later permit can override it.
+forbid (
+  principal,
+  action,
+  resource
+)
+when {
+  principal has tenant_id &amp;&amp;
+  resource has tenant_id &amp;&amp;
+  principal.tenant_id != resource.tenant_id
+};
+</code></pre></div>
+
+<p><code>principal</code> is who is asking, <code>action</code> is what they are trying to do, <code>resource</code> is what they are
+trying to do it to.</p>
+<p>The choice of <code>forbid</code> here is deliberate and worth understanding. In Cedar, <strong>a <code>forbid</code> always wins
+over any <code>permit</code></strong>, no matter which order they are written in or how many permits exist. That means
+a developer who later adds a broad, generous <code>permit</code> rule cannot accidentally open the tenant
+boundary, because the <code>forbid</code> still overrides it.</p>
+<p>Writing the same rule as a condition on each <code>permit</code> instead would work today and break the first
+time somebody added a new permit without remembering. <strong>Do not rewrite it.</strong> A rule that depends on
+every future author remembering it is not a control; it is a convention.</p>
+<p>Policies live in the repository and are checked by the build, so a route with no policy fails before
+it reaches anyone.</p>
+</section>
+<section id="keeping-tenants-apart"><h2>Keeping tenants apart</h2>
+<p>If one customer can read another customer&rsquo;s evidence, the product is finished. There is no partial
+credit. So tenant separation is enforced in four independent places, on the assumption that any one
+of them will eventually have a bug:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Mechanism</th>
+<th>How it can fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Policy</td>
+<td>The Cedar <code>forbid</code> above</td>
+<td>Somebody writes the policy incorrectly</td>
+</tr>
+<tr>
+<td>2 — Data access</td>
+<td>Every database query is keyed by the tenant</td>
+<td>A developer forgets the key</td>
+</tr>
+<tr>
+<td>3 — Permissions</td>
+<td>Cloud permissions scoped to the tenant&rsquo;s data</td>
+<td>A role is configured too broadly</td>
+</tr>
+<tr>
+<td>4 — Tests</td>
+<td>A suite that actively attempts cross-tenant reads on every change</td>
+<td>The test suite has a gap</td>
+</tr>
+</tbody>
+</table></div>
+<p>If you remember one rule from this page, remember this one:</p>
+<div class="admonition tip">
+<p class="admonition-title">Tenant identity comes from the token, never from the request</p>
+<p>The tenant a request belongs to is taken <strong>only</strong> from the cryptographically verified token.
+It is never read from a request body, a URL, or a query parameter.</p>
+<p>Any code path that accepts a tenant identifier from the caller is a bug by definition — because
+the caller can simply supply someone else&rsquo;s. An entire family of well-known vulnerabilities
+(changing an ID in a URL to reach another customer&rsquo;s record) exists purely because software
+trusted an identifier that arrived from outside.</p>
+</div>
+</section>
+<section id="revocation-or-making-sign-out-mean-something"><h2>Revocation, or making &ldquo;sign out&rdquo; mean something</h2>
+<p>Tokens expire, but they expire slowly by design: five minutes for an access token. That is fine for
+ordinary life and far too slow for an incident. If an administrator revokes someone&rsquo;s access at
+09:00, &ldquo;it will stop working by 09:05&rdquo; is not an answer anyone wants during a breach.</p>
+<p>So revocation is its own subsystem. When a session is cancelled, the identity provider emits an
+event; that event is turned into an entry in a small, fast store; and every request checks that store
+before proceeding.</p>
+<p>Two details matter more than they look:</p>
+<ul>
+<li><strong>The cache is the real revocation time.</strong> We check the store through a short-lived cache for
+  performance. Whatever that cache is set to <em>becomes</em> the revocation delay, silently. It is written
+  down in the runbook and asserted in a test, because caches have a habit of being lengthened during
+  a performance incident and never shortened again.</li>
+<li><strong>A failed proof should raise an alarm, not just a rejection.</strong> A DPoP failure means somebody
+  presented a token without the key it belongs to. There is no innocent explanation for that. It is
+  high-confidence evidence of token theft, so it should page a human — not quietly return a 401 (the
+  standard &ldquo;unauthorized&rdquo; error) that nobody ever looks at.</li>
+</ul>
+</section>
+<section id="what-dpop-does-not-fix"><h2>What DPoP does not fix</h2>
+<p>Being honest about the edges of a control is part of using it well. DPoP removes token theft as an
+attack, and it does nothing about the following.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Attack</th>
+<th>Effect of DPoP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token stolen from a log, proxy, or ticket</td>
+<td><strong>Defeated</strong> — the attacker has no private key</td>
+</tr>
+<tr>
+<td>Token replayed from a different machine</td>
+<td><strong>Defeated</strong> — the proof signature fails</td>
+</tr>
+<tr>
+<td>Token stolen via XSS in our own pages</td>
+<td><strong>Only partly mitigated</strong> — the attacker&rsquo;s script runs inside our page and can <em>use</em> the non-extractable key, even though it cannot copy it</td>
+</tr>
+<tr>
+<td>Malicious browser extension</td>
+<td><strong>Not mitigated</strong> — it shares the browser&rsquo;s context</td>
+</tr>
+<tr>
+<td>A fully compromised device</td>
+<td><strong>Not mitigated</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>The third row is the one to sit with. DPoP raises the bar from &ldquo;steal a string&rdquo; to &ldquo;execute code in
+the right place at the right time&rdquo;. That is a large improvement, and it is not immunity. It is why
+short token lifetimes, strict browser security headers, and device posture checks still earn their
+place rather than being redundant.</p>
+</section>
+<section id="what-is-still-unproven"><h2>What is still unproven</h2>
+<p>The design above is complete. Not all of it has been demonstrated, and it would be dishonest to
+imply otherwise:</p>
+<ul>
+<li>The <strong>end-to-end proof check</strong> — that a real token and voucher survive the journey through our edge
+  and are correctly verified at the API — has <strong>not been tested yet</strong>. This is the highest-priority
+  experiment outstanding, because a header silently dropped in transit would break the binding
+  without breaking anything visible.</li>
+<li>Whether the browser can <strong>reliably keep a non-extractable key</strong> across restarts in all major
+  browsers is <strong>untested</strong>. Safari is the one to watch.</li>
+<li>The <strong>revocation delay</strong> has not been measured end to end. Target: under sixty seconds.</li>
+</ul>
+<p>The <a href="verification.html">verification page</a> tracks these, and the <a href="authorization.html">authorisation reference</a>
+carries the precise configuration. What <em>has</em> been proven is the hardware-key enforcement at sign-in —
+see <a href="verification.html">what we tested</a> and the <a href="lab-results.html">raw lab results</a>.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="passwordless.html"><span>Previous</span><b>Sign-in, end to end</b></a><a class="pn next" href="recovery.html"><span>Next</span><b>Recovery, the weak link</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Decision register — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Formal records, open questions and the verification item list." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html" class="current">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#part-1-architecture-decision-records">Part 1 — Architecture Decision Records</a></li>
+<li class="lvl3"><a href="#adr-001-use-self-hosted-keycloak-as-the-identity-provider-supersedes-cognito">ADR-001 — Use self-hosted Keycloak as the identity provider (supersedes Cognito)</a></li>
+<li class="lvl3"><a href="#adr-002-two-realms-split-by-assurance-level">ADR-002 — Two realms, split by assurance level</a></li>
+<li class="lvl3"><a href="#adr-003-aaguid-allowlist-and-cross-platform-attachment-for-privileged-enrolment">ADR-003 — AAGUID allowlist and cross-platform attachment for privileged enrolment</a></li>
+<li class="lvl3"><a href="#adr-004-no-custom-token-issuing-broker-a-thin-dpop-verifying-authorizer-at-the-api">ADR-004 — No custom token-issuing broker; a thin DPoP Verifying Authorizer at the API</a></li>
+<li class="lvl3"><a href="#adr-005-retain-amazon-verified-permissions-cedar-reject-keycloak-authorization-services">ADR-005 — Retain Amazon Verified Permissions (Cedar); reject Keycloak Authorization Services</a></li>
+<li class="lvl3"><a href="#adr-006-tenant-isolation-as-a-fail-closed-forbid-with-tenant-id-sourced-only-from-the-token">ADR-006 — Tenant isolation as a fail-closed forbid, with tenant ID sourced only from the token</a></li>
+<li class="lvl3"><a href="#adr-007-native-keycloak-passkeys-with-conditional-ui-no-custom-ceremony">ADR-007 — Native Keycloak passkeys with conditional UI; no custom ceremony</a></li>
+<li class="lvl3"><a href="#adr-008-single-dynamodb-table-with-a-tenant-partition-key-pool-model">ADR-008 — Single DynamoDB table with a tenant partition key (pool model)</a></li>
+<li class="lvl3"><a href="#adr-009-aws-management-plane-uses-iam-identity-center-entirely-outside-keycloak">ADR-009 — AWS management plane uses IAM Identity Center, entirely outside Keycloak</a></li>
+<li class="lvl3"><a href="#adr-010-self-host-keycloak-on-ecs-fargate-rds-postgres-multi-az">ADR-010 — Self-host Keycloak on ECS Fargate + RDS Postgres Multi-AZ</a></li>
+<li class="lvl3"><a href="#adr-011-realm-configuration-as-code-applied-by-ci">ADR-011 — Realm configuration as code, applied by CI</a></li>
+<li class="lvl3"><a href="#adr-012-replace-managed-threat-protection-with-custom-authenticators-and-native-events">ADR-012 — Replace managed threat protection with custom authenticators and native events</a></li>
+<li><a href="#part-2-open-questions-requiring-a-human-decision">Part 2 — Open questions requiring a human decision</a></li>
+<li><a href="#part-3-verification-spikes">Part 3 — Verification spikes</a></li>
+<li class="lvl3"><a href="#dissolved-since-the-previous-revision">Dissolved since the previous revision</a></li>
+<li class="lvl3"><a href="#spike-1-dpop-end-to-end-issuance-verification-and-header-survival-local-half-resolved">Spike #1 — DPoP end-to-end: issuance, verification, and header survival — LOCAL HALF RESOLVED</a></li>
+<li class="lvl3"><a href="#spike-2-does-avp-accept-keycloak-issued-tokens">Spike #2 — Does AVP accept Keycloak-issued tokens?</a></li>
+<li class="lvl3"><a href="#spike-3-aaguid-allowlist-enforcement-semantics-resolved">Spike #3 — AAGUID allowlist enforcement semantics — RESOLVED</a></li>
+<li class="lvl3"><a href="#spike-4-browser-persistence-of-non-extractable-dpop-keys">Spike #4 — Browser persistence of non-extractable DPoP keys</a></li>
+<li class="lvl3"><a href="#spike-5-acr-step-up-forces-a-fresh-assertion">Spike #5 — ACR step-up forces a fresh assertion</a></li>
+<li class="lvl3"><a href="#spike-6-nist-sp-800-63bsup1-exact-consequence-for-our-configuration">Spike #6 — NIST SP 800-63Bsup1: exact consequence for our configuration</a></li>
+<li class="lvl3"><a href="#spike-7-keycloak-clustering-and-session-replication-on-ecs-fargate">Spike #7 — Keycloak clustering and session replication on ECS Fargate</a></li>
+<li class="lvl3"><a href="#spike-8-revocation-latency-under-60-seconds">Spike #8 — Revocation latency under 60 seconds</a></li>
+<li><a href="#part-4-spike-summary">Part 4 — Spike summary</a></li>
+<li><a href="#part-5-what-i-could-not-verify">Part 5 — What I could not verify</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Decision register</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Decision register</h1>
+        <p class="blurb">Formal records, open questions and the verification item list.</p>
+      </header>
+      <section id="overview"><p><strong>Read this document first, even though it is listed last.</strong> It contains the things that must be
+tested before the design is frozen, and several of them can change the architecture.</p>
+<blockquote>
+<p><strong>Revision note:</strong> ADR-001 has been superseded — the identity plane moved from Amazon Cognito to
+self-hosted Keycloak. One spike from the previous revision is now <strong>dissolved</strong> (see Part 3), and
+four new ones were added.</p>
+</blockquote>
+<hr></section>
+<section id="part-1-architecture-decision-records"><h2>Part 1 — Architecture Decision Records</h2>
+<h3 id="adr-001-use-self-hosted-keycloak-as-the-identity-provider-supersedes-cognito">ADR-001 — Use self-hosted Keycloak as the identity provider (supersedes Cognito)</h3>
+<p><strong>Status:</strong> Accepted — <strong>supersedes</strong> the original &ldquo;use Cognito&rdquo; decision</p>
+<p><strong>Context:</strong> The plan originally targeted Amazon Cognito. Verification against the Cognito API
+surface surfaced two limitations that drove real cost and real weakness:</p>
+<ol>
+<li><strong>No DPoP support.</strong> Cognito issues bearer tokens, and its pre-token-generation Lambda trigger
+   cannot see the <code>DPoP</code> header, so sender-constraining could not be retrofitted
+   (<a href="https://repost.aws/ko/questions/QUBR16XQUAQZiFg1lpp0EDcA/dpop-support-for-aws-cognito">AWS re:Post</a>).
+   This forced a custom token-issuing Session Broker — the largest and riskiest component in the
+   plan.</li>
+<li><strong>No AAGUID exposure.</strong> <code>ListWebAuthnCredentials</code> returns <code>AuthenticatorAttachment</code> and
+   <code>AuthenticatorTransports</code> but never the AAGUID
+   (<a href="https://awscli.amazonaws.com/v2/documentation/api/2.32.18/reference/cognito-idp/list-web-authn-credentials.html">API reference</a>).
+   Device-bound enforcement for privileged users could therefore only be <em>approximated</em>.</li>
+</ol>
+<p>Keycloak 26.4 shipped official support for both <a href="https://www.keycloak.org/2025/10/dpop-support-26-4">DPoP</a>
+and <a href="https://www.keycloak.org/2025/09/passkeys-support-26-4">passkeys</a>, and its WebAuthn policies
+expose an <strong>acceptable-AAGUID list</strong>.</p>
+<p><strong>Decision:</strong> Self-host <strong>Keycloak 26.4+</strong> as the identity provider, replacing Cognito.</p>
+<p><strong>Consequences — good:</strong></p>
+<ul>
+<li>Native DPoP removes the token-issuing broker — the original plan&rsquo;s single largest risk.</li>
+<li>The AAGUID allowlist turns privileged device-bound enforcement from an unverified heuristic into a
+  control <strong>enforced at registration</strong>. This is a genuine security improvement, not just a
+  simplification, and it is the strongest single argument for the switch.</li>
+<li>Passkeys are GA with no tier gating, plus a &ldquo;Conditional - credential&rdquo; authenticator that
+  implements correct AAL reasoning.</li>
+<li>ACR → Level of Authentication mapping makes step-up standards-based and IdP-issued, resolving an
+  open question in the original plan.</li>
+<li>Cost becomes <strong>fixed and MAU-independent</strong> rather than per-user.</li>
+<li>Keycloak&rsquo;s federation support makes customer SAML/OIDC federation nearly free (open question Q2).</li>
+</ul>
+<p><strong>Consequences — bad:</strong> <em>(this is the honest half)</em></p>
+<ul>
+<li><strong>We operate the identity provider.</strong> HA, Postgres backups, disaster recovery, and prompt CVE
+  patching of an internet-facing authentication service become our ongoing responsibility (T15, T16,
+  R1). Budgeting engineering time for this is not optional.</li>
+<li><strong>We lose managed risk-based adaptive authentication.</strong> Cognito Plus provided breached-credential
+  blocking and adaptive MFA; Keycloak has no official equivalent (ADR-012 replaces it).</li>
+<li>Custom SPIs become an upgrade-compatibility liability (R6).</li>
+<li>Compliance claims must be re-derived; Cognito&rsquo;s shared-responsibility posture was simpler to
+  evidence.</li>
+</ul>
+<p><strong>Alternatives rejected:</strong> Stay on Cognito (rejected: would keep the custom broker and the
+approximate authenticator policy). Build a FIDO2 server directly (rejected: larger and riskier
+custom surface, and a relying-party-validation bug degrades phishing resistance silently). Use
+another OSS IdP such as Ory or Authentik (rejected: Keycloak has the specific combination we need —
+GA DPoP, passkeys, and AAGUID allowlist — plus the largest operational community).</p>
+<hr>
+<h3 id="adr-002-two-realms-split-by-assurance-level">ADR-002 — Two realms, split by assurance level</h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> Platform admins need stronger authentication than customers, and their accounts are far
+more valuable.</p>
+<p><strong>Decision:</strong> <code>attest-users</code> (password + passkey, unrestricted authenticators) and
+<code>attest-privileged</code> (passkey only, AAGUID allowlist, <code>userVerification: required</code>), with different
+relying party IDs.</p>
+<p><strong>Consequences — good:</strong> Distinct assurance policies enforced by realm <em>configuration</em> rather than
+by conditional application logic — and application logic is where such rules silently regress. A
+regression here would mean a platform admin authenticating at the customer assurance level unnoticed
+(T17). Separate realms also mean separate signing keys and session state, so compromising the
+customer realm grants nothing in the privileged realm (B7).</p>
+<p><strong>Consequences — bad:</strong> Staff who are also customers hold two identities. Two realm configurations
+to maintain and keep in sync. Two recovery procedures.</p>
+<p><strong>Alternatives rejected:</strong> One realm with roles and conditional flows (rejected: assurance becomes
+application logic). Three or more realms per customer tier (rejected: operational cost without a
+corresponding threat).</p>
+<hr>
+<h3 id="adr-003-aaguid-allowlist-and-cross-platform-attachment-for-privileged-enrolment">ADR-003 — AAGUID allowlist and cross-platform attachment for privileged enrolment</h3>
+<p><strong>Status:</strong> Accepted — <strong>VERIFIED by Spike #3</strong> against Keycloak 26.8.0
+(<a href="lab-results.html">results</a>). Enforcement is real, not aspirational.</p>
+<p><strong>Context:</strong> A synced passkey is phishing-resistant but moves the trust root from the device to the
+user&rsquo;s cloud account. NIST SP 800-63Bsup1 exists precisely because syncable authenticators change the
+assurance calculus. Privileged users must not be reachable via a synced credential.</p>
+<p><strong>Decision:</strong> On <code>attest-privileged</code>, set <code>authenticatorAttachment: cross-platform</code>,
+<code>attestationConveyancePreference: direct</code>, and a non-empty <strong><code>acceptableAaguids</code></strong> allowlist of
+approved hardware authenticators. Synced platform passkeys <strong>cannot be registered</strong>.</p>
+<p><strong>Consequences — good:</strong> Enforcement at registration rather than inference after the fact. It also
+makes passkey-only sign-in a defensible claim of genuine multi-factor authentication for privileged
+users: possession of the hardware authenticator <em>plus</em> user verification. Combining attachment and
+AAGUID is stronger than either alone — attachment alone admits some non-hardware cross-platform
+authenticators, and AAGUID alone would require enumerating every model we reject.</p>
+<p><strong>Consequences — bad:</strong> <strong>Allowlist maintenance is an operational duty.</strong> New hardware models have
+new AAGUIDs; an unmaintained allowlist locks users out, and an allowlist &ldquo;fixed&rdquo; under pressure with
+a wildcard silently voids the control. Staff must carry a security key. We also trust Keycloak&rsquo;s
+enforcement and the authenticator&rsquo;s attestation statement rather than independently validating FIDO
+metadata — a plausible future enhancement, but out of scope, and the assurance claim must not imply
+it.</p>
+<p><strong>Alternatives rejected:</strong> Synced passkeys for everyone (rejected: weakens the highest-value accounts
+to the level of a consumer cloud account). Device-bound for all users (rejected: unacceptable UX and
+support cost for customers). <strong>Fallback if Spike #3 fails:</strong> fall back to attachment restriction and
+document the weakened claim — or, better, treat a failed allowlist as a blocker rather than shipping
+a privileged-access claim resting on a control that does not enforce.</p>
+<hr>
+<h3 id="adr-004-no-custom-token-issuing-broker-a-thin-dpop-verifying-authorizer-at-the-api">ADR-004 — No custom token-issuing broker; a thin DPoP Verifying Authorizer at the API</h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> Under Cognito we had to issue our own DPoP-bound tokens. Keycloak issues bound tokens
+natively, which raises the question of whether any custom component remains.</p>
+<p><strong>Decision:</strong> Let Keycloak issue and bind tokens. Build a <strong>narrow API Gateway Lambda authorizer</strong>
+that verifies DPoP proofs on requests to <strong>our</strong> API, and nothing else.</p>
+<p><strong>Consequences — good:</strong> The largest and riskiest component of the original plan (the Session
+Broker) is largely eliminated. What remains is small, well-specified, testable, and — critically —
+<strong>not novel cryptography</strong>: verification of an existing RFC, with libraries available. Removed
+entirely: token issuance, session storage, refresh rotation, nonce management, and key distribution.</p>
+<p><strong>Consequences — bad:</strong> A subtle and serious failure mode is now available: <strong>believing Keycloak&rsquo;s
+DPoP support secures our API.</strong> Keycloak verifies proofs at <em>its own</em> token endpoint and is not in
+the request path for our API. Without resource-server verification, our API accepts a stolen token
+that merely <em>advertises</em> a binding nobody checks — worse than no DPoP, because it creates false
+confidence. This is risk R2 and the reason Phase 2 exists as an explicit deliverable with a replay
+test (S3).</p>
+<p><strong>Alternatives rejected:</strong> Rely on Keycloak&rsquo;s DPoP alone (rejected: verifies nothing about our API&rsquo;s
+requests). Keep the full Session Broker anyway (rejected: reimplements a solved problem and keeps the
+risk for no benefit). Token introspection per request instead of DPoP (rejected as a <em>substitute</em>:
+introspection proves the token is live, not that the caller holds the key; it remains useful for
+revocation).</p>
+<hr>
+<h3 id="adr-005-retain-amazon-verified-permissions-cedar-reject-keycloak-authorization-services">ADR-005 — Retain Amazon Verified Permissions (Cedar); reject Keycloak Authorization Services</h3>
+<p><strong>Status:</strong> Accepted, <strong>pending Spike #2</strong></p>
+<p><strong>Context:</strong> With Keycloak in place, its built-in Authorization Services (UMA 2.0) become an option,
+raising the question of whether to consolidate on one system.</p>
+<p><strong>Decision:</strong> Keep Cedar policies in Amazon Verified Permissions. Do not adopt Keycloak
+Authorization Services.</p>
+<p><strong>Consequences — good:</strong> Cedar was designed for formal analysis, which is what a tenant-isolation
+boundary deserves. We retain policies-as-code, a CI coverage gate, and an auditable decision log.
+Most importantly, <strong>the PDP is decoupled from the IdP</strong>, so a future identity migration does not
+rewrite authorization — a lesson that just paid off once already.</p>
+<p><strong>Consequences — bad:</strong> A second system to operate and authenticate against. <code>IsAuthorizedWithToken</code>
+may not accept Keycloak tokens (Spike #2), requiring an explicit-principal call path. Slightly more
+integration glue than a consolidated IdP-plus-authorization stack.</p>
+<p><strong>Alternatives rejected:</strong> Keycloak Authorization Services (rejected: UMA 2.0 is widely regarded as
+clunky, and its policy model is weaker for per-resource tenant isolation — the one thing we cannot
+get wrong). OpenFGA (rejected for now: genuinely attractive and portable, but adds a new PDP to learn
+and operate without a compelling advantage over a working Cedar design).</p>
+<hr>
+<h3 id="adr-006-tenant-isolation-as-a-fail-closed-forbid-with-tenant-id-sourced-only-from-the-token">ADR-006 — Tenant isolation as a fail-closed <code>forbid</code>, with tenant ID sourced only from the token</h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> Cross-tenant access (A1) is the catastrophic outcome. A single policy error must not be
+sufficient to cause it.</p>
+<p><strong>Decision:</strong> Two rules. (1) A Cedar <code>forbid</code> on tenant mismatch, which cannot be overridden by any
+<code>permit</code>. (2) The tenant ID is read <strong>only</strong> from cryptographically verified token claims, never from
+request input.</p>
+<p><strong>Consequences — good:</strong> Fails closed by construction. A future developer cannot accidentally open the
+boundary by adding a broad <code>permit</code> — <code>forbid</code> always wins in Cedar. Rule (2) eliminates the whole
+class of &ldquo;IDOR by trusting a parameter&rdquo;.</p>
+<p><strong>Consequences — bad:</strong> Legitimate administrative cross-tenant flows require an explicit audited
+action rather than falling out of a general permit. Intentional friction.</p>
+<p><strong>Alternatives rejected:</strong> Tenant isolation as a <code>when</code> clause on each <code>permit</code> (rejected: one
+careless new policy reopens the boundary). Row-level security in the data layer only (rejected: S5
+requires two independent layers).</p>
+<hr>
+<h3 id="adr-007-native-keycloak-passkeys-with-conditional-ui-no-custom-ceremony">ADR-007 — Native Keycloak passkeys with conditional UI; no custom ceremony</h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> Passkeys can be driven through Keycloak&rsquo;s built-in flows or implemented against the
+<code>USER_AUTH</code>-equivalent surface with a custom UI.</p>
+<p><strong>Decision:</strong> Use Keycloak&rsquo;s native passkeys with both <strong>conditional UI</strong> (autofill) and <strong>modal UI</strong>,
+and rely on the built-in <strong>&ldquo;Conditional - credential&rdquo;</strong> authenticator to skip a second factor when a
+passkey was the primary credential.</p>
+<p><strong>Consequences — good:</strong> No browser-flow changes are required, and the subtle AAL logic — including
+the case where the user authenticated with a password instead — is owned by the IdP rather than by
+us. Hand-rolling a WebAuthn ceremony is the classic way to introduce a relying-party-validation bug
+that silently degrades phishing resistance while appearing to work. Both UI modes supported maximises
+compatibility: conditional UI for modern password managers, modal UI for hardware keys requiring a
+PIN or touch.</p>
+<p><strong>Consequences — bad:</strong> Less control over branding and layout. Stock login screens are recommended
+anyway (custom themes carry real upgrade cost and are a non-goal).</p>
+<p><strong>Alternatives rejected:</strong> Custom passkey UI (rejected: reimplements a ceremony we would have to
+maintain across Keycloak upgrades). Conditional UI only (rejected: hardware keys need the modal
+path).</p>
+<hr>
+<h3 id="adr-008-single-dynamodb-table-with-a-tenant-partition-key-pool-model">ADR-008 — Single DynamoDB table with a tenant partition key (pool model)</h3>
+<p><strong>Status:</strong> Accepted — unchanged from the original plan</p>
+<p><strong>Context:</strong> Tenant isolation can be siloed (per-tenant tables/stacks) or pooled (shared tables with
+tenant-keyed access).</p>
+<p><strong>Decision:</strong> Pooled — a single table with <code>tenant_id</code> in the partition key, isolation enforced by
+Cedar and the data-access layer.</p>
+<p><strong>Consequences — good:</strong> Operationally tractable at scale. Onboarding a tenant is a data operation,
+not an infrastructure deployment. Cost scales with usage rather than tenant count.</p>
+<p><strong>Consequences — bad:</strong> Isolation is a <strong>logical</strong> boundary enforced by code and policy, not a
+physical one. There is no infrastructure-level guarantee that a bug cannot cross tenants. This makes
+ADR-006&rsquo;s two rules and the L4 test suite load-bearing rather than belt-and-braces.</p>
+<p><strong>Alternatives rejected:</strong> Silo per tenant (rejected for now: strong isolation, operationally and
+financially painful at hundreds of tenants). <strong>Revisit trigger:</strong> a contractual requirement for
+physical isolation — then silo the highest-value tenants individually while the rest stay pooled.</p>
+<hr>
+<h3 id="adr-009-aws-management-plane-uses-iam-identity-center-entirely-outside-keycloak">ADR-009 — AWS management plane uses IAM Identity Center, entirely outside Keycloak</h3>
+<p><strong>Status:</strong> Accepted — unchanged from the original plan, and now more important</p>
+<p><strong>Context:</strong> The AWS account is the true crown jewel — it contains all tenants&rsquo; data and, now, the
+Keycloak deployment itself. Keycloak governs access to <em>Attest&rsquo;s application</em>; it does not govern
+access to <em>AWS</em>.</p>
+<p><strong>Decision:</strong> Human AWS access via IAM Identity Center with FIDO2 security keys and no password
+fallback. Programmatic access via OIDC role assumption. No IAM users, no long-lived keys.</p>
+<p><strong>Consequences — good:</strong> The crown jewel is protected by a control independent of our own IdP. There
+is no path from a compromised Attest session — <strong>or a compromised Keycloak</strong> — to AWS infrastructure.
+This separation now also limits the blast radius of T15.</p>
+<p><strong>Consequences — bad:</strong> Two identity systems to operate and explain. Staff need security keys for
+both. Break-glass must be provisioned and tested separately.</p>
+<p><strong>Note:</strong> Conflating these planes is a serious architectural error — &ldquo;we have passkeys, so our
+infrastructure is protected&rdquo; is false, and it is now false in a more dangerous way, because a
+compromised Keycloak would otherwise be a path to the AWS account.</p>
+<hr>
+<h3 id="adr-010-self-host-keycloak-on-ecs-fargate-rds-postgres-multi-az">ADR-010 — Self-host Keycloak on ECS Fargate + RDS Postgres Multi-AZ</h3>
+<p><strong>Status:</strong> Accepted, with a documented fallback</p>
+<p><strong>Context:</strong> Keycloak can be self-hosted (ECS, EKS, EC2), consumed as a managed service (Phase Two,
+Cloud-IAM, Skycloak), or deployed on-premises.</p>
+<p><strong>Decision:</strong> Self-host on <strong>ECS Fargate + RDS Postgres Multi-AZ + ALB</strong>, with RDS Proxy, secrets in
+Secrets Manager, and tasks in private subnets behind an ALB security group.</p>
+<p><strong>Consequences — good:</strong> Everything stays in one AWS account and one IaC codebase. No per-MAU cost —
+cost is fixed and predictable. Full control over version, extensions, and tuning. Avoids introducing
+Kubernetes purely to run one stateful service.</p>
+<p><strong>Consequences — bad:</strong> <strong>We own HA, backups, DR, and CVE patching</strong> (T15, T16). Fargate has no
+Kubernetes DNS, so Keycloak&rsquo;s Infinispan clustering needs a JDBC-based discovery stack (Spike #7) —
+this is a real, non-obvious operational detail. ALB idle timeouts and reverse-proxy configuration
+must be right or issuer URLs break confusingly. RDS is a single point of failure if Multi-AZ
+failover is untested.</p>
+<p><strong>Alternatives rejected:</strong> Managed Keycloak (rejected <strong>for now</strong>: recurring cost, and the
+reference-implementation goal favours a self-contained deployment — <strong>but this is the documented
+escape hatch</strong>). EKS (rejected: adds significant platform surface to run one service). On-premises
+(rejected: no requirement, and it would add a second operating environment).</p>
+<p><strong>Revisit trigger:</strong> inability to meet the 48-hour patch SLA (S11), or sustained IdP operational
+incidents → migrate to managed Keycloak. Because Keycloak is a standard OIDC provider and realm
+config is declarative (ADR-011), this migration is tractable: point the clients at a new issuer,
+import the realm, and re-register passkeys. Passkey re-registration is the painful part and should be
+factored into any migration estimate.</p>
+<hr>
+<h3 id="adr-011-realm-configuration-as-code-applied-by-ci">ADR-011 — Realm configuration as code, applied by CI</h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> Keycloak realm configuration (realms, clients, WebAuthn policies, flows, required
+actions, AAGUID allowlist, DPoP flags) can be managed via the Admin Console, the Admin REST API, or
+declaratively.</p>
+<p><strong>Decision:</strong> All realm configuration is declarative and applied by <strong>keycloak-config-cli</strong> in CI.
+Console-only changes are prohibited (S12, threat T17).</p>
+<p><strong>Consequences — good:</strong> The environment is reproducible from an empty realm. Configuration changes
+are reviewable, diffable, and revertible. <strong>It substantially reduces the admin-API attack surface</strong>,
+because no human has routine administrative need (B9, T15). It enables the CI regression guards that
+keep S1 and ADR-003 from silently regressing.</p>
+<p><strong>Consequences — bad:</strong> A learning curve, and some settings are awkward to express declaratively. It
+requires discipline: one console click breaks the guarantee. It also introduces a bootstrap ordering
+problem — CI needs admin credentials to configure the realm it is hardening, so those credentials
+must be tightly scoped and rotated.</p>
+<p><strong>Alternatives rejected:</strong> Admin Console only (rejected: unreproducible, and the most likely route to
+T17). Keycloak Terraform provider (a reasonable alternative — Terraform is already installed locally
+— at the cost of running two IaC tools alongside CDK). Realm export/import snapshots in git
+(rejected: coarse, not diff-friendly, poor at incremental change).</p>
+<hr>
+<h3 id="adr-012-replace-managed-threat-protection-with-custom-authenticators-and-native-events">ADR-012 — Replace managed threat protection with custom authenticators and native events</h3>
+<p><strong>Status:</strong> Accepted</p>
+<p><strong>Context:</strong> Cognito&rsquo;s Plus tier provided breached-credential blocking and risk-based adaptive
+authentication as managed features. Keycloak provides <strong>neither</strong> as an official capability. This is
+the principal capability lost by the OSS switch.</p>
+<p><strong>Decision:</strong> Build the substitute:
+1. <strong>Breached-password check</strong> via a custom Authenticator SPI at registration and password change
+2. <strong>Risk-based step-up</strong> via a custom Conditional authenticator that consults our Risk service and
+   forces an elevated <code>acr</code> or denies
+3. <strong>Native brute-force detection</strong>, enabled and tuned strictly
+4. <strong>Keycloak events</strong> shipped to CloudWatch/EventBridge for detection rules</p>
+<p><strong>Consequences — good:</strong> Java SPI work is real but bounded, and it is <em>our</em> policy rather than a
+vendor&rsquo;s opaque scoring — we can see and tune exactly why a login was challenged. Keycloak&rsquo;s event
+system exposes <strong>more</strong> raw authentication detail than Cognito&rsquo;s managed threat protection did, so
+detection can end up genuinely better.</p>
+<p><strong>Consequences — bad:</strong> This is the main <strong>added build cost</strong> of the OSS route, and it lands in
+Phase 4 — precisely when teams are running out of momentum. Custom SPIs must be compatibility-checked
+on every upgrade (R6). Our risk scoring will initially be worse than a mature managed engine, and it
+must be treated as a security-critical component with its own review and tests, not as application
+code.</p>
+<p><strong>Alternatives rejected:</strong> Accept the loss and rely on brute-force detection alone (rejected: leaves
+T2-adjacent risk signals unaddressed for the customer realm, which still has passwords). Buy a
+third-party risk engine (deferred: plausible once scale justifies it; the SPI boundary keeps that
+option open, which is itself an argument for building the integration behind an interface).</p>
+<hr>
+</section>
+<section id="part-2-open-questions-requiring-a-human-decision"><h2>Part 2 — Open questions requiring a human decision</h2>
+<p>These are not research tasks. They need a stakeholder decision, and several affect cost or scope.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Question</th>
+<th>Why it matters</th>
+<th>Default if unanswered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1</td>
+<td>Which AWS region(s), and is data residency (EU/UK) required?</td>
+<td>Determines RDS, AVP, and data topology. Retrofitting residency is expensive, and self-hosted Keycloak makes it <em>easier</em> than a managed IdP would</td>
+<td>Single region, <code>us-east-1</code></td>
+</tr>
+<tr>
+<td>Q2</td>
+<td>Must customers federate their own SAML/OIDC IdP?</td>
+<td>Now nearly free with Keycloak — a genuine benefit of the switch. Changes the principal model</td>
+<td>No federation in v1, but design for it</td>
+</tr>
+<tr>
+<td>Q3</td>
+<td>Is device-bound required for <strong>all</strong> users, or only privileged?</td>
+<td>Large UX and support-cost difference; follows ADR-003</td>
+<td>Privileged only</td>
+</tr>
+<tr>
+<td>Q4</td>
+<td>Is a formal AAL2/AAL3 claim needed for procurement, or is &ldquo;phishing-resistant MFA&rdquo; sufficient?</td>
+<td>Determines how hard Spike #6 must be pushed</td>
+<td>Phishing-resistant MFA as the claim</td>
+</tr>
+<tr>
+<td>Q5</td>
+<td>Target MAU at 12 and 36 months?</td>
+<td>Needed to answer the break-even question against Cognito&rsquo;s per-MAU pricing</td>
+<td>Unknown — cost comparison unmodelled</td>
+</tr>
+<tr>
+<td>Q6</td>
+<td>Do human users need non-browser access (CLI, scripts)?</td>
+<td>DPoP in a CLI is a different key-storage problem</td>
+<td>Browser only</td>
+</tr>
+<tr>
+<td>Q7</td>
+<td>Who performs identity proofing for a locked-out external auditor?</td>
+<td>Recovery is the most likely bypass (T8); auditors have no HR relationship with us</td>
+<td>Tenant admin vouches, Attest verifies</td>
+</tr>
+<tr>
+<td>Q8</td>
+<td>Is platform-admin impersonation required at all?</td>
+<td>Highest-risk feature in the product</td>
+<td>Not in v1</td>
+</tr>
+<tr>
+<td><strong>Q9</strong></td>
+<td>~~Can the team commit to a 48-hour critical-CVE patch SLA (S11) and a rehearsed DR drill cadence?~~</td>
+<td><strong>DECIDED — self-hosting is the chosen path.</strong> The 48-hour patch SLA (S11) and a rehearsed DR cadence are therefore accepted as <strong>standing commitments</strong>, not open questions</td>
+<td><strong>Settled</strong></td>
+</tr>
+<tr>
+<td><strong>Q10</strong></td>
+<td><strong>Who owns Keycloak operations day to day (upgrades, backups, incidents)?</strong></td>
+<td>Still open. This is the last thing standing between the plan and an unpatched, undocumented authentication service</td>
+<td><strong>Must be named before go-live</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Q9 is settled: we self-host Keycloak.</strong> That resolves the architecture — ADR-010 stands, and the
+managed-service fallback is retained only as a documented escape hatch, not as a live alternative.</p>
+<p>It also converts S11 from an aspiration into a standing commitment. A critical advisory must be
+deployable within 48 hours, which means the upgrade path has to be <strong>rehearsed</strong>, not merely written
+down; an untested patch procedure is a hope. <strong>Q10 is now the only operational question left</strong>, and it
+matters because a commitment with no owner is not a commitment — it is an intention that decays
+silently under the first week of pressure.</p>
+<hr>
+</section>
+<section id="part-3-verification-spikes"><h2>Part 3 — Verification spikes</h2>
+<p><strong>These are unknown-unknowns, not implementation details.</strong> Each must be tested before the design is
+frozen. If a spike fails, an ADR changes.</p>
+<blockquote>
+<p><strong>Prerequisite:</strong> <code>aws login</code> (credentials are expired), Docker running, and a local Keycloak
+container for spikes #3, #5, and #8.</p>
+</blockquote>
+<h3 id="dissolved-since-the-previous-revision">Dissolved since the previous revision</h3>
+<p><strong>~~Cognito feature-plan matrix and pricing (#7)~~ — DISSOLVED.</strong> Keycloak has no feature tiers,
+so the question &ldquo;which plan enables passkeys / threat protection, and at what per-MAU price?&rdquo;
+no longer exists. The cost question is now a hosting-capacity question (PLAN §11) rather than a
+tier-selection one. This is a genuine simplification of the plan.</p>
+<hr>
+<h3 id="spike-1-dpop-end-to-end-issuance-verification-and-header-survival-local-half-resolved">Spike #1 — DPoP end-to-end: issuance, verification, and header survival — <strong>LOCAL HALF RESOLVED</strong></h3>
+<p><strong>Result: the binding is real, it is enforced, and the verification logic is prototyped and tested.</strong>
+Full write-up in <a href="lab-results-dpop.html">SPIKE-1-RESULTS.md</a>.</p>
+<p>Established against Keycloak 26.8.0, using its own userinfo endpoint as a reference resource server:</p>
+<ul>
+<li>Keycloak writes <code>cnf.jkt</code> (plus a <code>kc-jkt-type: DPoP</code> marker) into bound tokens.</li>
+<li><strong>6/6 enforcement behaviours correct</strong>: no proof → 401; <code>Bearer</code> scheme → 401; valid proof → 200;
+  different key → 401; different path → 401; replayed <code>jti</code> → 401.</li>
+<li><strong>6/6 checks in our own verifier correct</strong>, including refusing a proof minted for a different token.</li>
+</ul>
+<p>Three implementation traps found, all of which would cost real debugging time:</p>
+<ol>
+<li><strong>A bound token must use the <code>DPoP</code> authorization scheme, not <code>Bearer</code>.</strong> The failure returns a
+   <code>Bearer</code> challenge, pointing the investigation at the wrong layer entirely.</li>
+<li><strong>A resource-server proof must carry the <code>ath</code> claim</strong> (RFC 9449 §7.1). Omitting it yields
+   <code>invalid_token: Token verification failed</code>, a message that mentions DPoP nowhere. Checking <code>ath</code>
+   also closes a real gap: without it, a proof for one token would authorise another.</li>
+<li><strong>Keycloak ignores the query string when comparing <code>htu</code></strong> <em>(observation)</em> — a proof for
+   <code>…/userinfo?decoy=1</code> was accepted at <code>…/userinfo</code>. Our authorizer compares the full URI, which is
+   deliberately stricter.</li>
+</ol>
+<p><strong>Still open:</strong> whether the <code>DPoP</code> header survives CloudFront → ALB → API Gateway. That needs
+infrastructure, and a hop that strips it would break the binding silently — the exact trap this spike
+exists to prevent. Browser-side key handling (Spike #4) and nonce behaviour are also unverified.</p>
+<p><strong>Effort spent:</strong> ~1 day.</p>
+<hr>
+<h3 id="spike-2-does-avp-accept-keycloak-issued-tokens">Spike #2 — Does AVP accept Keycloak-issued tokens?</h3>
+<p><strong>Question:</strong> Will <code>IsAuthorizedWithToken</code> accept a <strong>Keycloak</strong> access/identity token, or must we use
+<code>IsAuthorized</code> with an explicit principal built from verified claims?</p>
+<p><strong>Why it matters:</strong> Determines the whole Phase 3 integration shape, including how dynamic context
+(<code>acr</code>, <code>step_up_age_seconds</code>, posture) reaches policy. This question existed in the Cognito plan and
+remains unanswered — the issuer changed, not the uncertainty.</p>
+<p><strong>How to test:</strong> Create a policy store and a trivial schema. Register Keycloak as a supported OIDC
+issuer and attempt <code>IsAuthorizedWithToken</code> with a real Keycloak token. Then implement the
+<code>IsAuthorized</code> path with an explicit principal and confirm attributes flow into <code>context</code> and
+<code>principal</code>.</p>
+<p><strong>If it fails:</strong> Use <code>IsAuthorized</code> with explicit principal and context — slightly more glue, no
+change to the Cedar model. Note this is the <em>likely</em> outcome given our custom DPoP verification sits
+in front.</p>
+<p><strong>Effort:</strong> 1 day. <strong>Blocks:</strong> Phase 3.</p>
+<hr>
+<h3 id="spike-3-aaguid-allowlist-enforcement-semantics-resolved">Spike #3 — AAGUID allowlist enforcement semantics — <strong>RESOLVED</strong></h3>
+<p><strong>Result: the control is genuinely enforced, and <code>direct</code> attestation is what makes it meaningful.</strong>
+Full matrix and method in <a href="lab-results.html">SPIKE-3-RESULTS.md</a>.</p>
+<p>Established, in a controlled matrix with two controls:</p>
+<ul>
+<li>The <strong>allowlist is enforced at enrolment</strong> — a non-approved authenticator is rejected (B vs C).</li>
+<li>The <strong>attachment restriction is enforced</strong> (D vs E).</li>
+<li><strong>An authenticator that declines to attest is rejected</strong>, not silently admitted — its all-zeros
+  AAGUID does not match. This <strong>disproves</strong> the silent-bypass risk previously recorded in T3.</li>
+<li><strong>Keycloak exposes the AAGUID</strong>, nested in <code>credentialData</code> — unlike Cognito, which exposed nothing.</li>
+<li><strong>Keycloak does not validate AAGUID format</strong> (<code>"not-a-guid"</code> stored verbatim) → S12&rsquo;s CI gate must
+  validate it.</li>
+</ul>
+<p><strong>Unplanned and more important:</strong> with <code>attestationConveyancePreference: "none"</code>, the AAGUID is
+<strong>self-asserted</strong> (no attestation statement exists to verify it), so an allowlist under <code>none</code> is
+weaker than it appears. Isolating the variable showed <code>direct</code> alone blocks enrolment for
+non-attesting authenticators — an active requirement, not a preference. <strong>Decision: keep <code>direct</code>
+on <code>attest-privileged</code></strong>; it is the only configuration where the allowlist means what ADR-003 claims.</p>
+<p><strong>Residual:</strong> the acceptance path with a <em>physical</em> allowlisted key remains unproven, because a
+virtual authenticator cannot attest. A hardware security key is still required to confirm the happy
+path. Known failure mode is lockout, not bypass.</p>
+<p><strong>Effort spent:</strong> ~half a day.</p>
+<hr>
+<h3 id="spike-4-browser-persistence-of-non-extractable-dpop-keys">Spike #4 — Browser persistence of non-extractable DPoP keys</h3>
+<p><strong>Question:</strong> Do non-extractable <code>CryptoKey</code> objects reliably survive in IndexedDB across browser
+restarts in Safari, Chrome, and Firefox?</p>
+<p><strong>Why it matters:</strong> If key persistence is unreliable, users are signed out or forced to re-register a
+key every session, and DPoP becomes a UX tax rather than a control. Safari&rsquo;s storage eviction policy
+(7-day cap on script-writable storage in some contexts) is the specific concern.</p>
+<p><strong>How to test:</strong> Minimal page: generate a non-extractable P-256 key, store it in IndexedDB, restart
+the browser, sign a proof. Test current Safari, Chrome, and Firefox on macOS, plus Chrome on Windows.
+Test after clearing site data, in private mode, and after several days of inactivity in Safari.</p>
+<p><strong>If it fails:</strong> Define an explicit degraded mode — shorter session TTLs, stricter posture, more
+frequent re-authentication — and document it. <strong>Do not</strong> silently fall back to unbound tokens, which
+would quietly remove the S3 control while appearing to work.</p>
+<p><strong>Effort:</strong> 1 day. <strong>Blocks:</strong> Phase 2.</p>
+<hr>
+<h3 id="spike-5-acr-step-up-forces-a-fresh-assertion">Spike #5 — ACR step-up forces a fresh assertion</h3>
+<p><strong>Question:</strong> Does requesting an elevated <code>acr_values</code> genuinely force a <strong>fresh passkey assertion</strong>,
+or is the existing session accepted as already sufficient?</p>
+<p><strong>Why it matters:</strong> If the existing session satisfies the elevated ACR, step-up is a UI gesture and
+elevation is not cryptographically meaningful — the same concern that made this an open question
+under Cognito. It now has a better answer available (IdP-issued <code>acr</code>), but only if Keycloak actually
+re-prompts.</p>
+<p><strong>How to test:</strong> Configure ACR → LoA mapping with two levels. Sign in at the base level, then request
+the elevated level with <code>acr_values</code>. Observe whether Keycloak re-prompts for a passkey or returns
+immediately. Confirm the resulting token&rsquo;s <code>acr</code> claim differs, and confirm the behaviour is the same
+in the privileged realm.</p>
+<p><strong>If it fails:</strong> Step-up becomes a full re-authentication (log out and back in) — stronger but
+slower. The UX consequence must be accepted explicitly rather than discovered in Phase 4.</p>
+<p><strong>Effort:</strong> 1 day. <strong>Blocks:</strong> Phase 4.</p>
+<hr>
+<h3 id="spike-6-nist-sp-800-63bsup1-exact-consequence-for-our-configuration">Spike #6 — NIST SP 800-63Bsup1: exact consequence for our configuration</h3>
+<p><strong>Question:</strong> What does <a href="https://www.nist.gov/publications/incorporating-syncable-authenticators-nist-sp-800-63b">SP 800-63Bsup1</a>
+require for a synced passkey used as a first factor, and does our <code>userVerification</code> setting change
+the answer? Specifically: is passkey-only sign-in on the <strong>privileged</strong> realm (device-bound +
+<code>userVerification: required</code>) defensible as multi-factor?</p>
+<p><strong>Why it matters:</strong> Determines whether we may claim AAL2 for standard users on synced passkeys, and
+whether the privileged realm&rsquo;s passwordless design is defensible (Q4). This is the difference between
+a compliance claim we can support and one we cannot.</p>
+<p><strong>How to test:</strong> Read the supplement against the current SP 800-63B-4 text; trace the clauses
+governing syncable authenticators and user verification; map them to our exact configuration. <strong>Then
+have the conclusion reviewed by someone independent</strong> — a compliance or security reviewer, not the
+person who wrote the analysis.</p>
+<p><strong>If it constrains us:</strong> Either add a second factor for standard users on synced passkeys, or narrow
+the public claim to &ldquo;phishing-resistant MFA&rdquo; without an AAL assertion. The privileged realm&rsquo;s
+device-bound + UV configuration is the stronger position and should survive either way — which is
+precisely why ADR-003 is worth the operational cost.</p>
+<p><strong>Effort:</strong> 0.5 day reading + 0.5 day independent review. <strong>Blocks:</strong> any compliance claim; not
+implementation.</p>
+<hr>
+<h3 id="spike-7-keycloak-clustering-and-session-replication-on-ecs-fargate">Spike #7 — Keycloak clustering and session replication on ECS Fargate</h3>
+<p><strong>Question:</strong> Can two or more Keycloak tasks form a working cluster on Fargate, given there is no
+Kubernetes DNS for discovery? Does a JDBC-based ping stack work, and do sessions survive a task
+replacement?</p>
+<p><strong>Why it matters:</strong> A single-task Keycloak is not a viable production target — it is a
+single point of failure for all authentication. If clustering cannot be made to work on Fargate, the
+hosting decision (ADR-010) changes. This is a <strong>new</strong> risk created by the self-hosting choice and it
+has no analogue in the Cognito plan.</p>
+<p><strong>How to test:</strong> Deploy two Fargate tasks with a JDBC-based cache/discovery stack against RDS.
+Verify: both nodes appear in the cluster; a session created on node A is usable on node B; killing
+node A does not log users out; ALB health checks correctly drain an unhealthy node. Test with and
+without ALB stickiness.</p>
+<p><strong>If it fails:</strong> Options include ALB sticky sessions (masks rather than solves), a shared external
+cache, or revisiting the hosting decision toward managed Keycloak or EKS.</p>
+<p><strong>Effort:</strong> 1–1.5 days. <strong>Blocks:</strong> Phase 0/1. Must be resolved before Phase 1.</p>
+<hr>
+<h3 id="spike-8-revocation-latency-under-60-seconds">Spike #8 — Revocation latency under 60 seconds</h3>
+<p><strong>Question:</strong> Does the Keycloak event listener → EventBridge → DynamoDB revocation-set path deliver
+end-to-end revocation in under 60 seconds, including cache TTLs?</p>
+<p><strong>Why it matters:</strong> Success criterion S6. Our authorizer validates JWTs statelessly, so without this
+path, revocation is invisible to our API until the token expires. The read-through cache TTL
+silently becomes the real revocation SLA, and caches tend to drift upward over time.</p>
+<p><strong>How to test:</strong> Implement a minimal event listener publishing logout/revocation events. Revoke a
+session via the Keycloak admin API. Measure the time until a request with the revoked token is
+denied by the authorizer, including cache behaviour. Test both the user-wide and single-session
+revocation paths, and confirm the DPoP-failure alert path fires.</p>
+<p><strong>If it fails:</strong> Reduce cache TTL, switch to token introspection with a short cache for privileged
+sessions, or accept and document a higher-than-60-second figure — but do not leave the actual number
+unmeasured, because it will be assumed to be fast.</p>
+<p><strong>Effort:</strong> 1 day. <strong>Blocks:</strong> Phase 2.</p>
+<hr>
+</section>
+<section id="part-4-spike-summary"><h2>Part 4 — Spike summary</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Spike</th>
+<th>Blocks</th>
+<th>Effort</th>
+<th>If it fails</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>DPoP end-to-end + header survival + issuer</td>
+<td>~~Phase 2~~ <strong>part done</strong></td>
+<td>~1 d</td>
+<td><strong>LOCAL HALF RESOLVED.</strong> Still open: whether the <code>DPoP</code> header survives the edge</td>
+</tr>
+<tr>
+<td>2</td>
+<td>AVP accepts Keycloak tokens</td>
+<td>Phase 3</td>
+<td>1 d</td>
+<td>Use <code>IsAuthorized</code> with explicit principal</td>
+</tr>
+<tr>
+<td>3</td>
+<td>AAGUID allowlist enforcement</td>
+<td>~~Phase 1~~ <strong>DONE</strong></td>
+<td>~0.5 d</td>
+<td><strong>RESOLVED — enforced.</strong> Residual: physical-key happy path unproven</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Browser key persistence</td>
+<td>Phase 2</td>
+<td>1 d</td>
+<td>Documented degraded mode, shorter TTLs</td>
+</tr>
+<tr>
+<td>5</td>
+<td>ACR step-up forces fresh assertion</td>
+<td>Phase 4</td>
+<td>1 d</td>
+<td>Full re-authentication instead of elevation</td>
+</tr>
+<tr>
+<td>6</td>
+<td>NIST sup1 consequence</td>
+<td>Compliance claim</td>
+<td>1 d</td>
+<td>Second factor, or narrower public claim</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Keycloak clustering on Fargate</td>
+<td>Phase 0/1</td>
+<td>1–1.5 d</td>
+<td>Stickiness, external cache, or revisit hosting</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Revocation latency &lt; 60s</td>
+<td>Phase 2</td>
+<td>1 d</td>
+<td>Shorter cache, introspection, or documented higher figure</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Total: ~8–9 focused days.</strong> Cheap relative to discovering any of these in production — and note
+that three of the eight (#1, #7, #8) exist <em>because</em> we chose to self-host.</p>
+<p><strong>Highest priority: #1, #7, and #3.</strong> #1 and #7 are cheap to test and have severe failure modes
+(silently broken binding; a single-point-of-failure IdP). #3 is the control the privileged-access
+claim rests on.</p>
+<p><strong>Dissolved:</strong> the previous revision&rsquo;s #7 (Cognito feature-plan matrix and pricing) — Keycloak has no
+tiers.</p>
+<hr>
+</section>
+<section id="part-5-what-i-could-not-verify"><h2>Part 5 — What I could not verify</h2>
+<p>Stated explicitly so no one mistakes an assumption for a fact.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Claim in this plan</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DPoP is officially supported in Keycloak 26.4+</td>
+<td><strong>Verified</strong> — <a href="https://www.keycloak.org/2025/10/dpop-support-26-4">Keycloak announcement</a>; was preview since 23.0</td>
+</tr>
+<tr>
+<td>Passkeys are GA in Keycloak 26.4 with conditional + modal UI</td>
+<td><strong>Verified</strong> — <a href="https://www.keycloak.org/2025/09/passkeys-support-26-4">Keycloak announcement</a></td>
+</tr>
+<tr>
+<td>A <strong>&ldquo;Conditional - credential&rdquo;</strong> authenticator skips 2FA when a passkey was used</td>
+<td><strong>Verified</strong> — stated in the 26.4 passkey announcement</td>
+</tr>
+<tr>
+<td>Keycloak realms support an <strong>acceptable-AAGUID list</strong></td>
+<td><strong>Verified in the provider API surface</strong> (a realm exposes &ldquo;a set of AAGUIDs for which an authenticator can be registered&rdquo;). <strong>Enforcement semantics unverified — Spike #3</strong></td>
+</tr>
+<tr>
+<td>Keycloak supports ACR → LoA mapping for step-up</td>
+<td><strong>Verified as a documented server-administration capability</strong>; whether it forces a <em>fresh</em> assertion is <strong>Spike #5</strong></td>
+</tr>
+<tr>
+<td>WebAuthn policy exposes attachment, user verification, and attestation conveyance</td>
+<td><strong>Verified as the documented policy surface</strong>; exact key names confirmed in Phase 0</td>
+</tr>
+<tr>
+<td>Keycloak has no official risk-based adaptive authentication equivalent to Cognito Plus</td>
+<td><strong>Verified by absence</strong> — no official feature found. Treated as a capability gap and mitigated by ADR-012</td>
+</tr>
+<tr>
+<td>Keycloak clustering on Fargate works via a JDBC ping stack</td>
+<td><strong>Unknown — Spike #7.</strong> Keycloak&rsquo;s cache configuration changed across 26.x releases</td>
+</tr>
+<tr>
+<td>Keycloak revocation events reach our API in &lt; 60s</td>
+<td><strong>Unknown — Spike #8</strong></td>
+</tr>
+<tr>
+<td>AVP accepts Keycloak-issued tokens</td>
+<td><strong>Unknown — Spike #2</strong></td>
+</tr>
+<tr>
+<td>Browser non-extractable key persistence across all three engines</td>
+<td><strong>Unknown — Spike #4</strong></td>
+</tr>
+<tr>
+<td>NIST AAL2 conclusion for synced vs device-bound passkeys</td>
+<td><strong>Not verified — Spike #6</strong></td>
+</tr>
+<tr>
+<td>Exact Keycloak env var and config key names, cluster sizing, and ECS task counts</td>
+<td><strong>Not verified.</strong> Presented conceptually; confirmed in Phase 0</td>
+</tr>
+<tr>
+<td>All cost figures</td>
+<td><strong>Not verified.</strong> PLAN §11 is a driver structure only. No hosting or Cognito figures were obtained</td>
+</tr>
+</tbody>
+</table></div></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="threat-model.html"><span>Previous</span><b>Threat model</b></a><a class="pn next" href="lab-results.html"><span>Next</span><b>Lab results: hardware keys</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

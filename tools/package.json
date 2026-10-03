@@ -1,0 +1,14 @@
+{
+  "name": "attest-docs-tools",
+  "private": true,
+  "type": "module",
+  "description": "Build-time helpers for the documentation site. Never shipped to readers.",
+  "scripts": {
+    "diagrams": "node render_diagrams.mjs",
+    "shoot": "node shoot.mjs"
+  },
+  "dependencies": {
+    "mermaid": "^12.1.0",
+    "puppeteer-core": "^25.12.0"
+  }
+}

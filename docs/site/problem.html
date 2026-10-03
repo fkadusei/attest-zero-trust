@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The problem it removes — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Why passwords fail, and why most multi-factor authentication does not fix it." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html" class="current">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#passwords-fail-in-one-predictable-way">Passwords fail in one predictable way</a></li>
+<li><a href="#adding-a-code-was-supposed-to-fix-this-it-does-not">Adding a code was supposed to fix this. It does not.</a></li>
+<li><a href="#what-actually-stops-it">What actually stops it</a></li>
+<li><a href="#the-comparison">The comparison</a></li>
+<li><a href="#where-attackers-go-instead">Where attackers go instead</a></li>
+<li><a href="#why-this-matters-specifically-for-attest">Why this matters specifically for Attest</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Guide</span><span>/</span><b>The problem it removes</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>The problem it removes</h1>
+        <p class="blurb">Why passwords fail, and why most multi-factor authentication does not fix it.</p>
+      </header>
+      <section id="overview"><p>Every control in this system exists because of a specific failure. This page explains those
+failures, because a control whose purpose you cannot state is a control you will eventually remove.</p></section>
+<section id="passwords-fail-in-one-predictable-way"><h2>Passwords fail in one predictable way</h2>
+<p>A password is a secret you type into a page. That single fact creates everything that follows:</p>
+<ul>
+<li>People reuse them, so a breach anywhere becomes a breach here.</li>
+<li>They leak in bulk, and attackers try them everywhere at once.</li>
+<li>Most importantly: <strong>a page can ask you for one, and you cannot tell whether the page is real.</strong></li>
+</ul>
+<p>A convincing copy of a login screen collects the password, and the attacker simply logs in. No
+cryptography has been broken. The login worked exactly as designed, for the wrong person.</p>
+</section>
+<section id="adding-a-code-was-supposed-to-fix-this-it-does-not"><h2>Adding a code was supposed to fix this. It does not.</h2>
+<p>The obvious fix is a second factor: something you have, as well as something you know. A one-time
+code from an app or a text message. This does stop a stale password from a breach being useful on
+its own, which is real progress.</p>
+<p>But it does not stop a <strong>live relay</strong>, usually called an <em>adversary-in-the-middle</em> attack, or AiTM.</p>
+<p>Here is the shape of it:</p>
+<ol>
+<li>The victim receives a link to a convincing copy of the real sign-in page.</li>
+<li>That copy is not a static fake. It is a proxy. It forwards everything to the real site, live.</li>
+<li>The real site asks for a one-time code. The victim types it into the fake page.</li>
+<li>The proxy relays the code instantly, and the real site accepts it.</li>
+<li>The attacker now holds a fully authenticated session.</li>
+</ol>
+<p><strong>The victim&rsquo;s multi-factor authentication worked perfectly throughout.</strong> Nothing was bypassed.
+Nothing was broken. The code was simply carried from one place to another by the attacker, exactly
+as the victim intended it to be carried — just to the wrong destination.</p>
+<p>This is not a theoretical attack. Kits that do this are sold commercially as a service.</p>
+<div class="admonition danger">
+<p class="admonition-title">The uncomfortable conclusion</p>
+<p>Anything the user can be persuaded to <em>tell</em> the attacker will eventually be told to the
+attacker. Codes, approvals, and passwords all share that property. Security that depends on a
+person noticing a fake address is security that fails on a bad day.</p>
+</div>
+</section>
+<section id="what-actually-stops-it"><h2>What actually stops it</h2>
+<p>A <strong>passkey</strong> — a credential based on public-key cryptography — stops it, and it stops it for a
+structural reason rather than because users got better at spotting fakes.</p>
+<p>A passkey is not a better password. It is a <strong>key pair</strong>:</p>
+<ul>
+<li>The <strong>private half</strong> is generated on your device and never leaves it. It is not sent to the server,
+  not stored in a backup we control, and not typed anywhere.</li>
+<li>The <strong>public half</strong> is given to the website, where it is useless for impersonating you.</li>
+<li>When you sign in, the device signs a fresh random challenge — and critically, the data it signs
+  includes <strong>the address of the site that asked</strong>.</li>
+</ul>
+<p>That last point is the whole trick. A proxy pretending to be <code>attest.example.com</code> is not at
+<code>attest.example.com</code>. The device either refuses to produce a signature for the wrong address, or
+produces one that covers the wrong address, which the real site rejects. <strong>There is no reusable
+secret to relay, so there is nothing to phish.</strong></p>
+<div class="admonition info">
+<p class="admonition-title">The phrase to remember</p>
+<p>This property is called being <strong>phishing-resistant</strong>, and it is a specific technical claim, not a
+compliment. It means the method survives a user being successfully tricked. Of the common
+authentication methods, only passkeys and hardware security keys qualify.</p>
+</div>
+</section>
+<section id="the-comparison"><h2>The comparison</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Sign-in method</th>
+<th>Stops a copied password?</th>
+<th>Stops a live relay?</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Password alone</td>
+<td><strong>No</strong></td>
+<td><strong>No</strong></td>
+<td>The secret is typed into whatever page asks for it</td>
+</tr>
+<tr>
+<td>Password + SMS code</td>
+<td>Partly</td>
+<td><strong>No</strong></td>
+<td>The code is relayed in real time; SMS can also be intercepted</td>
+</tr>
+<tr>
+<td>Password + authenticator app</td>
+<td>Partly</td>
+<td><strong>No</strong></td>
+<td>Exactly as relayable as SMS</td>
+</tr>
+<tr>
+<td>Password + push approval</td>
+<td>Partly</td>
+<td><strong>No</strong></td>
+<td>The relay triggers a genuine prompt, which the victim approves</td>
+</tr>
+<tr>
+<td>One-time code with number matching</td>
+<td>Partly</td>
+<td><strong>No</strong></td>
+<td>Better, but still a value the user can be persuaded to hand over</td>
+</tr>
+<tr>
+<td><strong>Passkey</strong></td>
+<td><strong>Yes</strong></td>
+<td><strong>Yes</strong></td>
+<td>The signature is bound to the real site&rsquo;s address</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="where-attackers-go-instead"><h2>Where attackers go instead</h2>
+<p>Making sign-in unphishable does not end the attack. It moves it.</p>
+<p>The usual next target is <strong>account recovery</strong>. If &ldquo;I have lost my phone, email me a link&rdquo; ends with
+someone logged in, then the strongest credential in the world protected nothing. The attacker does
+not break the lock; they use the door marked <em>reset</em>.</p>
+<div class="admonition danger">
+<p class="admonition-title">The most likely way this system is broken in practice</p>
+<p>Not a clever attack on the cryptography, and not a flaw in the passkey standard. A recovery
+process that quietly reintroduces everything the passkey removed. This is why it has
+<a href="recovery.html">its own page</a> rather than a bullet point.</p>
+</div>
+</section>
+<section id="why-this-matters-specifically-for-attest"><h2>Why this matters specifically for Attest</h2>
+<p>The threat is not abstract for a compliance product, for three reasons.</p>
+<p><strong>The data is concentrated.</strong> A compliance platform holds evidence about how every customer&rsquo;s
+business operates — the internal detail companies are most careful about. One breach is a breach of
+every customer at once.</p>
+<p><strong>There is a natural third party.</strong> External auditors have legitimate access, hold real credentials,
+and sit outside the customer&rsquo;s management. They are both authorised and untrusted, which is exactly
+the situation Zero Trust exists for.</p>
+<p><strong>The audit trail is a product feature.</strong> Customers ask who could see their data and when. A system
+that cannot answer that convincingly is not sellable, regardless of how strong its cryptography is.</p>
+<p>That combination is why the next page is about architecture rather than about a login screen.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="index.html"><span>Previous</span><b>Start here</b></a><a class="pn next" href="zero-trust.html"><span>Next</span><b>The big picture</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

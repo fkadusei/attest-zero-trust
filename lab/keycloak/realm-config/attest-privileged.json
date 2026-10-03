@@ -1,0 +1,13 @@
+{
+  "realm": "attest-privileged",
+  "enabled": true,
+  "displayName": "Attest Admin",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 900,
+  "ssoSessionMaxLifespan": 14400
+}

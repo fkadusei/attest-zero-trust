@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture and plan — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Phases, acceptance criteria, cost drivers and the risk register." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html" class="current">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-thesis">1. Thesis</a></li>
+<li class="lvl3"><a href="#11-the-findings-that-shape-the-design">1.1 The findings that shape the design</a></li>
+<li class="lvl3"><a href="#12-what-changed-from-the-cognito-plan">1.2 What changed from the Cognito plan</a></li>
+<li><a href="#2-what-we-are-building">2. What we are building</a></li>
+<li class="lvl3"><a href="#21-tenants-roles-and-why-each-role-exists">2.1 Tenants, roles, and why each role exists</a></li>
+<li class="lvl3"><a href="#22-assets-worth-protecting">2.2 Assets worth protecting</a></li>
+<li class="lvl3"><a href="#23-functional-surface-deliberately-thin">2.3 Functional surface (deliberately thin)</a></li>
+<li><a href="#3-what-done-means">3. What “done” means</a></li>
+<li><a href="#4-reference-architecture">4. Reference architecture</a></li>
+<li class="lvl3"><a href="#41-component-view">4.1 Component view</a></li>
+<li class="lvl3"><a href="#42-trust-boundaries">4.2 Trust boundaries</a></li>
+<li class="lvl3"><a href="#43-pdp-pep-separation">4.3 PDP / PEP separation</a></li>
+<li class="lvl3"><a href="#44-request-lifecycle">4.4 Request lifecycle</a></li>
+<li><a href="#5-the-identity-plane-summary">5. The identity plane (summary)</a></li>
+<li><a href="#6-the-authorization-plane-summary">6. The authorization plane (summary)</a></li>
+<li><a href="#7-continuous-verification-and-device-posture">7. Continuous verification and device posture</a></li>
+<li class="lvl3"><a href="#71-replacing-managed-threat-protection-new-workstream">7.1 Replacing managed threat protection (new workstream)</a></li>
+<li><a href="#8-microsegmentation-and-workload-identity">8. Microsegmentation and workload identity</a></li>
+<li><a href="#9-phased-delivery">9. Phased delivery</a></li>
+<li class="lvl3"><a href="#phase-0-foundations">Phase 0 — Foundations</a></li>
+<li class="lvl3"><a href="#phase-1-passwordless-identity">Phase 1 — Passwordless identity</a></li>
+<li class="lvl3"><a href="#phase-2-dpop-verification-at-our-api">Phase 2 — DPoP verification at our API</a></li>
+<li class="lvl3"><a href="#phase-3-fine-grained-authorization">Phase 3 — Fine-grained authorization</a></li>
+<li class="lvl3"><a href="#phase-4-continuous-verification-and-risk">Phase 4 — Continuous verification and risk</a></li>
+<li class="lvl3"><a href="#phase-5-segmentation-and-workload-identity">Phase 5 — Segmentation and workload identity</a></li>
+<li class="lvl3"><a href="#phase-6-assurance-and-operations">Phase 6 — Assurance and operations</a></li>
+<li><a href="#10-non-goals">10. Non-goals</a></li>
+<li><a href="#11-cost-model">11. Cost model</a></li>
+<li><a href="#12-risk-register">12. Risk register</a></li>
+<li><a href="#13-compliance-mapping">13. Compliance mapping</a></li>
+<li><a href="#14-immediate-next-actions">14. Immediate next actions</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Architecture and plan</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Architecture and plan</h1>
+        <p class="blurb">Phases, acceptance criteria, cost drivers and the risk register.</p>
+      </header>
+      <section id="overview"><p><strong>Master plan.</strong> Companion documents: <a href="identity.html">identity-and-passkeys.md</a>,
+<a href="authorization.html">authorization-and-sessions.md</a>, <a href="threat-model.html">threat-model.md</a>,
+<a href="adr.html">decisions.md</a>.</p>
+<blockquote>
+<p><strong>Revision note:</strong> this plan originally targeted Amazon Cognito. It now targets a self-hosted
+<strong>Keycloak</strong> identity plane. Section 1.2 records what changed and why, and
+<a href="adr.html">decisions.md</a> ADR-001 supersedes the original identity decision.</p>
+</blockquote>
+<hr></section>
+<section id="1-thesis"><h2>1. Thesis</h2>
+<p>Most &ldquo;Zero Trust&rdquo; projects fail in one of two ways. Either they reduce to <em>&ldquo;we turned on MFA&rdquo;</em> —
+which is not Zero Trust, it is 2004 with a better phone — or they attempt the full NIST SP 800-207
+programme at once and stall at 20% without a single control in production.</p>
+<p>This plan takes a third route: <strong>build a real application whose data model makes Zero Trust
+necessary, then implement Zero Trust as a sequence of independently shippable, independently
+testable phases.</strong> Each phase ends with a pass/fail test. No phase depends on a later phase for its
+security value.</p>
+<p>The identity foundation is passwordless FIDO2/WebAuthn via self-hosted Keycloak. That is the
+strongest single control available, but Section 3 is explicit that it is roughly 30% of the work.
+The rest is what actually stops lateral movement after a credential is compromised.</p>
+<h3 id="11-the-findings-that-shape-the-design">1.1 The findings that shape the design</h3>
+<p>These came from verifying the Keycloak, AWS, and NIST documentation rather than assuming it, and
+they are the non-obvious content of this plan:</p>
+<p><strong>(a) DPoP is officially supported in Keycloak 26.4+, which removes the biggest piece of custom
+code.</strong> DPoP binds a token to a client-held key so a stolen token is useless without the private
+key. Keycloak supported it as a preview from 23.0 and made it official in 26.4
+(<a href="https://www.keycloak.org/2025/10/dpop-support-26-4">Keycloak</a>), including binding refresh tokens
+and the <code>dpop_jkt</code> authorization-request parameter.</p>
+<p><strong>But the custom component does not vanish — it shrinks and moves.</strong> Keycloak verifies the DPoP
+proof at <em>its own</em> token endpoint and issues the bound token. Keycloak is <strong>not in the request path
+for our API</strong>, so our resource server must still verify the DPoP proof on every call. What goes away
+is token issuance, session storage, refresh rotation, and nonce management. What remains is a
+focused <strong>DPoP Verifying Authorizer</strong> (Section 4.4). Stating this precisely matters, because &ldquo;the IdP
+handles DPoP&rdquo; is a common and dangerous misreading that would leave our API accepting bound tokens
+without ever checking the binding.</p>
+<p><strong>(b) Keycloak realms support an acceptable-AAGUID list — the capability Cognito lacks.</strong> Keycloak&rsquo;s
+WebAuthn policies expose <code>Acceptable AAGUIDs</code> alongside <code>Authenticator Attachment</code>, <code>User
+Verification Requirement</code>, and <code>Attestation Conveyance Preference</code>. This means device-bound
+authenticator enforcement for privileged users can be <strong>enforced at registration</strong> rather than
+approximated after the fact. Under Cognito this was an unverified heuristic (it exposed only
+<code>AuthenticatorAttachment</code> and <code>AuthenticatorTransports</code>, never the AAGUID); under Keycloak it becomes
+a real control. This is a <strong>security upgrade, not just a simplification</strong>, and it is the single
+strongest argument for the switch.</p>
+<p><strong>(c) Passkeys are GA in Keycloak 26.4, with the AAL logic we want already built in.</strong> Passkeys are
+supported with both conditional and modal UI, require no changes to the default browser flow, and
+ship with a <strong>&ldquo;Conditional - credential&rdquo;</strong> authenticator that skips a second factor when a passkey
+was used as the primary credential (<a href="https://www.keycloak.org/2025/09/passkeys-support-26-4">Keycloak</a>).
+That is the correct treatment of a passkey as inherently multi-factor, implemented by the IdP rather
+than by us.</p>
+<p><strong>(d) The cost of going OSS is operational, not financial.</strong> Cognito&rsquo;s <strong>Plus</strong> tier provided
+breached-credential blocking and risk-based adaptive authentication as managed features. <strong>Keycloak
+has no official equivalent risk engine.</strong> We must replace it with Keycloak&rsquo;s built-in brute-force
+detection plus a custom risk authenticator (Section 7.1, ADR-012). We also become responsible for
+high availability, Postgres backups, disaster recovery, and prompt CVE patching of an
+internet-facing authentication service. This is the real price of the switch and it is a
+recurring engineering commitment, not a one-off setup cost.</p>
+<h3 id="12-what-changed-from-the-cognito-plan">1.2 What changed from the Cognito plan</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Cognito plan</th>
+<th>Keycloak plan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token binding</td>
+<td>Absent; custom Session Broker issued our own DPoP-bound tokens (largest risk, R2)</td>
+<td><strong>Native DPoP</strong>; a thin DPoP Verifying Authorizer remains at our API</td>
+</tr>
+<tr>
+<td>Device-bound enforcement</td>
+<td>Approximate heuristic on <code>AuthenticatorAttachment</code>/<code>Transports</code>; AAGUID unavailable</td>
+<td><strong>AAGUID allowlist enforced at registration</strong></td>
+</tr>
+<tr>
+<td>Passkeys</td>
+<td>Paid tier; managed login v2 only</td>
+<td>GA, conditional + modal UI, no tier gating</td>
+</tr>
+<tr>
+<td>Step-up</td>
+<td>Cryptographic verifiability was an open question</td>
+<td><strong>ACR → Level of Authentication mapping</strong></td>
+</tr>
+<tr>
+<td>Risk-based adaptive auth</td>
+<td>Managed (Plus tier)</td>
+<td><strong>Lost</strong> — must be built (ADR-012)</td>
+</tr>
+<tr>
+<td>Cost shape</td>
+<td>Per-MAU, scales with users</td>
+<td>Fixed compute + RDS, <strong>independent of MAU</strong></td>
+</tr>
+<tr>
+<td>Operational burden</td>
+<td>AWS-operated</td>
+<td><strong>We operate the IdP</strong></td>
+</tr>
+<tr>
+<td>Identity isolation unit</td>
+<td>User pool</td>
+<td>Realm</td>
+</tr>
+</tbody>
+</table></div>
+<p>Two further consequences worth noting: realms give us the same isolation as separate user pools
+(separate signing keys, separate user stores, separate WebAuthn policies), and Keycloak&rsquo;s federation
+support makes customer SAML/OIDC federation (open question Q2 in the previous revision) nearly free
+rather than a project.</p>
+<hr>
+</section>
+<section id="2-what-we-are-building"><h2>2. What we are building</h2>
+<h3 id="21-tenants-roles-and-why-each-role-exists">2.1 Tenants, roles, and why each role exists</h3>
+<p>Every role below exists because it creates a distinct authorization problem. Roles that do not
+change the access decision were deliberately not invented.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Scope</th>
+<th>Why it is interesting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Platform Admin</strong></td>
+<td>All tenants (Attest staff)</td>
+<td>Highest privilege. Cross-tenant by job function. Requires hardware-key-only auth and break-glass.</td>
+</tr>
+<tr>
+<td><strong>Tenant Admin</strong></td>
+<td>One tenant</td>
+<td>Manages users, billing, integrations. Can grant access — a privilege-escalation surface.</td>
+</tr>
+<tr>
+<td><strong>Contributor</strong></td>
+<td>Assigned engagements</td>
+<td>Day-to-day user. Writes evidence.</td>
+</tr>
+<tr>
+<td><strong>Auditor</strong></td>
+<td>One engagement, read-only, time-boxed</td>
+<td><strong>External third party.</strong> Classic Zero Trust case: no VPN, no network trust, least privilege, expires automatically.</td>
+</tr>
+<tr>
+<td><strong>Service identity</strong></td>
+<td>Specific API surface</td>
+<td>CI/CD, integrations, background jobs. Non-human. No interactive login.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="22-assets-worth-protecting">2.2 Assets worth protecting</h3>
+<p>Ordered by what an attacker actually wants:</p>
+<ol>
+<li><strong>Cross-tenant data</strong> — the catastrophic failure. One tenant reading another&rsquo;s evidence is a
+   company-ending event for a compliance vendor.</li>
+<li><strong>Platform admin capability</strong> — the path to (1) at scale.</li>
+<li><strong>Auditor access tokens</strong> — externally held credentials, weakest physical control, ideal
+   initial-access vector into a customer&rsquo;s data.</li>
+<li><strong>Evidence integrity</strong> — evidence that can be silently altered is worthless as a compliance
+   artifact. Tamper-evidence is a product feature, not just a security control.</li>
+<li><strong>Audit trail</strong> — under &ldquo;assume breach&rdquo;, the audit log is the <em>only</em> thing that tells you what
+   happened. It is also the thing attackers target first.</li>
+<li><strong>The identity provider itself</strong> <em>(new under Keycloak)</em> — it holds every credential and mints
+   every token. Compromise of the IdP is compromise of everything, and it did not exist as an asset
+   when AWS ran the IdP for us.</li>
+</ol>
+<h3 id="23-functional-surface-deliberately-thin">2.3 Functional surface (deliberately thin)</h3>
+<p>The application needs enough substance to exercise real authorization, and no more:</p>
+<ul>
+<li>Tenant-scoped CRUD over <strong>controls</strong>, <strong>evidence artifacts</strong>, and <strong>engagements</strong></li>
+<li>Evidence upload/download via pre-signed S3 URLs (never proxied through Lambda)</li>
+<li>Engagement lifecycle: create → invite auditor → auditor works → engagement closes and access
+  <strong>automatically expires</strong></li>
+<li>Tenant admin console: user management, role assignment, access review export</li>
+<li>Platform admin console: tenant lifecycle, break-glass, impersonation <strong>with consent and audit</strong></li>
+<li>Immutable audit log with tenant-visible views</li>
+</ul>
+<p><strong>Deliberately absent:</strong> billing depth, reporting/BI, notifications beyond email, mobile apps.
+These add surface area without adding security signal.</p>
+<hr>
+</section>
+<section id="3-what-done-means"><h2>3. What &ldquo;done&rdquo; means</h2>
+<p>Zero Trust is not binary, and &ldquo;we are Zero Trust&rdquo; is not a testable claim. The project is done when
+these are all true. Each maps to a phase in Section 9.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Success criterion</th>
+<th>Verified by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1</td>
+<td>No password exists anywhere in the privileged realm, and passkey sign-in is the only interactive path for platform admins</td>
+<td>Realm config assertion in CI + manual auth attempt</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>Sign-in resists an adversary-in-the-middle phishing proxy</td>
+<td>Evilginx-class proxy test against our real login flow; must fail to obtain a usable session</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>A stolen access token is <strong>not</strong> usable from a different client</td>
+<td>Replay a captured token without the DPoP private key; must be rejected</td>
+</tr>
+<tr>
+<td>S4</td>
+<td>Every API request is authorized by policy, not by network position or by the mere presence of a valid token</td>
+<td>Cedar policy coverage test: every route has a policy; unauthenticated-by-policy route fails CI</td>
+</tr>
+<tr>
+<td>S5</td>
+<td>Cross-tenant access is blocked by at least two independent layers</td>
+<td>IDOR/BOLA test suite attempting cross-tenant reads with a valid token from another tenant</td>
+</tr>
+<tr>
+<td>S6</td>
+<td>Revocation takes effect in <strong>under 60 seconds</strong> and does not require waiting for token expiry</td>
+<td>Automated test: revoke session → next request denied</td>
+</tr>
+<tr>
+<td>S7</td>
+<td>Auditor access expires automatically at engagement close with no manual step</td>
+<td>Time-travel test on engagement close</td>
+</tr>
+<tr>
+<td>S8</td>
+<td>Every authentication and authorization decision is recorded in a tamper-evident log</td>
+<td>Log integrity check; S3 Object Lock verified</td>
+</tr>
+<tr>
+<td>S9</td>
+<td>No long-lived AWS credentials exist anywhere in the system</td>
+<td><code>cdk-nag</code> + IAM credential report; CI uses OIDC</td>
+</tr>
+<tr>
+<td>S10</td>
+<td>The deployment is reproducible from an empty account by one command</td>
+<td><code>cdk deploy</code> to a clean account in CI</td>
+</tr>
+<tr>
+<td>S11</td>
+<td><em>(new)</em> No Keycloak instance runs a version with an unpatched critical CVE, and a patch is deployable in <strong>under 48 hours</strong></td>
+<td>Documented upgrade runbook, rehearsed at least once; version pinning verified</td>
+</tr>
+<tr>
+<td>S12</td>
+<td><em>(new)</em> IdP configuration is fully declarative and reproducible — no console-only changes</td>
+<td>CI applies realm config to an empty realm and the resulting export matches expectations</td>
+</tr>
+</tbody>
+</table></div>
+<p>S2, S3, S5, and S6 are the criteria that separate this from a normal MFA rollout. If schedule
+pressure forces cuts, cut features (Section 2.3), never these. <strong>S11 and S12 are the criteria that
+make the self-hosted IdP survivable</strong> — without them, &ldquo;we self-host Keycloak&rdquo; becomes &ldquo;we run an
+unpatched, undocumented authentication service&rdquo;, which is worse than any of Cognito&rsquo;s limitations.</p>
+<hr>
+</section>
+<section id="4-reference-architecture"><h2>4. Reference architecture</h2>
+<h3 id="41-component-view">4.1 Component view</h3>
+<figure class="diagram"><div class="dg dg-dark"><svg id="d-flowchart-tb-ecca36f8-dark" width="100%" xmlns="http://www.w3.org/2000/svg" class="flowchart" style="max-width: 699.67919921875px;" viewBox="4 4 699.67919921875 2282" role="graphics-document document" aria-roledescription="flowchart-v2"><style>#d-flowchart-tb-ecca36f8-dark{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;fill:#c3cedd;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#d-flowchart-tb-ecca36f8-dark .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#d-flowchart-tb-ecca36f8-dark .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#d-flowchart-tb-ecca36f8-dark .error-icon{fill:#0f2624;}#d-flowchart-tb-ecca36f8-dark .error-text{fill:#f0d9db;stroke:#f0d9db;}#d-flowchart-tb-ecca36f8-dark .edge-thickness-normal{stroke-width:1px;}#d-flowchart-tb-ecca36f8-dark .edge-thickness-thick{stroke-width:3.5px;}#d-flowchart-tb-ecca36f8-dark .edge-pattern-solid{stroke-dasharray:0;}#d-flowchart-tb-ecca36f8-dark .edge-thickness-invisible{stroke-width:0;fill:none;}#d-flowchart-tb-ecca36f8-dark .edge-pattern-dashed{stroke-dasharray:3;}#d-flowchart-tb-ecca36f8-dark .edge-pattern-dotted{stroke-dasharray:2;}#d-flowchart-tb-ecca36f8-dark .marker{fill:#4a5a75;stroke:#4a5a75;}#d-flowchart-tb-ecca36f8-dark .marker.cross{stroke:#4a5a75;}#d-flowchart-tb-ecca36f8-dark svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;}#d-flowchart-tb-ecca36f8-dark p{margin:0;}#d-flowchart-tb-ecca36f8-dark .label{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;color:#c3cedd;}#d-flowchart-tb-ecca36f8-dark .cluster-label text{fill:#e8eef7;}#d-flowchart-tb-ecca36f8-dark .cluster-label span{color:#e8eef7;}#d-flowchart-tb-ecca36f8-dark .cluster-label span p{background-color:transparent;}#d-flowchart-tb-ecca36f8-dark .label text,#d-flowchart-tb-ecca36f8-dark span{fill:#c3cedd;color:#c3cedd;}#d-flowchart-tb-ecca36f8-dark .node rect,#d-flowchart-tb-ecca36f8-dark .node circle,#d-flowchart-tb-ecca36f8-dark .node ellipse,#d-flowchart-tb-ecca36f8-dark .node polygon,#d-flowchart-tb-ecca36f8-dark .node path{fill:#16233c;stroke:#2f4770;stroke-width:1px;}#d-flowchart-tb-ecca36f8-dark .rough-node .label text,#d-flowchart-tb-ecca36f8-dark .node .label text,#d-flowchart-tb-ecca36f8-dark .image-shape .label,#d-flowchart-tb-ecca36f8-dark .icon-shape .label{text-anchor:middle;}#d-flowchart-tb-ecca36f8-dark .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#d-flowchart-tb-ecca36f8-dark .rough-node .label,#d-flowchart-tb-ecca36f8-dark .node .label,#d-flowchart-tb-ecca36f8-dark .image-shape .label,#d-flowchart-tb-ecca36f8-dark .icon-shape .label{text-align:center;}#d-flowchart-tb-ecca36f8-dark .node.clickable{cursor:pointer;}#d-flowchart-tb-ecca36f8-dark .root .anchor path{fill:#4a5a75!important;stroke-width:0;stroke:#4a5a75;}#d-flowchart-tb-ecca36f8-dark .arrowheadPath{fill:rgba(255, 255, 255, 0);}#d-flowchart-tb-ecca36f8-dark .edgePaths .path{stroke:#4a5a75;stroke-width:1px;}#d-flowchart-tb-ecca36f8-dark .flowchart-link{stroke:#4a5a75;fill:none;}#d-flowchart-tb-ecca36f8-dark .edgeLabel{background-color:#131a24;text-align:center;}#d-flowchart-tb-ecca36f8-dark .edgeLabel p{background-color:#131a24;}#d-flowchart-tb-ecca36f8-dark .edgeLabel rect{opacity:0.5;background-color:#131a24;fill:#131a24;}#d-flowchart-tb-ecca36f8-dark .labelBkg{background-color:rgba(19, 26, 36, 0.5);}#d-flowchart-tb-ecca36f8-dark .cluster rect{fill:#0e131c;stroke:#24304a;stroke-width:1px;}#d-flowchart-tb-ecca36f8-dark .cluster text{fill:#e8eef7;}#d-flowchart-tb-ecca36f8-dark .cluster span{color:#e8eef7;}#d-flowchart-tb-ecca36f8-dark .node .collapsed-indicator{fill:#24304a;stroke:none;opacity:0.6;}#d-flowchart-tb-ecca36f8-dark .node .collapsed-separator{stroke:#24304a;stroke-width:0.75px;}#d-flowchart-tb-ecca36f8-dark div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:12px;background:#0f2624;border:1px solid hsl(174.7826086957, 3.3962264151%, 20.3921568627%);border-radius:2px;pointer-events:none;z-index:100;}#d-flowchart-tb-ecca36f8-dark .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#c3cedd;}#d-flowchart-tb-ecca36f8-dark rect.text{fill:none;stroke-width:0;}#d-flowchart-tb-ecca36f8-dark .icon-shape,#d-flowchart-tb-ecca36f8-dark .image-shape{background-color:#131a24;text-align:center;}#d-flowchart-tb-ecca36f8-dark .icon-shape p,#d-flowchart-tb-ecca36f8-dark .image-shape p{background-color:#131a24;padding:2px;}#d-flowchart-tb-ecca36f8-dark .icon-shape .label rect,#d-flowchart-tb-ecca36f8-dark .image-shape .label rect{opacity:0.5;background-color:#131a24;fill:#131a24;}#d-flowchart-tb-ecca36f8-dark .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#d-flowchart-tb-ecca36f8-dark .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#d-flowchart-tb-ecca36f8-dark .node .neo-node{stroke:#2f4770;}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node rect,#d-flowchart-tb-ecca36f8-dark [data-look="neo"].cluster rect,#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node polygon{stroke:url(#d-flowchart-tb-ecca36f8-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].swimlane.cluster rect{filter:none;}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node path{stroke:url(#d-flowchart-tb-ecca36f8-dark-gradient);stroke-width:1px;}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node .neo-line path{stroke:#2f4770;filter:none;}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node circle{stroke:url(#d-flowchart-tb-ecca36f8-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].node circle .state-start{fill:#000000;}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].icon-shape .icon{fill:url(#d-flowchart-tb-ecca36f8-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-dark [data-look="neo"].icon-shape .icon-neo path{stroke:url(#d-flowchart-tb-ecca36f8-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-dark :root{--mermaid-font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;}</style><g><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="4.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 5 L 10 10 L 10 0 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin" class="marker flowchart-v2" viewBox="0 0 11.5 14" refX="11.5" refY="7" markerUnits="userSpaceOnUse" markerWidth="10.5" markerHeight="14" orient="auto"><path d="M 0 0 L 11.5 7 L 0 14 z" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointStart-margin" class="marker flowchart-v2" viewBox="0 0 11.5 14" refX="1" refY="7" markerUnits="userSpaceOnUse" markerWidth="11.5" markerHeight="14" orient="auto"><polygon points="0,7 11.5,14 11.5,0" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></polygon></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-circleEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-circleStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-1" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-circleEnd-margin" class="marker flowchart-v2" viewBox="0 0 10 10" refY="5" refX="12.25" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-circleStart-margin" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-2" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-crossEnd" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="12" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-crossStart" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="-1" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-crossEnd-margin" class="marker cross flowchart-v2" viewBox="0 0 15 15" refX="17.7" refY="7.5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M 1,1 L 14,14 M 1,14 L 14,1" class="arrowMarkerPath" style="stroke-width: 2.5;"></path></marker><marker id="d-flowchart-tb-ecca36f8-dark_flowchart-v2-crossStart-margin" class="marker cross flowchart-v2" viewBox="0 0 15 15" refX="-3.5" refY="7.5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M 1,1 L 14,14 M 1,14 L 14,1" class="arrowMarkerPath" style="stroke-width: 2.5; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"><g class="cluster " id="d-flowchart-tb-ecca36f8-dark-Ops" data-look="neo"><rect style="" x="381.6791666666667" y="2107" width="200" height="171"></rect><g class="cluster-label " transform="translate(443.8822916666667, 2107)"><foreignObject width="75.59375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Assurance</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-dark-Data" data-look="neo"><rect style="" x="91.67916666666667" y="1672" width="402" height="375"></rect><g class="cluster-label " transform="translate(207.28854166666667, 1672)"><foreignObject width="170.78125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Data plane - segmented</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-dark-Decision" data-look="neo"><rect style="" x="91.67916666666667" y="1261" width="604" height="351"></rect><g class="cluster-label " transform="translate(341.2026041666667, 1261)"><foreignObject width="104.953125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Decision plane</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-dark-IdP" data-look="neo"><rect style="" x="45.20000000000002" y="606" width="407.92499999999995" height="531"></rect><g class="cluster-label " transform="translate(140.209375, 606)"><foreignObject width="217.90625" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Identity plane - we operate this</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-dark-Edge" data-look="neo"><rect style="" x="149.16250000000002" y="219" width="402" height="327"></rect><g class="cluster-label " transform="translate(255.88906250000002, 219)"><foreignObject width="188.546875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Edge / Policy Enforcement</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-dark-Untrusted" data-look="neo"><rect style="" x="198.29583333333335" y="12" width="402" height="147"></rect><g class="cluster-label " transform="translate(334.37395833333335, 12)"><foreignObject width="129.84375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Untrusted network</p></span></div></foreignObject></g></g></g><g class="edges edgePaths"><path d="M298.29583333333335,135L298.29583333333335,169L298.29583333333335,181.92893218813452Q298.29583333333335,189 305.3669011451988,189L321.3580988548012,189Q328.4291666666667,189 328.4291666666667,196.07106781186548L328.4291666666667,209L328.4291666666667,266" id="d-flowchart-tb-ecca36f8-dark-L_U_CF_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 151.8050537109375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_U_CF_0" data-points="W3sieCI6Mjk4LjI5NTgzMzMzMzMzMzM1LCJ5IjoxMzV9LHsieCI6Mjk4LjI5NTgzMzMzMzMzMzM1LCJ5IjoxNjl9LHsieCI6Mjk4LjI5NTgzMzMzMzMzMzM1LCJ5IjoxODl9LHsieCI6MzI4LjQyOTE2NjY2NjY2NjcsInkiOjE4OX0seyJ4IjozMjguNDI5MTY2NjY2NjY2NywieSI6MjA5fSx7IngiOjMyOC40MjkxNjY2NjY2NjY3LCJ5IjoyNzB9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M500.29583333333335,135L500.29583333333335,169L500.29583333333335,181.92893218813452Q500.29583333333335,189 493.2247655214679,189L378.96690114519885,189Q371.89583333333337,189 371.89583333333337,196.07106781186548L371.89583333333337,209L371.8958333333333,266" id="d-flowchart-tb-ecca36f8-dark-L_AUD_CF_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 250.07171630859375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_AUD_CF_0" data-points="W3sieCI6NTAwLjI5NTgzMzMzMzMzMzM1LCJ5IjoxMzV9LHsieCI6NTAwLjI5NTgzMzMzMzMzMzM1LCJ5IjoxNjl9LHsieCI6NTAwLjI5NTgzMzMzMzMzMzM1LCJ5IjoxODl9LHsieCI6MzcxLjg5NTgzMzMzMzMzMzM3LCJ5IjoxODl9LHsieCI6MzcxLjg5NTgzMzMzMzMzMzM3LCJ5IjoyMDl9LHsieCI6MzcxLjg5NTgzMzMzMzMzMzMsInkiOjI3MH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M328.4291666666667,342L328.4291666666667,364.9289321881345Q328.4291666666667,372 321.3580988548012,372L256.2335678118655,372Q249.16250000000002,372 249.16250000000002,379.0710678118655L249.16250000000002,446" id="d-flowchart-tb-ecca36f8-dark-L_CF_ALB_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 173.93838500976562 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_CF_ALB_0" data-points="W3sieCI6MzI4LjQyOTE2NjY2NjY2NjcsInkiOjM0Mn0seyJ4IjozMjguNDI5MTY2NjY2NjY2NywieSI6MzcyfSx7IngiOjI0OS4xNjI1MDAwMDAwMDAwMiwieSI6MzcyfSx7IngiOjI0OS4xNjI1MDAwMDAwMDAwMiwieSI6NDUwfV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M371.8958333333333,342L371.8958333333333,364.9289321881345Q371.8958333333333,372 378.9669011451988,372L444.09143218813455,372Q451.1625,372 451.1625,379.0710678118655L451.1625,398" id="d-flowchart-tb-ecca36f8-dark-L_CF_APIGW_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 125.93841552734375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_CF_APIGW_0" data-points="W3sieCI6MzcxLjg5NTgzMzMzMzMzMzMsInkiOjM0Mn0seyJ4IjozNzEuODk1ODMzMzMzMzMzMywieSI6MzcyfSx7IngiOjQ1MS4xNjI1LCJ5IjozNzJ9LHsieCI6NDUxLjE2MjUsInkiOjQwMn1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M227.42916666666667,498L227.42916666666667,556L227.42916666666667,568.9289321881345Q227.42916666666667,576 220.3580988548012,576L152.2710678118655,576Q145.20000000000002,576 145.20000000000002,583.0710678118654L145.20000000000005,596L145.20000000000005,653" id="d-flowchart-tb-ecca36f8-dark-L_ALB_KC_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 227.90087890625 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_ALB_KC_0" data-points="W3sieCI6MjI3LjQyOTE2NjY2NjY2NjY3LCJ5Ijo0OTh9LHsieCI6MjI3LjQyOTE2NjY2NjY2NjY3LCJ5Ijo1NTZ9LHsieCI6MjI3LjQyOTE2NjY2NjY2NjY3LCJ5Ijo1NzZ9LHsieCI6MTQ1LjIwMDAwMDAwMDAwMDAyLCJ5Ijo1NzZ9LHsieCI6MTQ1LjIwMDAwMDAwMDAwMDA1LCJ5Ijo1OTZ9LHsieCI6MTQ1LjIwMDAwMDAwMDAwMDA1LCJ5Ijo2NTd9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M270.8958333333333,498L270.89583333333337,556L270.89583333333337,568.9289321881345Q270.89583333333337,576 277.96690114519885,576L346.0539321881345,576Q353.125,576 353.125,583.0710678118655L353.125,596L353.125,833" id="d-flowchart-tb-ecca36f8-dark-L_ALB_KCP_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 407.90087890625 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_ALB_KCP_0" data-points="W3sieCI6MjcwLjg5NTgzMzMzMzMzMzMsInkiOjQ5OH0seyJ4IjoyNzAuODk1ODMzMzMzMzMzMzcsInkiOjU1Nn0seyJ4IjoyNzAuODk1ODMzMzMzMzMzMzcsInkiOjU3Nn0seyJ4IjozNTMuMTI1LCJ5Ijo1NzZ9LHsieCI6MzUzLjEyNSwieSI6NTk2fSx7IngiOjM1My4xMjUsInkiOjgzN31d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M145.2,777L145.2,1005.05Q145.2,1011 151.15,1011L151.15,1011Q157.10000000000002,1011 157.10000000000002,1016.95L157.10000000000002,1037" id="d-flowchart-tb-ecca36f8-dark-L_KC_RDS_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 263.41644287109375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_KC_RDS_0" data-points="W3sieCI6MTQ1LjIsInkiOjc3N30seyJ4IjoxNDUuMiwieSI6MTAxMX0seyJ4IjoxNTcuMTAwMDAwMDAwMDAwMDIsInkiOjEwMTF9LHsieCI6MTU3LjEwMDAwMDAwMDAwMDAyLCJ5IjoxMDQxfV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M353.125,981L353.125,1003.9289321881345Q353.125,1011 346.0539321881345,1011L229.37106781186546,1011Q222.29999999999998,1011 222.29999999999998,1018.0710678118655L222.29999999999998,1037" id="d-flowchart-tb-ecca36f8-dark-L_KCP_RDS_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 177.49673461914062 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_KCP_RDS_0" data-points="W3sieCI6MzUzLjEyNSwieSI6OTgxfSx7IngiOjM1My4xMjUsInkiOjEwMTF9LHsieCI6MjIyLjI5OTk5OTk5OTk5OTk4LCJ5IjoxMDExfSx7IngiOjIyMi4yOTk5OTk5OTk5OTk5OCwieSI6MTA0MX1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M451.1625,522L451.1625,556L451.1625,568.9289321881345Q451.1625,576 458.2335678118655,576L466.0539321881345,576Q473.125,576 473.125,583.0710678118655L473.125,871.5L473.125,1199L473.125,1223.9289321881345Q473.125,1231 466.0539321881345,1231L400.75023447853215,1231Q393.6791666666667,1231 393.6791666666667,1238.0710678118655L393.6791666666667,1251L393.6791666666667,1308" id="d-flowchart-tb-ecca36f8-dark-L_APIGW_DPA_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 872.7516479492188 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_APIGW_DPA_0" data-points="W3sieCI6NDUxLjE2MjUsInkiOjUyMn0seyJ4Ijo0NTEuMTYyNSwieSI6NTU2fSx7IngiOjQ1MS4xNjI1LCJ5Ijo1NzZ9LHsieCI6NDczLjEyNSwieSI6NTc2fSx7IngiOjQ3My4xMjUsInkiOjg3MS41fSx7IngiOjQ3My4xMjUsInkiOjExOTl9LHsieCI6NDczLjEyNSwieSI6MTIzMX0seyJ4IjozOTMuNjc5MTY2NjY2NjY2NywieSI6MTIzMX0seyJ4IjozOTMuNjc5MTY2NjY2NjY2NywieSI6MTI1MX0seyJ4IjozOTMuNjc5MTY2NjY2NjY2NywieSI6MTMxMn1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M393.6791666666667,1384L393.6791666666667,1440" id="d-flowchart-tb-ecca36f8-dark-L_DPA_AVP_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 52 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_DPA_AVP_0" data-points="W3sieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjEzODR9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE0NDR9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M361.07916666666665,1384L361.07916666666665,1406.9289321881345Q361.07916666666665,1414 354.0080988548012,1414L220.48356781186544,1414Q213.41249999999997,1414 213.41249999999997,1421.0710678118655L213.41249999999997,1440" id="d-flowchart-tb-ecca36f8-dark-L_DPA_REVOKE_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 194.33837890625 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_DPA_REVOKE_0" data-points="W3sieCI6MzYxLjA3OTE2NjY2NjY2NjY1LCJ5IjoxMzg0fSx7IngiOjM2MS4wNzkxNjY2NjY2NjY2NSwieSI6MTQxNH0seyJ4IjoyMTMuNDEyNDk5OTk5OTk5OTcsInkiOjE0MTR9LHsieCI6MjEzLjQxMjQ5OTk5OTk5OTk3LCJ5IjoxNDQ0fV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M426.27916666666664,1384L426.27916666666664,1406.9289321881345Q426.27916666666664,1414 433.3502344785321,1414L588.6080988548013,1414Q595.6791666666667,1414 595.6791666666667,1421.0710678118655L595.6791666666667,1440" id="d-flowchart-tb-ecca36f8-dark-L_DPA_POSTURE_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 216.07168579101562 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_DPA_POSTURE_0" data-points="W3sieCI6NDI2LjI3OTE2NjY2NjY2NjY0LCJ5IjoxMzg0fSx7IngiOjQyNi4yNzkxNjY2NjY2NjY2NCwieSI6MTQxNH0seyJ4Ijo1OTUuNjc5MTY2NjY2NjY2NywieSI6MTQxNH0seyJ4Ijo1OTUuNjc5MTY2NjY2NjY2NywieSI6MTQ0NH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M393.6791666666667,1588L393.6791666666667,1622L393.6791666666667,1662L393.6791666666667,1719" id="d-flowchart-tb-ecca36f8-dark-L_AVP_LAMBDA_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 127 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_AVP_LAMBDA_0" data-points="W3sieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE1ODh9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE2MjJ9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE2NjJ9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE3MjN9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M393.6791666666667,1843L393.6791666666667,1899" id="d-flowchart-tb-ecca36f8-dark-L_LAMBDA_DDB_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 52 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_LAMBDA_DDB_0" data-points="W3sieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE4NDN9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE5MDN9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M361.07916666666665,1843L361.07916666666665,1865.9289321881345Q361.07916666666665,1873 354.0080988548012,1873L198.75023447853212,1873Q191.67916666666665,1873 191.67916666666665,1880.0710678118655L191.67916666666665,1899" id="d-flowchart-tb-ecca36f8-dark-L_LAMBDA_S3_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 216.07180786132812 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_LAMBDA_S3_0" data-points="W3sieCI6MzYxLjA3OTE2NjY2NjY2NjY1LCJ5IjoxODQzfSx7IngiOjM2MS4wNzkxNjY2NjY2NjY2NSwieSI6MTg3M30seyJ4IjoxOTEuNjc5MTY2NjY2NjY2NjUsInkiOjE4NzN9LHsieCI6MTkxLjY3OTE2NjY2NjY2NjY1LCJ5IjoxOTAzfV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M426.27916666666664,1843L426.27916666666664,1865.9289321881345Q426.27916666666664,1873 433.3502344785321,1873L474.6080988548012,1873Q481.6791666666667,1873 481.6791666666667,1880.0710678118655L481.6791666666667,2057L481.6791666666667,2097L481.6791666666667,2154" id="d-flowchart-tb-ecca36f8-dark-L_LAMBDA_AUDIT_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 357.0718078613281 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_LAMBDA_AUDIT_0" data-points="W3sieCI6NDI2LjI3OTE2NjY2NjY2NjY0LCJ5IjoxODQzfSx7IngiOjQyNi4yNzkxNjY2NjY2NjY2NCwieSI6MTg3M30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MTg3M30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MjA1N30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MjA5N30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MjE1OH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M112.59999999999997,777L112.59999999999997,799.9289321881345Q112.59999999999997,807 105.52893218813449,807L97.57106781186545,807Q90.49999999999997,807 90.49999999999997,814.0710678118654L90.5,1147L90.5,1223.9289321881345Q90.5,1231 97.57106781186548,1231L162.87476552146782,1231Q169.9458333333333,1231 169.9458333333333,1238.0710678118655L169.94583333333327,1251L169.94583333333327,1440" id="d-flowchart-tb-ecca36f8-dark-L_KC_REVOKE_0" class=" edge-thickness-normal edge-pattern-dotted edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_KC_REVOKE_0" data-points="W3sieCI6MTEyLjU5OTk5OTk5OTk5OTk3LCJ5Ijo3Nzd9LHsieCI6MTEyLjU5OTk5OTk5OTk5OTk3LCJ5Ijo4MDd9LHsieCI6OTAuNDk5OTk5OTk5OTk5OTcsInkiOjgwN30seyJ4Ijo5MC41LCJ5IjoxMTQ3fSx7IngiOjkwLjUsInkiOjEyMzF9LHsieCI6MTY5Ljk0NTgzMzMzMzMzMzMsInkiOjEyMzF9LHsieCI6MTY5Ljk0NTgzMzMzMzMzMzI3LCJ5IjoxMjUxfSx7IngiOjE2OS45NDU4MzMzMzMzMzMyNywieSI6MTQ0NH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path><path d="M189.70000000000002,1041L189.70000000000002,812.95Q189.70000000000002,807 183.75,807L183.75,807Q177.79999999999998,807 177.79999999999998,801.05L177.79999999999998,781" id="d-flowchart-tb-ecca36f8-dark-L_RDS_KC_0" class=" edge-thickness-normal edge-pattern-dotted edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_RDS_KC_0" data-points="W3sieCI6MTg5LjcwMDAwMDAwMDAwMDAyLCJ5IjoxMDQxfSx7IngiOjE4OS43MDAwMDAwMDAwMDAwMiwieSI6ODA3fSx7IngiOjE3Ny43OTk5OTk5OTk5OTk5OCwieSI6ODA3fSx7IngiOjE3Ny43OTk5OTk5OTk5OTk5OCwieSI6Nzc3fV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-dark_flowchart-v2-pointEnd-margin)"></path></g><g class="edgeLabels"><g class="edgeLabel" transform="translate(90.27343749999994, 1199)"><g class="label" data-id="L_KC_REVOKE_0" transform="translate(-78.2734375, -12)"><foreignObject width="156.546875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>events: logout, revoke</p></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(189.70000000000002, 909)"><g class="label" data-id="L_RDS_KC_0" transform="translate(-39.5625, -12)"><foreignObject width="79.125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>RDS Proxy</p></span></div></foreignObject></g></g></g><g class="nodes"><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-U-0" data-look="neo" transform="translate(298.29583333333335, 99)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>User + passkey authenticator</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-AUD-1" data-look="neo" transform="translate(500.29583333333335, 111)"><rect class="basic label-container" style="" x="-76" y="-24" width="152" height="48"></rect><g class="label" style="" transform="translate(-60, -12)"><rect></rect><foreignObject width="120" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: nowrap; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>External auditor</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-CF-2" data-look="neo" transform="translate(350.1625, 306)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>CloudFront + AWS WAF</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-ALB-3" data-look="neo" transform="translate(249.16250000000002, 474)"><rect class="basic label-container" style="" x="-76" y="-24" width="152" height="48"></rect><g class="label" style="" transform="translate(-60, -12)"><rect></rect><foreignObject width="120" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: nowrap; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>ALB + ACM TLS</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-APIGW-4" data-look="neo" transform="translate(451.1625, 462)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>API Gateway HTTP API<br/>Lambda authorizer</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-KC-5" data-look="neo" transform="translate(145.20000000000002, 717)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Keycloak 26.4+ on ECS Fargate<br/>realm: attest-users</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-KCP-6" data-look="neo" transform="translate(353.125, 909)"><rect class="basic label-container" style="" x="-76" y="-72" width="152" height="144"></rect><g class="label" style="" transform="translate(-60, -60)"><rect></rect><foreignObject width="120" height="120"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Keycloak realm: attest-privileged<br/>AAGUID allowlist, WebAuthn only</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-RDS-7" data-look="neo" transform="translate(189.70000000000002, 1077)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>RDS Postgres Multi-AZ</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-DPA-8" data-look="neo" transform="translate(393.6791666666667, 1348)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>DPoP Verifying Authorizer</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-AVP-9" data-look="neo" transform="translate(393.6791666666667, 1516)"><rect class="basic label-container" style="" x="-76" y="-72" width="152" height="144"></rect><g class="label" style="" transform="translate(-60, -60)"><rect></rect><foreignObject width="120" height="120"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Amazon Verified Permissions<br/>Cedar policies = PDP</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-POSTURE-10" data-look="neo" transform="translate(595.6791666666667, 1480)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Device Posture service</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-REVOKE-11" data-look="neo" transform="translate(191.67916666666667, 1480)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Revocation store</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-LAMBDA-12" data-look="neo" transform="translate(393.6791666666667, 1783)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Per-domain Lambdas<br/>in VPC, own security group</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-DDB-13" data-look="neo" transform="translate(393.6791666666667, 1951)"><rect class="basic label-container" style="" x="-76" y="-48" width="152" height="96"></rect><g class="label" style="" transform="translate(-60, -36)"><rect></rect><foreignObject width="120" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>DynamoDB<br/>tenant-partitioned</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-S3-14" data-look="neo" transform="translate(191.67916666666667, 1963)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>S3 evidence buckets<br/>per-tenant prefix + KMS</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-dark-flowchart-AUDIT-15" data-look="neo" transform="translate(481.6791666666667, 2206)"><rect class="basic label-container" style="" x="-76" y="-48" width="152" height="96"></rect><g class="label" style="" transform="translate(-60, -36)"><rect></rect><foreignObject width="120" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Immutable audit log<br/>S3 Object Lock</p></span></div></foreignObject></g></g></g></g></g><defs><filter id="d-flowchart-tb-ecca36f8-dark-drop-shadow" height="130%" width="130%"><feDropShadow dx="4" dy="4" stdDeviation="0" flood-opacity="0.06" flood-color="#000000"></feDropShadow></filter></defs><defs><filter id="d-flowchart-tb-ecca36f8-dark-drop-shadow-small" height="150%" width="150%"><feDropShadow dx="2" dy="2" stdDeviation="0" flood-opacity="0.06" flood-color="#000000"></feDropShadow></filter></defs><linearGradient id="d-flowchart-tb-ecca36f8-dark-gradient" gradientUnits="objectBoundingBox" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#2f4770" stop-opacity="1"></stop><stop offset="100%" stop-color="hsl(249.6, 0%, 23.9215686275%)" stop-opacity="1"></stop></linearGradient></svg>
+</div><div class="dg dg-light"><svg id="d-flowchart-tb-ecca36f8-light" width="100%" xmlns="http://www.w3.org/2000/svg" class="flowchart" style="max-width: 699.67919921875px;" viewBox="4 4 699.67919921875 2282" role="graphics-document document" aria-roledescription="flowchart-v2"><style>#d-flowchart-tb-ecca36f8-light{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;fill:#2a3a52;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#d-flowchart-tb-ecca36f8-light .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#d-flowchart-tb-ecca36f8-light .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#d-flowchart-tb-ecca36f8-light .error-icon{fill:#e6f7f4;}#d-flowchart-tb-ecca36f8-light .error-text{fill:#19080b;stroke:#19080b;}#d-flowchart-tb-ecca36f8-light .edge-thickness-normal{stroke-width:1px;}#d-flowchart-tb-ecca36f8-light .edge-thickness-thick{stroke-width:3.5px;}#d-flowchart-tb-ecca36f8-light .edge-pattern-solid{stroke-dasharray:0;}#d-flowchart-tb-ecca36f8-light .edge-thickness-invisible{stroke-width:0;fill:none;}#d-flowchart-tb-ecca36f8-light .edge-pattern-dashed{stroke-dasharray:3;}#d-flowchart-tb-ecca36f8-light .edge-pattern-dotted{stroke-dasharray:2;}#d-flowchart-tb-ecca36f8-light .marker{fill:#9aabc4;stroke:#9aabc4;}#d-flowchart-tb-ecca36f8-light .marker.cross{stroke:#9aabc4;}#d-flowchart-tb-ecca36f8-light svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;}#d-flowchart-tb-ecca36f8-light p{margin:0;}#d-flowchart-tb-ecca36f8-light .label{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;color:#2a3a52;}#d-flowchart-tb-ecca36f8-light .cluster-label text{fill:#0f1724;}#d-flowchart-tb-ecca36f8-light .cluster-label span{color:#0f1724;}#d-flowchart-tb-ecca36f8-light .cluster-label span p{background-color:transparent;}#d-flowchart-tb-ecca36f8-light .label text,#d-flowchart-tb-ecca36f8-light span{fill:#2a3a52;color:#2a3a52;}#d-flowchart-tb-ecca36f8-light .node rect,#d-flowchart-tb-ecca36f8-light .node circle,#d-flowchart-tb-ecca36f8-light .node ellipse,#d-flowchart-tb-ecca36f8-light .node polygon,#d-flowchart-tb-ecca36f8-light .node path{fill:#e8f0ff;stroke:#b9cdf3;stroke-width:1px;}#d-flowchart-tb-ecca36f8-light .rough-node .label text,#d-flowchart-tb-ecca36f8-light .node .label text,#d-flowchart-tb-ecca36f8-light .image-shape .label,#d-flowchart-tb-ecca36f8-light .icon-shape .label{text-anchor:middle;}#d-flowchart-tb-ecca36f8-light .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#d-flowchart-tb-ecca36f8-light .rough-node .label,#d-flowchart-tb-ecca36f8-light .node .label,#d-flowchart-tb-ecca36f8-light .image-shape .label,#d-flowchart-tb-ecca36f8-light .icon-shape .label{text-align:center;}#d-flowchart-tb-ecca36f8-light .node.clickable{cursor:pointer;}#d-flowchart-tb-ecca36f8-light .root .anchor path{fill:#9aabc4!important;stroke-width:0;stroke:#9aabc4;}#d-flowchart-tb-ecca36f8-light .arrowheadPath{fill:rgba(255, 255, 255, 0);}#d-flowchart-tb-ecca36f8-light .edgePaths .path{stroke:#9aabc4;stroke-width:1px;}#d-flowchart-tb-ecca36f8-light .flowchart-link{stroke:#9aabc4;fill:none;}#d-flowchart-tb-ecca36f8-light .edgeLabel{background-color:#ffffff;text-align:center;}#d-flowchart-tb-ecca36f8-light .edgeLabel p{background-color:#ffffff;}#d-flowchart-tb-ecca36f8-light .edgeLabel rect{opacity:0.5;background-color:#ffffff;fill:#ffffff;}#d-flowchart-tb-ecca36f8-light .labelBkg{background-color:rgba(255, 255, 255, 0.5);}#d-flowchart-tb-ecca36f8-light .cluster rect{fill:#f4f7fb;stroke:#d7e0ee;stroke-width:1px;}#d-flowchart-tb-ecca36f8-light .cluster text{fill:#0f1724;}#d-flowchart-tb-ecca36f8-light .cluster span{color:#0f1724;}#d-flowchart-tb-ecca36f8-light .node .collapsed-indicator{fill:#d7e0ee;stroke:none;opacity:0.6;}#d-flowchart-tb-ecca36f8-light .node .collapsed-separator{stroke:#d7e0ee;stroke-width:0.75px;}#d-flowchart-tb-ecca36f8-light div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:12px;background:#e6f7f4;border:1px solid hsl(169.4117647059, 11.5151515152%, 83.5294117647%);border-radius:2px;pointer-events:none;z-index:100;}#d-flowchart-tb-ecca36f8-light .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#2a3a52;}#d-flowchart-tb-ecca36f8-light rect.text{fill:none;stroke-width:0;}#d-flowchart-tb-ecca36f8-light .icon-shape,#d-flowchart-tb-ecca36f8-light .image-shape{background-color:#ffffff;text-align:center;}#d-flowchart-tb-ecca36f8-light .icon-shape p,#d-flowchart-tb-ecca36f8-light .image-shape p{background-color:#ffffff;padding:2px;}#d-flowchart-tb-ecca36f8-light .icon-shape .label rect,#d-flowchart-tb-ecca36f8-light .image-shape .label rect{opacity:0.5;background-color:#ffffff;fill:#ffffff;}#d-flowchart-tb-ecca36f8-light .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#d-flowchart-tb-ecca36f8-light .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#d-flowchart-tb-ecca36f8-light .node .neo-node{stroke:#b9cdf3;}#d-flowchart-tb-ecca36f8-light [data-look="neo"].node rect,#d-flowchart-tb-ecca36f8-light [data-look="neo"].cluster rect,#d-flowchart-tb-ecca36f8-light [data-look="neo"].node polygon{stroke:url(#d-flowchart-tb-ecca36f8-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-light [data-look="neo"].swimlane.cluster rect{filter:none;}#d-flowchart-tb-ecca36f8-light [data-look="neo"].node path{stroke:url(#d-flowchart-tb-ecca36f8-light-gradient);stroke-width:1px;}#d-flowchart-tb-ecca36f8-light [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-light [data-look="neo"].node .neo-line path{stroke:#b9cdf3;filter:none;}#d-flowchart-tb-ecca36f8-light [data-look="neo"].node circle{stroke:url(#d-flowchart-tb-ecca36f8-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-light [data-look="neo"].node circle .state-start{fill:#000000;}#d-flowchart-tb-ecca36f8-light [data-look="neo"].icon-shape .icon{fill:url(#d-flowchart-tb-ecca36f8-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-light [data-look="neo"].icon-shape .icon-neo path{stroke:url(#d-flowchart-tb-ecca36f8-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-flowchart-tb-ecca36f8-light :root{--mermaid-font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;}</style><g><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-pointStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="4.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 5 L 10 10 L 10 0 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin" class="marker flowchart-v2" viewBox="0 0 11.5 14" refX="11.5" refY="7" markerUnits="userSpaceOnUse" markerWidth="10.5" markerHeight="14" orient="auto"><path d="M 0 0 L 11.5 7 L 0 14 z" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-pointStart-margin" class="marker flowchart-v2" viewBox="0 0 11.5 14" refX="1" refY="7" markerUnits="userSpaceOnUse" markerWidth="11.5" markerHeight="14" orient="auto"><polygon points="0,7 11.5,14 11.5,0" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></polygon></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-circleEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-circleStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-1" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-circleEnd-margin" class="marker flowchart-v2" viewBox="0 0 10 10" refY="5" refX="12.25" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-circleStart-margin" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-2" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"></circle></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-crossEnd" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="12" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-crossStart" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="-1" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-crossEnd-margin" class="marker cross flowchart-v2" viewBox="0 0 15 15" refX="17.7" refY="7.5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M 1,1 L 14,14 M 1,14 L 14,1" class="arrowMarkerPath" style="stroke-width: 2.5;"></path></marker><marker id="d-flowchart-tb-ecca36f8-light_flowchart-v2-crossStart-margin" class="marker cross flowchart-v2" viewBox="0 0 15 15" refX="-3.5" refY="7.5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M 1,1 L 14,14 M 1,14 L 14,1" class="arrowMarkerPath" style="stroke-width: 2.5; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"><g class="cluster " id="d-flowchart-tb-ecca36f8-light-Ops" data-look="neo"><rect style="" x="381.6791666666667" y="2107" width="200" height="171"></rect><g class="cluster-label " transform="translate(443.8822916666667, 2107)"><foreignObject width="75.59375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Assurance</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-light-Data" data-look="neo"><rect style="" x="91.67916666666667" y="1672" width="402" height="375"></rect><g class="cluster-label " transform="translate(207.28854166666667, 1672)"><foreignObject width="170.78125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Data plane - segmented</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-light-Decision" data-look="neo"><rect style="" x="91.67916666666667" y="1261" width="604" height="351"></rect><g class="cluster-label " transform="translate(341.2026041666667, 1261)"><foreignObject width="104.953125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Decision plane</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-light-IdP" data-look="neo"><rect style="" x="45.20000000000002" y="606" width="407.92499999999995" height="531"></rect><g class="cluster-label " transform="translate(140.209375, 606)"><foreignObject width="217.90625" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Identity plane - we operate this</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-light-Edge" data-look="neo"><rect style="" x="149.16250000000002" y="219" width="402" height="327"></rect><g class="cluster-label " transform="translate(255.88906250000002, 219)"><foreignObject width="188.546875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Edge / Policy Enforcement</p></span></div></foreignObject></g></g><g class="cluster " id="d-flowchart-tb-ecca36f8-light-Untrusted" data-look="neo"><rect style="" x="198.29583333333335" y="12" width="402" height="147"></rect><g class="cluster-label " transform="translate(334.37395833333335, 12)"><foreignObject width="129.84375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel "><p>Untrusted network</p></span></div></foreignObject></g></g></g><g class="edges edgePaths"><path d="M298.29583333333335,135L298.29583333333335,169L298.29583333333335,181.92893218813452Q298.29583333333335,189 305.3669011451988,189L321.3580988548012,189Q328.4291666666667,189 328.4291666666667,196.07106781186548L328.4291666666667,209L328.4291666666667,266" id="d-flowchart-tb-ecca36f8-light-L_U_CF_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 151.8050537109375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_U_CF_0" data-points="W3sieCI6Mjk4LjI5NTgzMzMzMzMzMzM1LCJ5IjoxMzV9LHsieCI6Mjk4LjI5NTgzMzMzMzMzMzM1LCJ5IjoxNjl9LHsieCI6Mjk4LjI5NTgzMzMzMzMzMzM1LCJ5IjoxODl9LHsieCI6MzI4LjQyOTE2NjY2NjY2NjcsInkiOjE4OX0seyJ4IjozMjguNDI5MTY2NjY2NjY2NywieSI6MjA5fSx7IngiOjMyOC40MjkxNjY2NjY2NjY3LCJ5IjoyNzB9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M500.29583333333335,135L500.29583333333335,169L500.29583333333335,181.92893218813452Q500.29583333333335,189 493.2247655214679,189L378.96690114519885,189Q371.89583333333337,189 371.89583333333337,196.07106781186548L371.89583333333337,209L371.8958333333333,266" id="d-flowchart-tb-ecca36f8-light-L_AUD_CF_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 250.07171630859375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_AUD_CF_0" data-points="W3sieCI6NTAwLjI5NTgzMzMzMzMzMzM1LCJ5IjoxMzV9LHsieCI6NTAwLjI5NTgzMzMzMzMzMzM1LCJ5IjoxNjl9LHsieCI6NTAwLjI5NTgzMzMzMzMzMzM1LCJ5IjoxODl9LHsieCI6MzcxLjg5NTgzMzMzMzMzMzM3LCJ5IjoxODl9LHsieCI6MzcxLjg5NTgzMzMzMzMzMzM3LCJ5IjoyMDl9LHsieCI6MzcxLjg5NTgzMzMzMzMzMzMsInkiOjI3MH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M328.4291666666667,342L328.4291666666667,364.9289321881345Q328.4291666666667,372 321.3580988548012,372L256.2335678118655,372Q249.16250000000002,372 249.16250000000002,379.0710678118655L249.16250000000002,446" id="d-flowchart-tb-ecca36f8-light-L_CF_ALB_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 173.93838500976562 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_CF_ALB_0" data-points="W3sieCI6MzI4LjQyOTE2NjY2NjY2NjcsInkiOjM0Mn0seyJ4IjozMjguNDI5MTY2NjY2NjY2NywieSI6MzcyfSx7IngiOjI0OS4xNjI1MDAwMDAwMDAwMiwieSI6MzcyfSx7IngiOjI0OS4xNjI1MDAwMDAwMDAwMiwieSI6NDUwfV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M371.8958333333333,342L371.8958333333333,364.9289321881345Q371.8958333333333,372 378.9669011451988,372L444.09143218813455,372Q451.1625,372 451.1625,379.0710678118655L451.1625,398" id="d-flowchart-tb-ecca36f8-light-L_CF_APIGW_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 125.93841552734375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_CF_APIGW_0" data-points="W3sieCI6MzcxLjg5NTgzMzMzMzMzMzMsInkiOjM0Mn0seyJ4IjozNzEuODk1ODMzMzMzMzMzMywieSI6MzcyfSx7IngiOjQ1MS4xNjI1LCJ5IjozNzJ9LHsieCI6NDUxLjE2MjUsInkiOjQwMn1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M227.42916666666667,498L227.42916666666667,556L227.42916666666667,568.9289321881345Q227.42916666666667,576 220.3580988548012,576L152.2710678118655,576Q145.20000000000002,576 145.20000000000002,583.0710678118654L145.20000000000005,596L145.20000000000005,653" id="d-flowchart-tb-ecca36f8-light-L_ALB_KC_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 227.90087890625 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_ALB_KC_0" data-points="W3sieCI6MjI3LjQyOTE2NjY2NjY2NjY3LCJ5Ijo0OTh9LHsieCI6MjI3LjQyOTE2NjY2NjY2NjY3LCJ5Ijo1NTZ9LHsieCI6MjI3LjQyOTE2NjY2NjY2NjY3LCJ5Ijo1NzZ9LHsieCI6MTQ1LjIwMDAwMDAwMDAwMDAyLCJ5Ijo1NzZ9LHsieCI6MTQ1LjIwMDAwMDAwMDAwMDA1LCJ5Ijo1OTZ9LHsieCI6MTQ1LjIwMDAwMDAwMDAwMDA1LCJ5Ijo2NTd9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M270.8958333333333,498L270.89583333333337,556L270.89583333333337,568.9289321881345Q270.89583333333337,576 277.96690114519885,576L346.0539321881345,576Q353.125,576 353.125,583.0710678118655L353.125,596L353.125,833" id="d-flowchart-tb-ecca36f8-light-L_ALB_KCP_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 407.90087890625 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_ALB_KCP_0" data-points="W3sieCI6MjcwLjg5NTgzMzMzMzMzMzMsInkiOjQ5OH0seyJ4IjoyNzAuODk1ODMzMzMzMzMzMzcsInkiOjU1Nn0seyJ4IjoyNzAuODk1ODMzMzMzMzMzMzcsInkiOjU3Nn0seyJ4IjozNTMuMTI1LCJ5Ijo1NzZ9LHsieCI6MzUzLjEyNSwieSI6NTk2fSx7IngiOjM1My4xMjUsInkiOjgzN31d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M145.2,777L145.2,1005.05Q145.2,1011 151.15,1011L151.15,1011Q157.10000000000002,1011 157.10000000000002,1016.95L157.10000000000002,1037" id="d-flowchart-tb-ecca36f8-light-L_KC_RDS_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 263.41644287109375 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_KC_RDS_0" data-points="W3sieCI6MTQ1LjIsInkiOjc3N30seyJ4IjoxNDUuMiwieSI6MTAxMX0seyJ4IjoxNTcuMTAwMDAwMDAwMDAwMDIsInkiOjEwMTF9LHsieCI6MTU3LjEwMDAwMDAwMDAwMDAyLCJ5IjoxMDQxfV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M353.125,981L353.125,1003.9289321881345Q353.125,1011 346.0539321881345,1011L229.37106781186546,1011Q222.29999999999998,1011 222.29999999999998,1018.0710678118655L222.29999999999998,1037" id="d-flowchart-tb-ecca36f8-light-L_KCP_RDS_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 177.49673461914062 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_KCP_RDS_0" data-points="W3sieCI6MzUzLjEyNSwieSI6OTgxfSx7IngiOjM1My4xMjUsInkiOjEwMTF9LHsieCI6MjIyLjI5OTk5OTk5OTk5OTk4LCJ5IjoxMDExfSx7IngiOjIyMi4yOTk5OTk5OTk5OTk5OCwieSI6MTA0MX1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M451.1625,522L451.1625,556L451.1625,568.9289321881345Q451.1625,576 458.2335678118655,576L466.0539321881345,576Q473.125,576 473.125,583.0710678118655L473.125,871.5L473.125,1199L473.125,1223.9289321881345Q473.125,1231 466.0539321881345,1231L400.75023447853215,1231Q393.6791666666667,1231 393.6791666666667,1238.0710678118655L393.6791666666667,1251L393.6791666666667,1308" id="d-flowchart-tb-ecca36f8-light-L_APIGW_DPA_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 872.7516479492188 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_APIGW_DPA_0" data-points="W3sieCI6NDUxLjE2MjUsInkiOjUyMn0seyJ4Ijo0NTEuMTYyNSwieSI6NTU2fSx7IngiOjQ1MS4xNjI1LCJ5Ijo1NzZ9LHsieCI6NDczLjEyNSwieSI6NTc2fSx7IngiOjQ3My4xMjUsInkiOjg3MS41fSx7IngiOjQ3My4xMjUsInkiOjExOTl9LHsieCI6NDczLjEyNSwieSI6MTIzMX0seyJ4IjozOTMuNjc5MTY2NjY2NjY2NywieSI6MTIzMX0seyJ4IjozOTMuNjc5MTY2NjY2NjY2NywieSI6MTI1MX0seyJ4IjozOTMuNjc5MTY2NjY2NjY2NywieSI6MTMxMn1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M393.6791666666667,1384L393.6791666666667,1440" id="d-flowchart-tb-ecca36f8-light-L_DPA_AVP_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 52 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_DPA_AVP_0" data-points="W3sieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjEzODR9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE0NDR9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M361.07916666666665,1384L361.07916666666665,1406.9289321881345Q361.07916666666665,1414 354.0080988548012,1414L220.48356781186544,1414Q213.41249999999997,1414 213.41249999999997,1421.0710678118655L213.41249999999997,1440" id="d-flowchart-tb-ecca36f8-light-L_DPA_REVOKE_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 194.33837890625 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_DPA_REVOKE_0" data-points="W3sieCI6MzYxLjA3OTE2NjY2NjY2NjY1LCJ5IjoxMzg0fSx7IngiOjM2MS4wNzkxNjY2NjY2NjY2NSwieSI6MTQxNH0seyJ4IjoyMTMuNDEyNDk5OTk5OTk5OTcsInkiOjE0MTR9LHsieCI6MjEzLjQxMjQ5OTk5OTk5OTk3LCJ5IjoxNDQ0fV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M426.27916666666664,1384L426.27916666666664,1406.9289321881345Q426.27916666666664,1414 433.3502344785321,1414L588.6080988548013,1414Q595.6791666666667,1414 595.6791666666667,1421.0710678118655L595.6791666666667,1440" id="d-flowchart-tb-ecca36f8-light-L_DPA_POSTURE_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 216.07168579101562 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_DPA_POSTURE_0" data-points="W3sieCI6NDI2LjI3OTE2NjY2NjY2NjY0LCJ5IjoxMzg0fSx7IngiOjQyNi4yNzkxNjY2NjY2NjY2NCwieSI6MTQxNH0seyJ4Ijo1OTUuNjc5MTY2NjY2NjY2NywieSI6MTQxNH0seyJ4Ijo1OTUuNjc5MTY2NjY2NjY2NywieSI6MTQ0NH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M393.6791666666667,1588L393.6791666666667,1622L393.6791666666667,1662L393.6791666666667,1719" id="d-flowchart-tb-ecca36f8-light-L_AVP_LAMBDA_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 127 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_AVP_LAMBDA_0" data-points="W3sieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE1ODh9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE2MjJ9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE2NjJ9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE3MjN9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M393.6791666666667,1843L393.6791666666667,1899" id="d-flowchart-tb-ecca36f8-light-L_LAMBDA_DDB_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 52 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_LAMBDA_DDB_0" data-points="W3sieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE4NDN9LHsieCI6MzkzLjY3OTE2NjY2NjY2NjcsInkiOjE5MDN9XQ==" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M361.07916666666665,1843L361.07916666666665,1865.9289321881345Q361.07916666666665,1873 354.0080988548012,1873L198.75023447853212,1873Q191.67916666666665,1873 191.67916666666665,1880.0710678118655L191.67916666666665,1899" id="d-flowchart-tb-ecca36f8-light-L_LAMBDA_S3_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 216.07180786132812 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_LAMBDA_S3_0" data-points="W3sieCI6MzYxLjA3OTE2NjY2NjY2NjY1LCJ5IjoxODQzfSx7IngiOjM2MS4wNzkxNjY2NjY2NjY2NSwieSI6MTg3M30seyJ4IjoxOTEuNjc5MTY2NjY2NjY2NjUsInkiOjE4NzN9LHsieCI6MTkxLjY3OTE2NjY2NjY2NjY1LCJ5IjoxOTAzfV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M426.27916666666664,1843L426.27916666666664,1865.9289321881345Q426.27916666666664,1873 433.3502344785321,1873L474.6080988548012,1873Q481.6791666666667,1873 481.6791666666667,1880.0710678118655L481.6791666666667,2057L481.6791666666667,2097L481.6791666666667,2154" id="d-flowchart-tb-ecca36f8-light-L_LAMBDA_AUDIT_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 357.0718078613281 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_LAMBDA_AUDIT_0" data-points="W3sieCI6NDI2LjI3OTE2NjY2NjY2NjY0LCJ5IjoxODQzfSx7IngiOjQyNi4yNzkxNjY2NjY2NjY2NCwieSI6MTg3M30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MTg3M30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MjA1N30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MjA5N30seyJ4Ijo0ODEuNjc5MTY2NjY2NjY2NywieSI6MjE1OH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M112.59999999999997,777L112.59999999999997,799.9289321881345Q112.59999999999997,807 105.52893218813449,807L97.57106781186545,807Q90.49999999999997,807 90.49999999999997,814.0710678118654L90.5,1147L90.5,1223.9289321881345Q90.5,1231 97.57106781186548,1231L162.87476552146782,1231Q169.9458333333333,1231 169.9458333333333,1238.0710678118655L169.94583333333327,1251L169.94583333333327,1440" id="d-flowchart-tb-ecca36f8-light-L_KC_REVOKE_0" class=" edge-thickness-normal edge-pattern-dotted edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_KC_REVOKE_0" data-points="W3sieCI6MTEyLjU5OTk5OTk5OTk5OTk3LCJ5Ijo3Nzd9LHsieCI6MTEyLjU5OTk5OTk5OTk5OTk3LCJ5Ijo4MDd9LHsieCI6OTAuNDk5OTk5OTk5OTk5OTcsInkiOjgwN30seyJ4Ijo5MC41LCJ5IjoxMTQ3fSx7IngiOjkwLjUsInkiOjEyMzF9LHsieCI6MTY5Ljk0NTgzMzMzMzMzMzMsInkiOjEyMzF9LHsieCI6MTY5Ljk0NTgzMzMzMzMzMzI3LCJ5IjoxMjUxfSx7IngiOjE2OS45NDU4MzMzMzMzMzMyNywieSI6MTQ0NH1d" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path><path d="M189.70000000000002,1041L189.70000000000002,812.95Q189.70000000000002,807 183.75,807L183.75,807Q177.79999999999998,807 177.79999999999998,801.05L177.79999999999998,781" id="d-flowchart-tb-ecca36f8-light-L_RDS_KC_0" class=" edge-thickness-normal edge-pattern-dotted edge-thickness-normal edge-pattern-solid flowchart-link" style="stroke-dasharray: 0 0 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 4; stroke-dashoffset: 0;;" data-edge="true" data-et="edge" data-id="L_RDS_KC_0" data-points="W3sieCI6MTg5LjcwMDAwMDAwMDAwMDAyLCJ5IjoxMDQxfSx7IngiOjE4OS43MDAwMDAwMDAwMDAwMiwieSI6ODA3fSx7IngiOjE3Ny43OTk5OTk5OTk5OTk5OCwieSI6ODA3fSx7IngiOjE3Ny43OTk5OTk5OTk5OTk5OCwieSI6Nzc3fV0=" data-look="neo" marker-end="url(#d-flowchart-tb-ecca36f8-light_flowchart-v2-pointEnd-margin)"></path></g><g class="edgeLabels"><g class="edgeLabel" transform="translate(90.27343749999994, 1199)"><g class="label" data-id="L_KC_REVOKE_0" transform="translate(-78.2734375, -12)"><foreignObject width="156.546875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>events: logout, revoke</p></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(189.70000000000002, 909)"><g class="label" data-id="L_RDS_KC_0" transform="translate(-39.5625, -12)"><foreignObject width="79.125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>RDS Proxy</p></span></div></foreignObject></g></g></g><g class="nodes"><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-U-0" data-look="neo" transform="translate(298.29583333333335, 99)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>User + passkey authenticator</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-AUD-1" data-look="neo" transform="translate(500.29583333333335, 111)"><rect class="basic label-container" style="" x="-76" y="-24" width="152" height="48"></rect><g class="label" style="" transform="translate(-60, -12)"><rect></rect><foreignObject width="120" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: nowrap; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>External auditor</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-CF-2" data-look="neo" transform="translate(350.1625, 306)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>CloudFront + AWS WAF</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-ALB-3" data-look="neo" transform="translate(249.16250000000002, 474)"><rect class="basic label-container" style="" x="-76" y="-24" width="152" height="48"></rect><g class="label" style="" transform="translate(-60, -12)"><rect></rect><foreignObject width="120" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: nowrap; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>ALB + ACM TLS</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-APIGW-4" data-look="neo" transform="translate(451.1625, 462)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>API Gateway HTTP API<br/>Lambda authorizer</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-KC-5" data-look="neo" transform="translate(145.20000000000002, 717)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Keycloak 26.4+ on ECS Fargate<br/>realm: attest-users</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-KCP-6" data-look="neo" transform="translate(353.125, 909)"><rect class="basic label-container" style="" x="-76" y="-72" width="152" height="144"></rect><g class="label" style="" transform="translate(-60, -60)"><rect></rect><foreignObject width="120" height="120"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Keycloak realm: attest-privileged<br/>AAGUID allowlist, WebAuthn only</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-RDS-7" data-look="neo" transform="translate(189.70000000000002, 1077)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>RDS Postgres Multi-AZ</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-DPA-8" data-look="neo" transform="translate(393.6791666666667, 1348)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>DPoP Verifying Authorizer</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-AVP-9" data-look="neo" transform="translate(393.6791666666667, 1516)"><rect class="basic label-container" style="" x="-76" y="-72" width="152" height="144"></rect><g class="label" style="" transform="translate(-60, -60)"><rect></rect><foreignObject width="120" height="120"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Amazon Verified Permissions<br/>Cedar policies = PDP</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-POSTURE-10" data-look="neo" transform="translate(595.6791666666667, 1480)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Device Posture service</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-REVOKE-11" data-look="neo" transform="translate(191.67916666666667, 1480)"><rect class="basic label-container" style="" x="-76" y="-36" width="152" height="72"></rect><g class="label" style="" transform="translate(-60, -24)"><rect></rect><foreignObject width="120" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Revocation store</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-LAMBDA-12" data-look="neo" transform="translate(393.6791666666667, 1783)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Per-domain Lambdas<br/>in VPC, own security group</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-DDB-13" data-look="neo" transform="translate(393.6791666666667, 1951)"><rect class="basic label-container" style="" x="-76" y="-48" width="152" height="96"></rect><g class="label" style="" transform="translate(-60, -36)"><rect></rect><foreignObject width="120" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>DynamoDB<br/>tenant-partitioned</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-S3-14" data-look="neo" transform="translate(191.67916666666667, 1963)"><rect class="basic label-container" style="" x="-76" y="-60" width="152" height="120"></rect><g class="label" style="" transform="translate(-60, -48)"><rect></rect><foreignObject width="120" height="96"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>S3 evidence buckets<br/>per-tenant prefix + KMS</p></span></div></foreignObject></g></g><g class="node default  " id="d-flowchart-tb-ecca36f8-light-flowchart-AUDIT-15" data-look="neo" transform="translate(481.6791666666667, 2206)"><rect class="basic label-container" style="" x="-76" y="-48" width="152" height="96"></rect><g class="label" style="" transform="translate(-60, -36)"><rect></rect><foreignObject width="120" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;"><span class="nodeLabel "><p>Immutable audit log<br/>S3 Object Lock</p></span></div></foreignObject></g></g></g></g></g><defs><filter id="d-flowchart-tb-ecca36f8-light-drop-shadow" height="130%" width="130%"><feDropShadow dx="4" dy="4" stdDeviation="0" flood-opacity="0.06" flood-color="#000000"></feDropShadow></filter></defs><defs><filter id="d-flowchart-tb-ecca36f8-light-drop-shadow-small" height="150%" width="150%"><feDropShadow dx="2" dy="2" stdDeviation="0" flood-opacity="0.06" flood-color="#000000"></feDropShadow></filter></defs><linearGradient id="d-flowchart-tb-ecca36f8-light-gradient" gradientUnits="objectBoundingBox" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#b9cdf3" stop-opacity="1"></stop><stop offset="100%" stop-color="hsl(253.3333333333, 50%, 86.0784313725%)" stop-opacity="1"></stop></linearGradient></svg>
+</div></figure>
+
+<p>Note the two distinct paths through the edge: <strong>authentication traffic</strong> goes to the ALB and then
+Keycloak; <strong>API traffic</strong> goes to API Gateway where the DPoP Verifying Authorizer runs. Keeping
+these separate is what lets us reason about them independently — and it is why &ldquo;Keycloak does DPoP&rdquo;
+does not mean our API is protected.</p>
+<h3 id="42-trust-boundaries">4.2 Trust boundaries</h3>
+<p>The design assumes every boundary is hostile. Numbered because they are referenced throughout the
+threat model.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Boundary</th>
+<th>Crossing rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B1</td>
+<td>Internet → CloudFront</td>
+<td>WAF rules; no trust conferred by reaching this point</td>
+</tr>
+<tr>
+<td>B2</td>
+<td>CloudFront → ALB / API Gateway</td>
+<td>Only our distribution; origin access control; ALB security group restricted to CloudFront</td>
+</tr>
+<tr>
+<td>B3</td>
+<td>ALB → Keycloak</td>
+<td>Keycloak tasks accept traffic only from the ALB security group, never directly</td>
+</tr>
+<tr>
+<td>B4</td>
+<td>API Gateway → Lambda</td>
+<td><strong>DPoP proof and policy decision must both pass</strong>; a valid token alone is never sufficient</td>
+</tr>
+<tr>
+<td>B5</td>
+<td>Lambda → DynamoDB / S3</td>
+<td>IAM least privilege per function; tenant scope enforced in the request, not just the role</td>
+</tr>
+<tr>
+<td>B6</td>
+<td>Tenant ↔ tenant</td>
+<td>Enforced independently in Cedar policy and in the data-access layer</td>
+</tr>
+<tr>
+<td>B7</td>
+<td><code>attest-users</code> realm ↔ <code>attest-privileged</code> realm</td>
+<td>Separate realms, signing keys, and WebAuthn policies. No credential, session, or trust relationship crosses</td>
+</tr>
+<tr>
+<td>B8</td>
+<td>Human ↔ workload identity</td>
+<td>Different mechanisms entirely (passkey vs OIDC/mTLS); no shared secrets</td>
+</tr>
+<tr>
+<td>B9</td>
+<td><em>(new)</em> Our code ↔ Keycloak administration</td>
+<td>Admin API access is a privileged, audited operation; realm config is declarative (S12), so no human has routine admin need</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="43-pdp-pep-separation">4.3 PDP / PEP separation</h3>
+<p>This table is the operational definition of Zero Trust in this system. Every access decision has
+one policy authority and one or more enforcement points, and they are never the same component.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>PDP (decides)</th>
+<th>PEP (enforces)</th>
+<th>Not sufficient alone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Is this token authentic and unexpired, and DPoP-bound?</td>
+<td>Keycloak (issues + signs)</td>
+<td>DPoP Verifying Authorizer</td>
+<td>Keycloak verifies the binding at <em>issuance</em>; it cannot verify our API&rsquo;s requests</td>
+</tr>
+<tr>
+<td>Is this request accompanied by the private key?</td>
+<td>DPoP proof verification</td>
+<td>DPoP Verifying Authorizer</td>
+<td>This is the anti-token-theft control (S3)</td>
+</tr>
+<tr>
+<td>Is the session still active, or revoked?</td>
+<td>Revocation store</td>
+<td>DPoP Verifying Authorizer + per-request check</td>
+<td>Token expiry is too slow (S6)</td>
+</tr>
+<tr>
+<td>Is this principal allowed to do this action on this resource in this tenant?</td>
+<td>Amazon Verified Permissions (Cedar)</td>
+<td>Lambda integration</td>
+<td>Network position and tenant claim are not authorization</td>
+</tr>
+<tr>
+<td>Is this device acceptable for this action?</td>
+<td>Device Posture service</td>
+<td>Verifier + Cedar context</td>
+<td>Fed into policy as context, not a separate gate</td>
+</tr>
+<tr>
+<td>Should this tenant see this row at all?</td>
+<td>Cedar + data layer</td>
+<td>DynamoDB access layer</td>
+<td>Defence in depth for S5; either layer alone is a single point of failure</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="44-request-lifecycle">4.4 Request lifecycle</h3>
+<p><strong>Sign-in (once, then session refresh):</strong></p>
+<figure class="diagram"><div class="dg dg-dark"><svg id="d-sequencediagram-025bcd2b-dark" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 1161px;" viewBox="-50 -10 1161 558" role="graphics-document document" aria-roledescription="sequence"><g><rect x="911" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="RDS" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="986" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="986" dy="0">Postgres</tspan></text></g><g><rect x="598" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="KC" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="673" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="673" dy="0">Keycloak</tspan></text></g><g><rect x="200" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="SPA" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="275" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="275" dy="0">Browser SPA</tspan></text></g><g><rect x="0" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="U" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="75" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="75" dy="0">User + passkey</tspan></text></g><g><line id="actor3" x1="986" y1="73" x2="986" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="RDS" data-et="life-line" data-id="RDS"></line><g id="root-3" data-look="neo" data-et="participant" data-type="participant" data-id="RDS"><rect x="911" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="RDS" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="986" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="986" dy="0">Postgres</tspan></text></g></g><g><line id="actor2" x1="673" y1="73" x2="673" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="KC" data-et="life-line" data-id="KC"></line><g id="root-2" data-look="neo" data-et="participant" data-type="participant" data-id="KC"><rect x="598" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="KC" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="673" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="673" dy="0">Keycloak</tspan></text></g></g><g><line id="actor1" x1="275" y1="73" x2="275" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="SPA" data-et="life-line" data-id="SPA"></line><g id="root-1" data-look="neo" data-et="participant" data-type="participant" data-id="SPA"><rect x="200" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="SPA" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="275" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="275" dy="0">Browser SPA</tspan></text></g></g><g><line id="actor0" x1="75" y1="73" x2="75" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="U" data-et="life-line" data-id="U"></line><g id="root-0" data-look="neo" data-et="participant" data-type="participant" data-id="U"><rect x="0" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="U" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-dark-drop-shadow)"></rect><text x="75" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="75" dy="0">User + passkey</tspan></text></g></g><style>#d-sequencediagram-025bcd2b-dark{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;fill:#c3cedd;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#d-sequencediagram-025bcd2b-dark .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#d-sequencediagram-025bcd2b-dark .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#d-sequencediagram-025bcd2b-dark .error-icon{fill:#0f2624;}#d-sequencediagram-025bcd2b-dark .error-text{fill:#f0d9db;stroke:#f0d9db;}#d-sequencediagram-025bcd2b-dark .edge-thickness-normal{stroke-width:1px;}#d-sequencediagram-025bcd2b-dark .edge-thickness-thick{stroke-width:3.5px;}#d-sequencediagram-025bcd2b-dark .edge-pattern-solid{stroke-dasharray:0;}#d-sequencediagram-025bcd2b-dark .edge-thickness-invisible{stroke-width:0;fill:none;}#d-sequencediagram-025bcd2b-dark .edge-pattern-dashed{stroke-dasharray:3;}#d-sequencediagram-025bcd2b-dark .edge-pattern-dotted{stroke-dasharray:2;}#d-sequencediagram-025bcd2b-dark .marker{fill:#4a5a75;stroke:#4a5a75;}#d-sequencediagram-025bcd2b-dark .marker.cross{stroke:#4a5a75;}#d-sequencediagram-025bcd2b-dark svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;}#d-sequencediagram-025bcd2b-dark p{margin:0;}#d-sequencediagram-025bcd2b-dark .actor{stroke:#2f4770;fill:#16233c;stroke-width:1;}#d-sequencediagram-025bcd2b-dark rect.actor.outer-path[data-look="neo"]{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark rect.note[data-look="neo"]{stroke:hsl(52.6829268293, 60%, 93.9215686275%);fill:#fff5ad;filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark text.actor>tspan{fill:#c3cedd;stroke:none;}#d-sequencediagram-025bcd2b-dark .actor-line{stroke:#2f4770;}#d-sequencediagram-025bcd2b-dark .innerArc{stroke-width:1.5;stroke-dasharray:none;}#d-sequencediagram-025bcd2b-dark .messageLine0{stroke-width:1.5;stroke-dasharray:none;stroke:#c3cedd;}#d-sequencediagram-025bcd2b-dark .messageLine1{stroke-width:1.5;stroke-dasharray:2,2;stroke:#c3cedd;}#d-sequencediagram-025bcd2b-dark [id$="-arrowhead"] path{fill:#c3cedd;stroke:#c3cedd;}#d-sequencediagram-025bcd2b-dark .sequenceNumber{fill:#b5a58a;}#d-sequencediagram-025bcd2b-dark [id$="-sequencenumber"]{fill:#c3cedd;}#d-sequencediagram-025bcd2b-dark [id$="-crosshead"] path{fill:#c3cedd;stroke:#c3cedd;}#d-sequencediagram-025bcd2b-dark .messageText{fill:#c3cedd;stroke:none;}#d-sequencediagram-025bcd2b-dark .labelBox{stroke:#2f4770;fill:#16233c;filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark .labelText,#d-sequencediagram-025bcd2b-dark .labelText>tspan{fill:#c3cedd;stroke:none;}#d-sequencediagram-025bcd2b-dark .loopText,#d-sequencediagram-025bcd2b-dark .loopText>tspan{fill:#c3cedd;stroke:none;}#d-sequencediagram-025bcd2b-dark .sectionTitle,#d-sequencediagram-025bcd2b-dark .sectionTitle>tspan{fill:#c3cedd;stroke:none;}#d-sequencediagram-025bcd2b-dark .loopLine{stroke-width:2px;stroke-dasharray:2,2;stroke:#2f4770;fill:#2f4770;}#d-sequencediagram-025bcd2b-dark .note{stroke:hsl(52.6829268293, 60%, 93.9215686275%);fill:#fff5ad;}#d-sequencediagram-025bcd2b-dark .noteText,#d-sequencediagram-025bcd2b-dark .noteText>tspan{fill:#333;stroke:none;}#d-sequencediagram-025bcd2b-dark .activation0{fill:#1b1730;stroke:hsl(249.6, 35.2112676056%, 3.9215686275%);}#d-sequencediagram-025bcd2b-dark .activation1{fill:#1b1730;stroke:hsl(249.6, 35.2112676056%, 3.9215686275%);}#d-sequencediagram-025bcd2b-dark .activation2{fill:#1b1730;stroke:hsl(249.6, 35.2112676056%, 3.9215686275%);}#d-sequencediagram-025bcd2b-dark .actorPopupMenu{position:absolute;}#d-sequencediagram-025bcd2b-dark .actorPopupMenuPanel{position:absolute;fill:#16233c;box-shadow:0px 8px 16px 0px rgba(0,0,0,0.2);filter:drop-shadow(3px 5px 2px rgb(0 0 0 / 0.4));}#d-sequencediagram-025bcd2b-dark .actor-man circle,#d-sequencediagram-025bcd2b-dark line{fill:#16233c;stroke-width:2px;}#d-sequencediagram-025bcd2b-dark g rect.rect{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));stroke:#2f4770;}#d-sequencediagram-025bcd2b-dark .node .neo-node{stroke:#2f4770;}#d-sequencediagram-025bcd2b-dark [data-look="neo"].node rect,#d-sequencediagram-025bcd2b-dark [data-look="neo"].cluster rect,#d-sequencediagram-025bcd2b-dark [data-look="neo"].node polygon{stroke:url(#d-sequencediagram-025bcd2b-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark [data-look="neo"].swimlane.cluster rect{filter:none;}#d-sequencediagram-025bcd2b-dark [data-look="neo"].node path{stroke:url(#d-sequencediagram-025bcd2b-dark-gradient);stroke-width:1px;}#d-sequencediagram-025bcd2b-dark [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark [data-look="neo"].node .neo-line path{stroke:#2f4770;filter:none;}#d-sequencediagram-025bcd2b-dark [data-look="neo"].node circle{stroke:url(#d-sequencediagram-025bcd2b-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark [data-look="neo"].node circle .state-start{fill:#000000;}#d-sequencediagram-025bcd2b-dark [data-look="neo"].icon-shape .icon{fill:url(#d-sequencediagram-025bcd2b-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark [data-look="neo"].icon-shape .icon-neo path{stroke:url(#d-sequencediagram-025bcd2b-dark-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-dark :root{--mermaid-font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;}</style><g></g><defs><symbol id="d-sequencediagram-025bcd2b-dark-computer" width="24" height="24"><path transform="scale(.5)" d="M2 2v13h20v-13h-20zm18 11h-16v-9h16v9zm-10.228 6l.466-1h3.524l.467 1h-4.457zm14.228 3h-24l2-6h2.104l-1.33 4h18.45l-1.297-4h2.073l2 6zm-5-10h-14v-7h14v7z"></path></symbol></defs><defs><symbol id="d-sequencediagram-025bcd2b-dark-database" fill-rule="evenodd" clip-rule="evenodd"><path transform="scale(.5)" d="M12.258.001l.256.004.255.005.253.008.251.01.249.012.247.015.246.016.242.019.241.02.239.023.236.024.233.027.231.028.229.031.225.032.223.034.22.036.217.038.214.04.211.041.208.043.205.045.201.046.198.048.194.05.191.051.187.053.183.054.18.056.175.057.172.059.168.06.163.061.16.063.155.064.15.066.074.033.073.033.071.034.07.034.069.035.068.035.067.035.066.035.064.036.064.036.062.036.06.036.06.037.058.037.058.037.055.038.055.038.053.038.052.038.051.039.05.039.048.039.047.039.045.04.044.04.043.04.041.04.04.041.039.041.037.041.036.041.034.041.033.042.032.042.03.042.029.042.027.042.026.043.024.043.023.043.021.043.02.043.018.044.017.043.015.044.013.044.012.044.011.045.009.044.007.045.006.045.004.045.002.045.001.045v17l-.001.045-.002.045-.004.045-.006.045-.007.045-.009.044-.011.045-.012.044-.013.044-.015.044-.017.043-.018.044-.02.043-.021.043-.023.043-.024.043-.026.043-.027.042-.029.042-.03.042-.032.042-.033.042-.034.041-.036.041-.037.041-.039.041-.04.041-.041.04-.043.04-.044.04-.045.04-.047.039-.048.039-.05.039-.051.039-.052.038-.053.038-.055.038-.055.038-.058.037-.058.037-.06.037-.06.036-.062.036-.064.036-.064.036-.066.035-.067.035-.068.035-.069.035-.07.034-.071.034-.073.033-.074.033-.15.066-.155.064-.16.063-.163.061-.168.06-.172.059-.175.057-.18.056-.183.054-.187.053-.191.051-.194.05-.198.048-.201.046-.205.045-.208.043-.211.041-.214.04-.217.038-.22.036-.223.034-.225.032-.229.031-.231.028-.233.027-.236.024-.239.023-.241.02-.242.019-.246.016-.247.015-.249.012-.251.01-.253.008-.255.005-.256.004-.258.001-.258-.001-.256-.004-.255-.005-.253-.008-.251-.01-.249-.012-.247-.015-.245-.016-.243-.019-.241-.02-.238-.023-.236-.024-.234-.027-.231-.028-.228-.031-.226-.032-.223-.034-.22-.036-.217-.038-.214-.04-.211-.041-.208-.043-.204-.045-.201-.046-.198-.048-.195-.05-.19-.051-.187-.053-.184-.054-.179-.056-.176-.057-.172-.059-.167-.06-.164-.061-.159-.063-.155-.064-.151-.066-.074-.033-.072-.033-.072-.034-.07-.034-.069-.035-.068-.035-.067-.035-.066-.035-.064-.036-.063-.036-.062-.036-.061-.036-.06-.037-.058-.037-.057-.037-.056-.038-.055-.038-.053-.038-.052-.038-.051-.039-.049-.039-.049-.039-.046-.039-.046-.04-.044-.04-.043-.04-.041-.04-.04-.041-.039-.041-.037-.041-.036-.041-.034-.041-.033-.042-.032-.042-.03-.042-.029-.042-.027-.042-.026-.043-.024-.043-.023-.043-.021-.043-.02-.043-.018-.044-.017-.043-.015-.044-.013-.044-.012-.044-.011-.045-.009-.044-.007-.045-.006-.045-.004-.045-.002-.045-.001-.045v-17l.001-.045.002-.045.004-.045.006-.045.007-.045.009-.044.011-.045.012-.044.013-.044.015-.044.017-.043.018-.044.02-.043.021-.043.023-.043.024-.043.026-.043.027-.042.029-.042.03-.042.032-.042.033-.042.034-.041.036-.041.037-.041.039-.041.04-.041.041-.04.043-.04.044-.04.046-.04.046-.039.049-.039.049-.039.051-.039.052-.038.053-.038.055-.038.056-.038.057-.037.058-.037.06-.037.061-.036.062-.036.063-.036.064-.036.066-.035.067-.035.068-.035.069-.035.07-.034.072-.034.072-.033.074-.033.151-.066.155-.064.159-.063.164-.061.167-.06.172-.059.176-.057.179-.056.184-.054.187-.053.19-.051.195-.05.198-.048.201-.046.204-.045.208-.043.211-.041.214-.04.217-.038.22-.036.223-.034.226-.032.228-.031.231-.028.234-.027.236-.024.238-.023.241-.02.243-.019.245-.016.247-.015.249-.012.251-.01.253-.008.255-.005.256-.004.258-.001.258.001zm-9.258 20.499v.01l.001.021.003.021.004.022.005.021.006.022.007.022.009.023.01.022.011.023.012.023.013.023.015.023.016.024.017.023.018.024.019.024.021.024.022.025.023.024.024.025.052.049.056.05.061.051.066.051.07.051.075.051.079.052.084.052.088.052.092.052.097.052.102.051.105.052.11.052.114.051.119.051.123.051.127.05.131.05.135.05.139.048.144.049.147.047.152.047.155.047.16.045.163.045.167.043.171.043.176.041.178.041.183.039.187.039.19.037.194.035.197.035.202.033.204.031.209.03.212.029.216.027.219.025.222.024.226.021.23.02.233.018.236.016.24.015.243.012.246.01.249.008.253.005.256.004.259.001.26-.001.257-.004.254-.005.25-.008.247-.011.244-.012.241-.014.237-.016.233-.018.231-.021.226-.021.224-.024.22-.026.216-.027.212-.028.21-.031.205-.031.202-.034.198-.034.194-.036.191-.037.187-.039.183-.04.179-.04.175-.042.172-.043.168-.044.163-.045.16-.046.155-.046.152-.047.148-.048.143-.049.139-.049.136-.05.131-.05.126-.05.123-.051.118-.052.114-.051.11-.052.106-.052.101-.052.096-.052.092-.052.088-.053.083-.051.079-.052.074-.052.07-.051.065-.051.06-.051.056-.05.051-.05.023-.024.023-.025.021-.024.02-.024.019-.024.018-.024.017-.024.015-.023.014-.024.013-.023.012-.023.01-.023.01-.022.008-.022.006-.022.006-.022.004-.022.004-.021.001-.021.001-.021v-4.127l-.077.055-.08.053-.083.054-.085.053-.087.052-.09.052-.093.051-.095.05-.097.05-.1.049-.102.049-.105.048-.106.047-.109.047-.111.046-.114.045-.115.045-.118.044-.12.043-.122.042-.124.042-.126.041-.128.04-.13.04-.132.038-.134.038-.135.037-.138.037-.139.035-.142.035-.143.034-.144.033-.147.032-.148.031-.15.03-.151.03-.153.029-.154.027-.156.027-.158.026-.159.025-.161.024-.162.023-.163.022-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.011-.178.01-.179.008-.179.008-.181.006-.182.005-.182.004-.184.003-.184.002h-.37l-.184-.002-.184-.003-.182-.004-.182-.005-.181-.006-.179-.008-.179-.008-.178-.01-.176-.011-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.022-.162-.023-.161-.024-.159-.025-.157-.026-.156-.027-.155-.027-.153-.029-.151-.03-.15-.03-.148-.031-.146-.032-.145-.033-.143-.034-.141-.035-.14-.035-.137-.037-.136-.037-.134-.038-.132-.038-.13-.04-.128-.04-.126-.041-.124-.042-.122-.042-.12-.044-.117-.043-.116-.045-.113-.045-.112-.046-.109-.047-.106-.047-.105-.048-.102-.049-.1-.049-.097-.05-.095-.05-.093-.052-.09-.051-.087-.052-.085-.053-.083-.054-.08-.054-.077-.054v4.127zm0-5.654v.011l.001.021.003.021.004.021.005.022.006.022.007.022.009.022.01.022.011.023.012.023.013.023.015.024.016.023.017.024.018.024.019.024.021.024.022.024.023.025.024.024.052.05.056.05.061.05.066.051.07.051.075.052.079.051.084.052.088.052.092.052.097.052.102.052.105.052.11.051.114.051.119.052.123.05.127.051.131.05.135.049.139.049.144.048.147.048.152.047.155.046.16.045.163.045.167.044.171.042.176.042.178.04.183.04.187.038.19.037.194.036.197.034.202.033.204.032.209.03.212.028.216.027.219.025.222.024.226.022.23.02.233.018.236.016.24.014.243.012.246.01.249.008.253.006.256.003.259.001.26-.001.257-.003.254-.006.25-.008.247-.01.244-.012.241-.015.237-.016.233-.018.231-.02.226-.022.224-.024.22-.025.216-.027.212-.029.21-.03.205-.032.202-.033.198-.035.194-.036.191-.037.187-.039.183-.039.179-.041.175-.042.172-.043.168-.044.163-.045.16-.045.155-.047.152-.047.148-.048.143-.048.139-.05.136-.049.131-.05.126-.051.123-.051.118-.051.114-.052.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.051.07-.052.065-.051.06-.05.056-.051.051-.049.023-.025.023-.024.021-.025.02-.024.019-.024.018-.024.017-.024.015-.023.014-.023.013-.024.012-.022.01-.023.01-.023.008-.022.006-.022.006-.022.004-.021.004-.022.001-.021.001-.021v-4.139l-.077.054-.08.054-.083.054-.085.052-.087.053-.09.051-.093.051-.095.051-.097.05-.1.049-.102.049-.105.048-.106.047-.109.047-.111.046-.114.045-.115.044-.118.044-.12.044-.122.042-.124.042-.126.041-.128.04-.13.039-.132.039-.134.038-.135.037-.138.036-.139.036-.142.035-.143.033-.144.033-.147.033-.148.031-.15.03-.151.03-.153.028-.154.028-.156.027-.158.026-.159.025-.161.024-.162.023-.163.022-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.011-.178.009-.179.009-.179.007-.181.007-.182.005-.182.004-.184.003-.184.002h-.37l-.184-.002-.184-.003-.182-.004-.182-.005-.181-.007-.179-.007-.179-.009-.178-.009-.176-.011-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.022-.162-.023-.161-.024-.159-.025-.157-.026-.156-.027-.155-.028-.153-.028-.151-.03-.15-.03-.148-.031-.146-.033-.145-.033-.143-.033-.141-.035-.14-.036-.137-.036-.136-.037-.134-.038-.132-.039-.13-.039-.128-.04-.126-.041-.124-.042-.122-.043-.12-.043-.117-.044-.116-.044-.113-.046-.112-.046-.109-.046-.106-.047-.105-.048-.102-.049-.1-.049-.097-.05-.095-.051-.093-.051-.09-.051-.087-.053-.085-.052-.083-.054-.08-.054-.077-.054v4.139zm0-5.666v.011l.001.02.003.022.004.021.005.022.006.021.007.022.009.023.01.022.011.023.012.023.013.023.015.023.016.024.017.024.018.023.019.024.021.025.022.024.023.024.024.025.052.05.056.05.061.05.066.051.07.051.075.052.079.051.084.052.088.052.092.052.097.052.102.052.105.051.11.052.114.051.119.051.123.051.127.05.131.05.135.05.139.049.144.048.147.048.152.047.155.046.16.045.163.045.167.043.171.043.176.042.178.04.183.04.187.038.19.037.194.036.197.034.202.033.204.032.209.03.212.028.216.027.219.025.222.024.226.021.23.02.233.018.236.017.24.014.243.012.246.01.249.008.253.006.256.003.259.001.26-.001.257-.003.254-.006.25-.008.247-.01.244-.013.241-.014.237-.016.233-.018.231-.02.226-.022.224-.024.22-.025.216-.027.212-.029.21-.03.205-.032.202-.033.198-.035.194-.036.191-.037.187-.039.183-.039.179-.041.175-.042.172-.043.168-.044.163-.045.16-.045.155-.047.152-.047.148-.048.143-.049.139-.049.136-.049.131-.051.126-.05.123-.051.118-.052.114-.051.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.052.07-.051.065-.051.06-.051.056-.05.051-.049.023-.025.023-.025.021-.024.02-.024.019-.024.018-.024.017-.024.015-.023.014-.024.013-.023.012-.023.01-.022.01-.023.008-.022.006-.022.006-.022.004-.022.004-.021.001-.021.001-.021v-4.153l-.077.054-.08.054-.083.053-.085.053-.087.053-.09.051-.093.051-.095.051-.097.05-.1.049-.102.048-.105.048-.106.048-.109.046-.111.046-.114.046-.115.044-.118.044-.12.043-.122.043-.124.042-.126.041-.128.04-.13.039-.132.039-.134.038-.135.037-.138.036-.139.036-.142.034-.143.034-.144.033-.147.032-.148.032-.15.03-.151.03-.153.028-.154.028-.156.027-.158.026-.159.024-.161.024-.162.023-.163.023-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.01-.178.01-.179.009-.179.007-.181.006-.182.006-.182.004-.184.003-.184.001-.185.001-.185-.001-.184-.001-.184-.003-.182-.004-.182-.006-.181-.006-.179-.007-.179-.009-.178-.01-.176-.01-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.023-.162-.023-.161-.024-.159-.024-.157-.026-.156-.027-.155-.028-.153-.028-.151-.03-.15-.03-.148-.032-.146-.032-.145-.033-.143-.034-.141-.034-.14-.036-.137-.036-.136-.037-.134-.038-.132-.039-.13-.039-.128-.041-.126-.041-.124-.041-.122-.043-.12-.043-.117-.044-.116-.044-.113-.046-.112-.046-.109-.046-.106-.048-.105-.048-.102-.048-.1-.05-.097-.049-.095-.051-.093-.051-.09-.052-.087-.052-.085-.053-.083-.053-.08-.054-.077-.054v4.153zm8.74-8.179l-.257.004-.254.005-.25.008-.247.011-.244.012-.241.014-.237.016-.233.018-.231.021-.226.022-.224.023-.22.026-.216.027-.212.028-.21.031-.205.032-.202.033-.198.034-.194.036-.191.038-.187.038-.183.04-.179.041-.175.042-.172.043-.168.043-.163.045-.16.046-.155.046-.152.048-.148.048-.143.048-.139.049-.136.05-.131.05-.126.051-.123.051-.118.051-.114.052-.11.052-.106.052-.101.052-.096.052-.092.052-.088.052-.083.052-.079.052-.074.051-.07.052-.065.051-.06.05-.056.05-.051.05-.023.025-.023.024-.021.024-.02.025-.019.024-.018.024-.017.023-.015.024-.014.023-.013.023-.012.023-.01.023-.01.022-.008.022-.006.023-.006.021-.004.022-.004.021-.001.021-.001.021.001.021.001.021.004.021.004.022.006.021.006.023.008.022.01.022.01.023.012.023.013.023.014.023.015.024.017.023.018.024.019.024.02.025.021.024.023.024.023.025.051.05.056.05.06.05.065.051.07.052.074.051.079.052.083.052.088.052.092.052.096.052.101.052.106.052.11.052.114.052.118.051.123.051.126.051.131.05.136.05.139.049.143.048.148.048.152.048.155.046.16.046.163.045.168.043.172.043.175.042.179.041.183.04.187.038.191.038.194.036.198.034.202.033.205.032.21.031.212.028.216.027.22.026.224.023.226.022.231.021.233.018.237.016.241.014.244.012.247.011.25.008.254.005.257.004.26.001.26-.001.257-.004.254-.005.25-.008.247-.011.244-.012.241-.014.237-.016.233-.018.231-.021.226-.022.224-.023.22-.026.216-.027.212-.028.21-.031.205-.032.202-.033.198-.034.194-.036.191-.038.187-.038.183-.04.179-.041.175-.042.172-.043.168-.043.163-.045.16-.046.155-.046.152-.048.148-.048.143-.048.139-.049.136-.05.131-.05.126-.051.123-.051.118-.051.114-.052.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.051.07-.052.065-.051.06-.05.056-.05.051-.05.023-.025.023-.024.021-.024.02-.025.019-.024.018-.024.017-.023.015-.024.014-.023.013-.023.012-.023.01-.023.01-.022.008-.022.006-.023.006-.021.004-.022.004-.021.001-.021.001-.021-.001-.021-.001-.021-.004-.021-.004-.022-.006-.021-.006-.023-.008-.022-.01-.022-.01-.023-.012-.023-.013-.023-.014-.023-.015-.024-.017-.023-.018-.024-.019-.024-.02-.025-.021-.024-.023-.024-.023-.025-.051-.05-.056-.05-.06-.05-.065-.051-.07-.052-.074-.051-.079-.052-.083-.052-.088-.052-.092-.052-.096-.052-.101-.052-.106-.052-.11-.052-.114-.052-.118-.051-.123-.051-.126-.051-.131-.05-.136-.05-.139-.049-.143-.048-.148-.048-.152-.048-.155-.046-.16-.046-.163-.045-.168-.043-.172-.043-.175-.042-.179-.041-.183-.04-.187-.038-.191-.038-.194-.036-.198-.034-.202-.033-.205-.032-.21-.031-.212-.028-.216-.027-.22-.026-.224-.023-.226-.022-.231-.021-.233-.018-.237-.016-.241-.014-.244-.012-.247-.011-.25-.008-.254-.005-.257-.004-.26-.001-.26.001z"></path></symbol></defs><defs><symbol id="d-sequencediagram-025bcd2b-dark-clock" width="24" height="24"><path transform="scale(.5)" d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.848 12.459c.202.038.202.333.001.372-1.907.361-6.045 1.111-6.547 1.111-.719 0-1.301-.582-1.301-1.301 0-.512.77-5.447 1.125-7.445.034-.192.312-.181.343.014l.985 6.238 5.394 1.011z"></path></symbol></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-arrowhead" refX="7.9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M -1 0 L 10 5 L 0 10 z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-crosshead" markerWidth="15" markerHeight="8" orient="auto" refX="4" refY="4.5"><path fill="none" stroke="#000000" stroke-width="1pt" d="M 1,2 L 6,7 M 6,2 L 1,7" style="stroke-dasharray: 0, 0;"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-filled-head" refX="15.5" refY="7" markerWidth="20" markerHeight="28" orient="auto"><path d="M 18,7 L9,13 L14,7 L9,1 Z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-sequencenumber" refX="15" refY="15" markerWidth="60" markerHeight="40" orient="auto"><circle cx="15" cy="15" r="6"></circle></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-solidTopArrowHead" refX="7.9" refY="7.25" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 8 L 0 8 z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-solidBottomArrowHead" refX="7.9" refY="0.75" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 0 L 0 8 z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-stickTopArrowHead" refX="7.5" refY="7" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 7 7" stroke="black" stroke-width="1.5" fill="none"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-dark-stickBottomArrowHead" refX="7.5" refY="0" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 7 L 7 0" stroke="black" stroke-width="1.5" fill="none"></path></marker></defs><defs><filter id="d-sequencediagram-025bcd2b-dark-drop-shadow" height="130%" width="130%"><feDropShadow dx="4" dy="4" stdDeviation="0" flood-opacity="0.06" flood-color="#FFFFFF"></feDropShadow></filter></defs><g data-et="note" data-id="i6"><rect x="250" y="377" fill="#EDF2AE" stroke="#666" width="448" height="37" class="note" data-look="neo"></rect><text x="474" y="382" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="noteText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;"><tspan x="474">Keycloak verified the proof and bound the token. Our API has not yet verified anything.</tspan></text></g><text x="276" y="88" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Generate non-extractable P-256 key via WebCrypto</text><path d="M 276,117 C 336,107 336,147 276,137" class="messageLine0" data-et="message" data-id="i0" data-from="SPA" data-to="SPA" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-dark-arrowhead)" style="fill: none;"></path><text x="471" y="162" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Authorization request with PKCE and dpop_jkt</text><line x1="276" y1="191" x2="666" y2="191" class="messageLine0" data-et="message" data-id="i1" data-from="SPA" data-to="KC" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-dark-arrowhead)" style="fill: none;"></line><text x="377" y="206" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">WebAuthn challenge, conditional or modal UI</text><line x1="672" y1="235" x2="82" y2="235" class="messageLine0" data-et="message" data-id="i2" data-from="KC" data-to="U" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-dark-arrowhead)" style="fill: none;"></line><text x="371" y="250" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Signed assertion with user verification</text><line x1="76" y1="279" x2="666" y2="279" class="messageLine0" data-et="message" data-id="i3" data-from="U" data-to="KC" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-dark-arrowhead)" style="fill: none;"></line><text x="827" y="294" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Persist session and credential use</text><line x1="674" y1="323" x2="979" y2="323" class="messageLine0" data-et="message" data-id="i4" data-from="KC" data-to="RDS" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-dark-arrowhead)" style="fill: none;"></line><text x="477" y="338" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Tokens bound to the DPoP key, cnf.jkt claim</text><line x1="672" y1="367" x2="282" y2="367" class="messageLine0" data-et="message" data-id="i5" data-from="KC" data-to="SPA" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-dark-arrowhead)" style="fill: none;"></line></svg>
+</div><div class="dg dg-light"><svg id="d-sequencediagram-025bcd2b-light" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 1161px;" viewBox="-50 -10 1161 558" role="graphics-document document" aria-roledescription="sequence"><g><rect x="911" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="RDS" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="986" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="986" dy="0">Postgres</tspan></text></g><g><rect x="598" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="KC" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="673" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="673" dy="0">Keycloak</tspan></text></g><g><rect x="200" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="SPA" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="275" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="275" dy="0">Browser SPA</tspan></text></g><g><rect x="0" y="434" fill="#eaeaea" stroke="#666" width="150" height="73" name="U" rx="6" ry="6" class="actor actor-bottom" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="75" y="470.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="75" dy="0">User + passkey</tspan></text></g><g><line id="actor7" x1="986" y1="73" x2="986" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="RDS" data-et="life-line" data-id="RDS"></line><g id="root-7" data-look="neo" data-et="participant" data-type="participant" data-id="RDS"><rect x="911" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="RDS" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="986" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="986" dy="0">Postgres</tspan></text></g></g><g><line id="actor6" x1="673" y1="73" x2="673" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="KC" data-et="life-line" data-id="KC"></line><g id="root-6" data-look="neo" data-et="participant" data-type="participant" data-id="KC"><rect x="598" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="KC" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="673" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="673" dy="0">Keycloak</tspan></text></g></g><g><line id="actor5" x1="275" y1="73" x2="275" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="SPA" data-et="life-line" data-id="SPA"></line><g id="root-5" data-look="neo" data-et="participant" data-type="participant" data-id="SPA"><rect x="200" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="SPA" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="275" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="275" dy="0">Browser SPA</tspan></text></g></g><g><line id="actor4" x1="75" y1="73" x2="75" y2="434" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="U" data-et="life-line" data-id="U"></line><g id="root-4" data-look="neo" data-et="participant" data-type="participant" data-id="U"><rect x="0" y="0" fill="#eaeaea" stroke="#666" width="150" height="73" name="U" rx="6" ry="6" class="actor actor-top" data-look="neo" filter="url(#d-sequencediagram-025bcd2b-light-drop-shadow)"></rect><text x="75" y="36.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400; font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif;"><tspan x="75" dy="0">User + passkey</tspan></text></g></g><style>#d-sequencediagram-025bcd2b-light{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;fill:#2a3a52;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#d-sequencediagram-025bcd2b-light .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#d-sequencediagram-025bcd2b-light .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#d-sequencediagram-025bcd2b-light .error-icon{fill:#e6f7f4;}#d-sequencediagram-025bcd2b-light .error-text{fill:#19080b;stroke:#19080b;}#d-sequencediagram-025bcd2b-light .edge-thickness-normal{stroke-width:1px;}#d-sequencediagram-025bcd2b-light .edge-thickness-thick{stroke-width:3.5px;}#d-sequencediagram-025bcd2b-light .edge-pattern-solid{stroke-dasharray:0;}#d-sequencediagram-025bcd2b-light .edge-thickness-invisible{stroke-width:0;fill:none;}#d-sequencediagram-025bcd2b-light .edge-pattern-dashed{stroke-dasharray:3;}#d-sequencediagram-025bcd2b-light .edge-pattern-dotted{stroke-dasharray:2;}#d-sequencediagram-025bcd2b-light .marker{fill:#9aabc4;stroke:#9aabc4;}#d-sequencediagram-025bcd2b-light .marker.cross{stroke:#9aabc4;}#d-sequencediagram-025bcd2b-light svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:16px;}#d-sequencediagram-025bcd2b-light p{margin:0;}#d-sequencediagram-025bcd2b-light .actor{stroke:#b9cdf3;fill:#e8f0ff;stroke-width:1;}#d-sequencediagram-025bcd2b-light rect.actor.outer-path[data-look="neo"]{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light rect.note[data-look="neo"]{stroke:hsl(52.6829268293, 60%, 73.9215686275%);fill:#fff5ad;filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light text.actor>tspan{fill:#2a3a52;stroke:none;}#d-sequencediagram-025bcd2b-light .actor-line{stroke:#b9cdf3;}#d-sequencediagram-025bcd2b-light .innerArc{stroke-width:1.5;stroke-dasharray:none;}#d-sequencediagram-025bcd2b-light .messageLine0{stroke-width:1.5;stroke-dasharray:none;stroke:#2a3a52;}#d-sequencediagram-025bcd2b-light .messageLine1{stroke-width:1.5;stroke-dasharray:2,2;stroke:#2a3a52;}#d-sequencediagram-025bcd2b-light [id$="-arrowhead"] path{fill:#2a3a52;stroke:#2a3a52;}#d-sequencediagram-025bcd2b-light .sequenceNumber{fill:#65543b;}#d-sequencediagram-025bcd2b-light [id$="-sequencenumber"]{fill:#2a3a52;}#d-sequencediagram-025bcd2b-light [id$="-crosshead"] path{fill:#2a3a52;stroke:#2a3a52;}#d-sequencediagram-025bcd2b-light .messageText{fill:#2a3a52;stroke:none;}#d-sequencediagram-025bcd2b-light .labelBox{stroke:#b9cdf3;fill:#e8f0ff;filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light .labelText,#d-sequencediagram-025bcd2b-light .labelText>tspan{fill:#2a3a52;stroke:none;}#d-sequencediagram-025bcd2b-light .loopText,#d-sequencediagram-025bcd2b-light .loopText>tspan{fill:#2a3a52;stroke:none;}#d-sequencediagram-025bcd2b-light .sectionTitle,#d-sequencediagram-025bcd2b-light .sectionTitle>tspan{fill:#2a3a52;stroke:none;}#d-sequencediagram-025bcd2b-light .loopLine{stroke-width:2px;stroke-dasharray:2,2;stroke:#b9cdf3;fill:#b9cdf3;}#d-sequencediagram-025bcd2b-light .note{stroke:hsl(52.6829268293, 60%, 73.9215686275%);fill:#fff5ad;}#d-sequencediagram-025bcd2b-light .noteText,#d-sequencediagram-025bcd2b-light .noteText>tspan{fill:#333;stroke:none;}#d-sequencediagram-025bcd2b-light .activation0{fill:#f0ecfe;stroke:hsl(253.3333333333, 90%, 86.0784313725%);}#d-sequencediagram-025bcd2b-light .activation1{fill:#f0ecfe;stroke:hsl(253.3333333333, 90%, 86.0784313725%);}#d-sequencediagram-025bcd2b-light .activation2{fill:#f0ecfe;stroke:hsl(253.3333333333, 90%, 86.0784313725%);}#d-sequencediagram-025bcd2b-light .actorPopupMenu{position:absolute;}#d-sequencediagram-025bcd2b-light .actorPopupMenuPanel{position:absolute;fill:#e8f0ff;box-shadow:0px 8px 16px 0px rgba(0,0,0,0.2);filter:drop-shadow(3px 5px 2px rgb(0 0 0 / 0.4));}#d-sequencediagram-025bcd2b-light .actor-man circle,#d-sequencediagram-025bcd2b-light line{fill:#e8f0ff;stroke-width:2px;}#d-sequencediagram-025bcd2b-light g rect.rect{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));stroke:#b9cdf3;}#d-sequencediagram-025bcd2b-light .node .neo-node{stroke:#b9cdf3;}#d-sequencediagram-025bcd2b-light [data-look="neo"].node rect,#d-sequencediagram-025bcd2b-light [data-look="neo"].cluster rect,#d-sequencediagram-025bcd2b-light [data-look="neo"].node polygon{stroke:url(#d-sequencediagram-025bcd2b-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light [data-look="neo"].swimlane.cluster rect{filter:none;}#d-sequencediagram-025bcd2b-light [data-look="neo"].node path{stroke:url(#d-sequencediagram-025bcd2b-light-gradient);stroke-width:1px;}#d-sequencediagram-025bcd2b-light [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light [data-look="neo"].node .neo-line path{stroke:#b9cdf3;filter:none;}#d-sequencediagram-025bcd2b-light [data-look="neo"].node circle{stroke:url(#d-sequencediagram-025bcd2b-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light [data-look="neo"].node circle .state-start{fill:#000000;}#d-sequencediagram-025bcd2b-light [data-look="neo"].icon-shape .icon{fill:url(#d-sequencediagram-025bcd2b-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light [data-look="neo"].icon-shape .icon-neo path{stroke:url(#d-sequencediagram-025bcd2b-light-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#d-sequencediagram-025bcd2b-light :root{--mermaid-font-family:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Arial,sans-serif;}</style><g></g><defs><symbol id="d-sequencediagram-025bcd2b-light-computer" width="24" height="24"><path transform="scale(.5)" d="M2 2v13h20v-13h-20zm18 11h-16v-9h16v9zm-10.228 6l.466-1h3.524l.467 1h-4.457zm14.228 3h-24l2-6h2.104l-1.33 4h18.45l-1.297-4h2.073l2 6zm-5-10h-14v-7h14v7z"></path></symbol></defs><defs><symbol id="d-sequencediagram-025bcd2b-light-database" fill-rule="evenodd" clip-rule="evenodd"><path transform="scale(.5)" d="M12.258.001l.256.004.255.005.253.008.251.01.249.012.247.015.246.016.242.019.241.02.239.023.236.024.233.027.231.028.229.031.225.032.223.034.22.036.217.038.214.04.211.041.208.043.205.045.201.046.198.048.194.05.191.051.187.053.183.054.18.056.175.057.172.059.168.06.163.061.16.063.155.064.15.066.074.033.073.033.071.034.07.034.069.035.068.035.067.035.066.035.064.036.064.036.062.036.06.036.06.037.058.037.058.037.055.038.055.038.053.038.052.038.051.039.05.039.048.039.047.039.045.04.044.04.043.04.041.04.04.041.039.041.037.041.036.041.034.041.033.042.032.042.03.042.029.042.027.042.026.043.024.043.023.043.021.043.02.043.018.044.017.043.015.044.013.044.012.044.011.045.009.044.007.045.006.045.004.045.002.045.001.045v17l-.001.045-.002.045-.004.045-.006.045-.007.045-.009.044-.011.045-.012.044-.013.044-.015.044-.017.043-.018.044-.02.043-.021.043-.023.043-.024.043-.026.043-.027.042-.029.042-.03.042-.032.042-.033.042-.034.041-.036.041-.037.041-.039.041-.04.041-.041.04-.043.04-.044.04-.045.04-.047.039-.048.039-.05.039-.051.039-.052.038-.053.038-.055.038-.055.038-.058.037-.058.037-.06.037-.06.036-.062.036-.064.036-.064.036-.066.035-.067.035-.068.035-.069.035-.07.034-.071.034-.073.033-.074.033-.15.066-.155.064-.16.063-.163.061-.168.06-.172.059-.175.057-.18.056-.183.054-.187.053-.191.051-.194.05-.198.048-.201.046-.205.045-.208.043-.211.041-.214.04-.217.038-.22.036-.223.034-.225.032-.229.031-.231.028-.233.027-.236.024-.239.023-.241.02-.242.019-.246.016-.247.015-.249.012-.251.01-.253.008-.255.005-.256.004-.258.001-.258-.001-.256-.004-.255-.005-.253-.008-.251-.01-.249-.012-.247-.015-.245-.016-.243-.019-.241-.02-.238-.023-.236-.024-.234-.027-.231-.028-.228-.031-.226-.032-.223-.034-.22-.036-.217-.038-.214-.04-.211-.041-.208-.043-.204-.045-.201-.046-.198-.048-.195-.05-.19-.051-.187-.053-.184-.054-.179-.056-.176-.057-.172-.059-.167-.06-.164-.061-.159-.063-.155-.064-.151-.066-.074-.033-.072-.033-.072-.034-.07-.034-.069-.035-.068-.035-.067-.035-.066-.035-.064-.036-.063-.036-.062-.036-.061-.036-.06-.037-.058-.037-.057-.037-.056-.038-.055-.038-.053-.038-.052-.038-.051-.039-.049-.039-.049-.039-.046-.039-.046-.04-.044-.04-.043-.04-.041-.04-.04-.041-.039-.041-.037-.041-.036-.041-.034-.041-.033-.042-.032-.042-.03-.042-.029-.042-.027-.042-.026-.043-.024-.043-.023-.043-.021-.043-.02-.043-.018-.044-.017-.043-.015-.044-.013-.044-.012-.044-.011-.045-.009-.044-.007-.045-.006-.045-.004-.045-.002-.045-.001-.045v-17l.001-.045.002-.045.004-.045.006-.045.007-.045.009-.044.011-.045.012-.044.013-.044.015-.044.017-.043.018-.044.02-.043.021-.043.023-.043.024-.043.026-.043.027-.042.029-.042.03-.042.032-.042.033-.042.034-.041.036-.041.037-.041.039-.041.04-.041.041-.04.043-.04.044-.04.046-.04.046-.039.049-.039.049-.039.051-.039.052-.038.053-.038.055-.038.056-.038.057-.037.058-.037.06-.037.061-.036.062-.036.063-.036.064-.036.066-.035.067-.035.068-.035.069-.035.07-.034.072-.034.072-.033.074-.033.151-.066.155-.064.159-.063.164-.061.167-.06.172-.059.176-.057.179-.056.184-.054.187-.053.19-.051.195-.05.198-.048.201-.046.204-.045.208-.043.211-.041.214-.04.217-.038.22-.036.223-.034.226-.032.228-.031.231-.028.234-.027.236-.024.238-.023.241-.02.243-.019.245-.016.247-.015.249-.012.251-.01.253-.008.255-.005.256-.004.258-.001.258.001zm-9.258 20.499v.01l.001.021.003.021.004.022.005.021.006.022.007.022.009.023.01.022.011.023.012.023.013.023.015.023.016.024.017.023.018.024.019.024.021.024.022.025.023.024.024.025.052.049.056.05.061.051.066.051.07.051.075.051.079.052.084.052.088.052.092.052.097.052.102.051.105.052.11.052.114.051.119.051.123.051.127.05.131.05.135.05.139.048.144.049.147.047.152.047.155.047.16.045.163.045.167.043.171.043.176.041.178.041.183.039.187.039.19.037.194.035.197.035.202.033.204.031.209.03.212.029.216.027.219.025.222.024.226.021.23.02.233.018.236.016.24.015.243.012.246.01.249.008.253.005.256.004.259.001.26-.001.257-.004.254-.005.25-.008.247-.011.244-.012.241-.014.237-.016.233-.018.231-.021.226-.021.224-.024.22-.026.216-.027.212-.028.21-.031.205-.031.202-.034.198-.034.194-.036.191-.037.187-.039.183-.04.179-.04.175-.042.172-.043.168-.044.163-.045.16-.046.155-.046.152-.047.148-.048.143-.049.139-.049.136-.05.131-.05.126-.05.123-.051.118-.052.114-.051.11-.052.106-.052.101-.052.096-.052.092-.052.088-.053.083-.051.079-.052.074-.052.07-.051.065-.051.06-.051.056-.05.051-.05.023-.024.023-.025.021-.024.02-.024.019-.024.018-.024.017-.024.015-.023.014-.024.013-.023.012-.023.01-.023.01-.022.008-.022.006-.022.006-.022.004-.022.004-.021.001-.021.001-.021v-4.127l-.077.055-.08.053-.083.054-.085.053-.087.052-.09.052-.093.051-.095.05-.097.05-.1.049-.102.049-.105.048-.106.047-.109.047-.111.046-.114.045-.115.045-.118.044-.12.043-.122.042-.124.042-.126.041-.128.04-.13.04-.132.038-.134.038-.135.037-.138.037-.139.035-.142.035-.143.034-.144.033-.147.032-.148.031-.15.03-.151.03-.153.029-.154.027-.156.027-.158.026-.159.025-.161.024-.162.023-.163.022-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.011-.178.01-.179.008-.179.008-.181.006-.182.005-.182.004-.184.003-.184.002h-.37l-.184-.002-.184-.003-.182-.004-.182-.005-.181-.006-.179-.008-.179-.008-.178-.01-.176-.011-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.022-.162-.023-.161-.024-.159-.025-.157-.026-.156-.027-.155-.027-.153-.029-.151-.03-.15-.03-.148-.031-.146-.032-.145-.033-.143-.034-.141-.035-.14-.035-.137-.037-.136-.037-.134-.038-.132-.038-.13-.04-.128-.04-.126-.041-.124-.042-.122-.042-.12-.044-.117-.043-.116-.045-.113-.045-.112-.046-.109-.047-.106-.047-.105-.048-.102-.049-.1-.049-.097-.05-.095-.05-.093-.052-.09-.051-.087-.052-.085-.053-.083-.054-.08-.054-.077-.054v4.127zm0-5.654v.011l.001.021.003.021.004.021.005.022.006.022.007.022.009.022.01.022.011.023.012.023.013.023.015.024.016.023.017.024.018.024.019.024.021.024.022.024.023.025.024.024.052.05.056.05.061.05.066.051.07.051.075.052.079.051.084.052.088.052.092.052.097.052.102.052.105.052.11.051.114.051.119.052.123.05.127.051.131.05.135.049.139.049.144.048.147.048.152.047.155.046.16.045.163.045.167.044.171.042.176.042.178.04.183.04.187.038.19.037.194.036.197.034.202.033.204.032.209.03.212.028.216.027.219.025.222.024.226.022.23.02.233.018.236.016.24.014.243.012.246.01.249.008.253.006.256.003.259.001.26-.001.257-.003.254-.006.25-.008.247-.01.244-.012.241-.015.237-.016.233-.018.231-.02.226-.022.224-.024.22-.025.216-.027.212-.029.21-.03.205-.032.202-.033.198-.035.194-.036.191-.037.187-.039.183-.039.179-.041.175-.042.172-.043.168-.044.163-.045.16-.045.155-.047.152-.047.148-.048.143-.048.139-.05.136-.049.131-.05.126-.051.123-.051.118-.051.114-.052.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.051.07-.052.065-.051.06-.05.056-.051.051-.049.023-.025.023-.024.021-.025.02-.024.019-.024.018-.024.017-.024.015-.023.014-.023.013-.024.012-.022.01-.023.01-.023.008-.022.006-.022.006-.022.004-.021.004-.022.001-.021.001-.021v-4.139l-.077.054-.08.054-.083.054-.085.052-.087.053-.09.051-.093.051-.095.051-.097.05-.1.049-.102.049-.105.048-.106.047-.109.047-.111.046-.114.045-.115.044-.118.044-.12.044-.122.042-.124.042-.126.041-.128.04-.13.039-.132.039-.134.038-.135.037-.138.036-.139.036-.142.035-.143.033-.144.033-.147.033-.148.031-.15.03-.151.03-.153.028-.154.028-.156.027-.158.026-.159.025-.161.024-.162.023-.163.022-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.011-.178.009-.179.009-.179.007-.181.007-.182.005-.182.004-.184.003-.184.002h-.37l-.184-.002-.184-.003-.182-.004-.182-.005-.181-.007-.179-.007-.179-.009-.178-.009-.176-.011-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.022-.162-.023-.161-.024-.159-.025-.157-.026-.156-.027-.155-.028-.153-.028-.151-.03-.15-.03-.148-.031-.146-.033-.145-.033-.143-.033-.141-.035-.14-.036-.137-.036-.136-.037-.134-.038-.132-.039-.13-.039-.128-.04-.126-.041-.124-.042-.122-.043-.12-.043-.117-.044-.116-.044-.113-.046-.112-.046-.109-.046-.106-.047-.105-.048-.102-.049-.1-.049-.097-.05-.095-.051-.093-.051-.09-.051-.087-.053-.085-.052-.083-.054-.08-.054-.077-.054v4.139zm0-5.666v.011l.001.02.003.022.004.021.005.022.006.021.007.022.009.023.01.022.011.023.012.023.013.023.015.023.016.024.017.024.018.023.019.024.021.025.022.024.023.024.024.025.052.05.056.05.061.05.066.051.07.051.075.052.079.051.084.052.088.052.092.052.097.052.102.052.105.051.11.052.114.051.119.051.123.051.127.05.131.05.135.05.139.049.144.048.147.048.152.047.155.046.16.045.163.045.167.043.171.043.176.042.178.04.183.04.187.038.19.037.194.036.197.034.202.033.204.032.209.03.212.028.216.027.219.025.222.024.226.021.23.02.233.018.236.017.24.014.243.012.246.01.249.008.253.006.256.003.259.001.26-.001.257-.003.254-.006.25-.008.247-.01.244-.013.241-.014.237-.016.233-.018.231-.02.226-.022.224-.024.22-.025.216-.027.212-.029.21-.03.205-.032.202-.033.198-.035.194-.036.191-.037.187-.039.183-.039.179-.041.175-.042.172-.043.168-.044.163-.045.16-.045.155-.047.152-.047.148-.048.143-.049.139-.049.136-.049.131-.051.126-.05.123-.051.118-.052.114-.051.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.052.07-.051.065-.051.06-.051.056-.05.051-.049.023-.025.023-.025.021-.024.02-.024.019-.024.018-.024.017-.024.015-.023.014-.024.013-.023.012-.023.01-.022.01-.023.008-.022.006-.022.006-.022.004-.022.004-.021.001-.021.001-.021v-4.153l-.077.054-.08.054-.083.053-.085.053-.087.053-.09.051-.093.051-.095.051-.097.05-.1.049-.102.048-.105.048-.106.048-.109.046-.111.046-.114.046-.115.044-.118.044-.12.043-.122.043-.124.042-.126.041-.128.04-.13.039-.132.039-.134.038-.135.037-.138.036-.139.036-.142.034-.143.034-.144.033-.147.032-.148.032-.15.03-.151.03-.153.028-.154.028-.156.027-.158.026-.159.024-.161.024-.162.023-.163.023-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.01-.178.01-.179.009-.179.007-.181.006-.182.006-.182.004-.184.003-.184.001-.185.001-.185-.001-.184-.001-.184-.003-.182-.004-.182-.006-.181-.006-.179-.007-.179-.009-.178-.01-.176-.01-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.023-.162-.023-.161-.024-.159-.024-.157-.026-.156-.027-.155-.028-.153-.028-.151-.03-.15-.03-.148-.032-.146-.032-.145-.033-.143-.034-.141-.034-.14-.036-.137-.036-.136-.037-.134-.038-.132-.039-.13-.039-.128-.041-.126-.041-.124-.041-.122-.043-.12-.043-.117-.044-.116-.044-.113-.046-.112-.046-.109-.046-.106-.048-.105-.048-.102-.048-.1-.05-.097-.049-.095-.051-.093-.051-.09-.052-.087-.052-.085-.053-.083-.053-.08-.054-.077-.054v4.153zm8.74-8.179l-.257.004-.254.005-.25.008-.247.011-.244.012-.241.014-.237.016-.233.018-.231.021-.226.022-.224.023-.22.026-.216.027-.212.028-.21.031-.205.032-.202.033-.198.034-.194.036-.191.038-.187.038-.183.04-.179.041-.175.042-.172.043-.168.043-.163.045-.16.046-.155.046-.152.048-.148.048-.143.048-.139.049-.136.05-.131.05-.126.051-.123.051-.118.051-.114.052-.11.052-.106.052-.101.052-.096.052-.092.052-.088.052-.083.052-.079.052-.074.051-.07.052-.065.051-.06.05-.056.05-.051.05-.023.025-.023.024-.021.024-.02.025-.019.024-.018.024-.017.023-.015.024-.014.023-.013.023-.012.023-.01.023-.01.022-.008.022-.006.023-.006.021-.004.022-.004.021-.001.021-.001.021.001.021.001.021.004.021.004.022.006.021.006.023.008.022.01.022.01.023.012.023.013.023.014.023.015.024.017.023.018.024.019.024.02.025.021.024.023.024.023.025.051.05.056.05.06.05.065.051.07.052.074.051.079.052.083.052.088.052.092.052.096.052.101.052.106.052.11.052.114.052.118.051.123.051.126.051.131.05.136.05.139.049.143.048.148.048.152.048.155.046.16.046.163.045.168.043.172.043.175.042.179.041.183.04.187.038.191.038.194.036.198.034.202.033.205.032.21.031.212.028.216.027.22.026.224.023.226.022.231.021.233.018.237.016.241.014.244.012.247.011.25.008.254.005.257.004.26.001.26-.001.257-.004.254-.005.25-.008.247-.011.244-.012.241-.014.237-.016.233-.018.231-.021.226-.022.224-.023.22-.026.216-.027.212-.028.21-.031.205-.032.202-.033.198-.034.194-.036.191-.038.187-.038.183-.04.179-.041.175-.042.172-.043.168-.043.163-.045.16-.046.155-.046.152-.048.148-.048.143-.048.139-.049.136-.05.131-.05.126-.051.123-.051.118-.051.114-.052.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.051.07-.052.065-.051.06-.05.056-.05.051-.05.023-.025.023-.024.021-.024.02-.025.019-.024.018-.024.017-.023.015-.024.014-.023.013-.023.012-.023.01-.023.01-.022.008-.022.006-.023.006-.021.004-.022.004-.021.001-.021.001-.021-.001-.021-.001-.021-.004-.021-.004-.022-.006-.021-.006-.023-.008-.022-.01-.022-.01-.023-.012-.023-.013-.023-.014-.023-.015-.024-.017-.023-.018-.024-.019-.024-.02-.025-.021-.024-.023-.024-.023-.025-.051-.05-.056-.05-.06-.05-.065-.051-.07-.052-.074-.051-.079-.052-.083-.052-.088-.052-.092-.052-.096-.052-.101-.052-.106-.052-.11-.052-.114-.052-.118-.051-.123-.051-.126-.051-.131-.05-.136-.05-.139-.049-.143-.048-.148-.048-.152-.048-.155-.046-.16-.046-.163-.045-.168-.043-.172-.043-.175-.042-.179-.041-.183-.04-.187-.038-.191-.038-.194-.036-.198-.034-.202-.033-.205-.032-.21-.031-.212-.028-.216-.027-.22-.026-.224-.023-.226-.022-.231-.021-.233-.018-.237-.016-.241-.014-.244-.012-.247-.011-.25-.008-.254-.005-.257-.004-.26-.001-.26.001z"></path></symbol></defs><defs><symbol id="d-sequencediagram-025bcd2b-light-clock" width="24" height="24"><path transform="scale(.5)" d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.848 12.459c.202.038.202.333.001.372-1.907.361-6.045 1.111-6.547 1.111-.719 0-1.301-.582-1.301-1.301 0-.512.77-5.447 1.125-7.445.034-.192.312-.181.343.014l.985 6.238 5.394 1.011z"></path></symbol></defs><defs><marker id="d-sequencediagram-025bcd2b-light-arrowhead" refX="7.9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M -1 0 L 10 5 L 0 10 z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-crosshead" markerWidth="15" markerHeight="8" orient="auto" refX="4" refY="4.5"><path fill="none" stroke="#000000" stroke-width="1pt" d="M 1,2 L 6,7 M 6,2 L 1,7" style="stroke-dasharray: 0, 0;"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-filled-head" refX="15.5" refY="7" markerWidth="20" markerHeight="28" orient="auto"><path d="M 18,7 L9,13 L14,7 L9,1 Z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-sequencenumber" refX="15" refY="15" markerWidth="60" markerHeight="40" orient="auto"><circle cx="15" cy="15" r="6"></circle></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-solidTopArrowHead" refX="7.9" refY="7.25" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 8 L 0 8 z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-solidBottomArrowHead" refX="7.9" refY="0.75" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 0 L 0 8 z"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-stickTopArrowHead" refX="7.5" refY="7" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 7 7" stroke="black" stroke-width="1.5" fill="none"></path></marker></defs><defs><marker id="d-sequencediagram-025bcd2b-light-stickBottomArrowHead" refX="7.5" refY="0" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 7 L 7 0" stroke="black" stroke-width="1.5" fill="none"></path></marker></defs><defs><filter id="d-sequencediagram-025bcd2b-light-drop-shadow" height="130%" width="130%"><feDropShadow dx="4" dy="4" stdDeviation="0" flood-opacity="0.06" flood-color="#FFFFFF"></feDropShadow></filter></defs><g data-et="note" data-id="i6"><rect x="250" y="377" fill="#EDF2AE" stroke="#666" width="448" height="37" class="note" data-look="neo"></rect><text x="474" y="382" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="noteText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;"><tspan x="474">Keycloak verified the proof and bound the token. Our API has not yet verified anything.</tspan></text></g><text x="276" y="88" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Generate non-extractable P-256 key via WebCrypto</text><path d="M 276,117 C 336,107 336,147 276,137" class="messageLine0" data-et="message" data-id="i0" data-from="SPA" data-to="SPA" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-light-arrowhead)" style="fill: none;"></path><text x="471" y="162" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Authorization request with PKCE and dpop_jkt</text><line x1="276" y1="191" x2="666" y2="191" class="messageLine0" data-et="message" data-id="i1" data-from="SPA" data-to="KC" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-light-arrowhead)" style="fill: none;"></line><text x="377" y="206" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">WebAuthn challenge, conditional or modal UI</text><line x1="672" y1="235" x2="82" y2="235" class="messageLine0" data-et="message" data-id="i2" data-from="KC" data-to="U" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-light-arrowhead)" style="fill: none;"></line><text x="371" y="250" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Signed assertion with user verification</text><line x1="76" y1="279" x2="666" y2="279" class="messageLine0" data-et="message" data-id="i3" data-from="U" data-to="KC" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-light-arrowhead)" style="fill: none;"></line><text x="827" y="294" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Persist session and credential use</text><line x1="674" y1="323" x2="979" y2="323" class="messageLine0" data-et="message" data-id="i4" data-from="KC" data-to="RDS" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-light-arrowhead)" style="fill: none;"></line><text x="477" y="338" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-family: ui-sans-serif, -apple-system, &quot;Segoe UI&quot;, Inter, Roboto, Arial, sans-serif; font-size: 16px; font-weight: 400;">Tokens bound to the DPoP key, cnf.jkt claim</text><line x1="672" y1="367" x2="282" y2="367" class="messageLine0" data-et="message" data-id="i5" data-from="KC" data-to="SPA" stroke-width="2" stroke="none" marker-end="url(#d-sequencediagram-025bcd2b-light-arrowhead)" style="fill: none;"></line></svg>
+</div></figure>
+
+<p><strong>Every subsequent API call</strong> runs this gauntlet, and all of it must pass:</p>
+<ol>
+<li>CloudFront/WAF — volumetric and signature filtering (B1)</li>
+<li>API Gateway — TLS, routing, throttling</li>
+<li><strong>DPoP Verifying Authorizer</strong> — JWT signature via Keycloak JWKS, <code>cnf.jkt</code> present, DPoP proof
+   signature matches the thumbprint, <code>htm</code>/<code>htu</code> match the request, <code>jti</code> not replayed, <code>iat</code> fresh
+   (S3)</li>
+<li>Revocation check — session not revoked (S6)</li>
+<li>Posture gate — posture score satisfies the requested action&rsquo;s requirement</li>
+<li>AVP <code>IsAuthorized</code> — Cedar policy for principal/action/resource/context (S4)</li>
+<li>Data layer — tenant scope re-applied in the query itself (S5)</li>
+<li>Audit — decision recorded asynchronously, non-blocking</li>
+</ol>
+<p>Steps 3–7 are each independently capable of denying the request. That redundancy is intentional:
+any one of them failing is a security incident, not an outage, so they must not share a fate.</p>
+<hr>
+</section>
+<section id="5-the-identity-plane-summary"><h2>5. The identity plane (summary)</h2>
+<p>Full detail in <a href="identity.html">identity-and-passkeys.md</a>.</p>
+<ul>
+<li><strong>Two realms, two assurance levels.</strong> <code>attest-users</code> for customers (passkey + password coexistence
+  during migration). <code>attest-privileged</code> for Attest staff, with <strong>no password authenticator
+  configured at all</strong> (S1) and a restrictive WebAuthn policy.</li>
+<li><strong>AAGUID allowlist on the privileged realm.</strong> Device-bound authenticators are enforced at
+  registration, not inferred after the fact. This is the capability that Cognito could not provide.</li>
+<li><strong><code>User Verification Requirement = Required</code></strong> on the privileged realm, <code>Preferred</code> on the
+  standard realm.</li>
+<li><strong>Native passkeys with conditional UI.</strong> The <strong>&ldquo;Conditional - credential&rdquo;</strong> authenticator skips a
+  second factor when a passkey was the primary credential — the IdP implements the correct AAL
+  reasoning rather than us approximating it.</li>
+<li><strong>DPoP required on both realms&rsquo; clients</strong>, binding access and refresh tokens.</li>
+<li><strong>ACR → Level of Authentication mapping</strong> for step-up, so elevation is standards-based
+  (<code>acr_values</code>) rather than a custom timestamp.</li>
+<li><strong>Recovery is designed as an attack surface, not a support workflow.</strong> Section 8 of the identity
+  document specifies recovery that cannot downgrade below the assurance of the factor it replaces.</li>
+</ul>
+</section>
+<section id="6-the-authorization-plane-summary"><h2>6. The authorization plane (summary)</h2>
+<p>Full detail in <a href="authorization.html">authorization-and-sessions.md</a>.</p>
+<ul>
+<li><strong>Two-layer authorization, both required.</strong> The DPoP Verifying Authorizer answers &ldquo;is this session
+  trustworthy and live?&rdquo;; AVP answers &ldquo;may this principal do this, to this resource, in this tenant,
+  <em>right now</em>?&rdquo;. Authorization is never inferred from the tenant claim alone.</li>
+<li><strong>Cedar via Amazon Verified Permissions is retained</strong> (ADR-005). Keycloak&rsquo;s own Authorization
+  Services (UMA) were rejected: its policy model is weaker for per-resource tenant isolation, and we
+  already have a strong, auditable, CI-gated Cedar design. This is deliberately the one part of the
+  original plan that does not change.</li>
+<li><strong>Policies are code.</strong> Cedar policies live in the repo, are validated in CI, and every API route
+  must have a corresponding policy or the build fails (S4).</li>
+<li><strong>Revocation is a first-class subsystem.</strong> Keycloak provides session revocation and admin logout;
+  we add an event listener that publishes revocation events so the effect is visible to our API in
+  under 60 seconds (S6, Spike #8).</li>
+</ul>
+</section>
+<section id="7-continuous-verification-and-device-posture"><h2>7. Continuous verification and device posture</h2>
+<p>This is the pillar most often skipped, and the one that makes the difference between &ldquo;Zero Trust&rdquo;
+and &ldquo;strong login&rdquo;. Two honest constraints:</p>
+<ol>
+<li><strong>Browser posture is weak evidence.</strong> A web app cannot attest to the health of the device it
+   runs on. Anything claimed by JavaScript is attacker-controlled. Phase 4 therefore uses
+   <em>server-observable</em> signals (TLS/JA4 fingerprint, IP/ASN reputation, coarse geolocation drift,
+   WebAuthn authenticator properties from Keycloak) and treats client-reported signals as untrusted
+   hints only.</li>
+<li><strong>Real posture requires an agent.</strong> Genuine device attestation needs MDM enrolment or a device
+   agent reporting TPM/Secure Enclave state. That is Phase 4b, gated on customer demand, and is
+   explicitly <strong>not</strong> a Phase 1–3 dependency.</li>
+</ol>
+<p>Posture is not a separate gate — it is <strong>input to the policy decision</strong>. A low posture score does
+not necessarily deny; it raises the required assurance for sensitive actions, forcing step-up. That
+is what &ldquo;continuous&rdquo; means in practice.</p>
+<h3 id="71-replacing-managed-threat-protection-new-workstream">7.1 Replacing managed threat protection (new workstream)</h3>
+<p>Cognito Plus supplied breached-credential blocking and risk-based adaptive authentication. Keycloak
+supplies neither, so Phase 4 must build the substitute (ADR-012):</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Capability lost</th>
+<th>Replacement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Breached-credential blocking</td>
+<td>Custom Keycloak <strong>Authenticator SPI</strong> checking a breached-password corpus at registration and change</td>
+<td>Only relevant to the standard realm; the privileged realm has no passwords at all, so this loss is largely self-mitigating</td>
+</tr>
+<tr>
+<td>Device/network risk signals</td>
+<td>Custom <strong>Conditional</strong> authenticator calling our Risk service, forcing step-up via <code>acr_values</code> or denying</td>
+<td>Java SPI work — the main added build cost of the OSS route</td>
+</tr>
+<tr>
+<td>Brute-force protection</td>
+<td>Keycloak built-in brute-force detection, tuned strictly</td>
+<td>Native; must be explicitly enabled and tuned</td>
+</tr>
+<tr>
+<td>Threat telemetry</td>
+<td>Keycloak event listener → CloudWatch/EventBridge → detection rules</td>
+<td>Native event system gives us more raw signal than Cognito Plus did</td>
+</tr>
+</tbody>
+</table></div>
+<p>The last row is the consolation prize, and it is real: Keycloak&rsquo;s event system exposes more
+authentication detail than Cognito&rsquo;s managed threat protection did, so detection can end up
+<em>better</em> even though the managed risk scoring was better. Both statements are true.</p>
+</section>
+<section id="8-microsegmentation-and-workload-identity"><h2>8. Microsegmentation and workload identity</h2>
+<ul>
+<li><strong>Per-domain Lambdas with their own IAM roles and security groups.</strong> The evidence-upload function
+  cannot read the audit table. No shared &ldquo;app role&rdquo; — that is the single most common AWS
+  segmentation failure.</li>
+<li><strong>Keycloak tasks accept traffic only from the ALB security group.</strong> No direct access, no public
+  task IPs, tasks in private subnets.</li>
+<li><strong>RDS Postgres in private subnets, Multi-AZ, encrypted</strong>, reached via RDS Proxy so Fargate task
+  churn does not exhaust connections. Credentials in Secrets Manager with rotation.</li>
+<li><strong>DynamoDB tenant partitioning</strong> with point-in-time recovery; tenant scope enforced in the request
+  path, and separately by IAM condition keys where the data model allows.</li>
+<li><strong>S3 evidence buckets</strong>: per-tenant prefixes, KMS CMK, access only via pre-signed URLs, Object Lock
+  on the audit bucket.</li>
+<li><strong>No long-lived AWS credentials</strong> (S9). CI authenticates via GitHub OIDC → IAM role. Service
+  identities use Keycloak client credentials for our own API and SigV4 for AWS APIs.</li>
+<li><strong>Human access to AWS is via IAM Identity Center with FIDO2 security keys</strong> — no exceptions,
+  because the AWS management plane is the true crown jewel and it is outside Keycloak entirely.</li>
+<li><strong>VPC endpoints</strong> for DynamoDB/S3/KMS/Secrets Manager so data access does not traverse the public
+  internet.</li>
+</ul>
+</section>
+<section id="9-phased-delivery"><h2>9. Phased delivery</h2>
+<p>Ordering principle: <strong>each phase is independently valuable and independently testable.</strong> If the
+project stops after Phase 3, the result is still a genuinely defensible Zero Trust application.</p>
+<h3 id="phase-0-foundations">Phase 0 — Foundations</h3>
+<p><strong>Deliverable:</strong> CDK app, CI with OIDC, <code>cdk-nag</code> in CI, Keycloak ECS + RDS + ALB stack, declarative
+realm configuration pipeline, clean-account deploy.
+<strong>Acceptance:</strong> <code>cdk deploy</code> succeeds from empty account (S10); realm config applies to an empty
+realm reproducibly (S12); <code>cdk-nag</code> passes with no unsuppressed findings; no static AWS credentials
+(S9).
+<strong>Blocked on:</strong> <code>aws login</code>, Docker running, resolving the pnpm/corepack issue.
+<strong>Note:</strong> Keycloak clustering on Fargate (Spike #7) must be resolved here — a single-task Keycloak
+is not a viable production target.</p>
+<h3 id="phase-1-passwordless-identity">Phase 1 — Passwordless identity</h3>
+<p><strong>Deliverable:</strong> both realms, passkeys enrolled and working, WebAuthn policies, AAGUID allowlist,
+<code>direct</code> attestation on the privileged realm, <strong>and a modified browser flow that removes the password
+authenticator from <code>attest-privileged</code></strong>.
+<strong>Acceptance:</strong> register and sign in with a passkey on the standard realm; <strong>prove no password
+authenticator exists</strong> on the privileged realm (S1); a non-allowlisted authenticator is <strong>rejected at
+registration</strong> on the privileged realm; Evilginx-class proxy test fails to capture a usable session
+(S2).</p>
+<blockquote>
+<p><strong>Scope correction from Spike #3:</strong> S1 is <strong>not</strong> achieved by realm configuration. Keycloak&rsquo;s
+default browser flow sets <code>Username Password Form</code> to <code>REQUIRED</code>, and
+<code>webauthn-authenticator-passwordless</code> is <strong>not in the default flow at all</strong>. During the spike a
+password login to <code>attest-privileged</code> <em>succeeded</em>. Removing the password factor is genuine flow
+surgery (copy the browser flow, drop the password form, wire the passkey authenticator, bind it to
+the realm) and must be built and regression-tested — see
+<a href="lab-results.html">SPIKE-3-RESULTS.md §5</a>. Budget for it; do not assume a
+toggle.
+<strong>This phase delivers the headline requirement.</strong> It does not yet satisfy S3 — Keycloak binds the
+token, but our API is not yet verifying proofs.</p>
+</blockquote>
+<h3 id="phase-2-dpop-verification-at-our-api">Phase 2 — DPoP verification at our API</h3>
+<p><strong>Deliverable:</strong> DPoP Verifying Authorizer replacing the plain JWT authorizer; revocation store and
+event-driven invalidation.
+<strong>Acceptance:</strong> token replay without the private key is rejected (S3); revocation propagates in under
+60s (S6).
+<strong>Much smaller than the original Phase 2</strong> (which built a token-issuing broker from scratch). The
+remaining risk is integration correctness, not novel cryptography — see Spikes #1 and #8.</p>
+<h3 id="phase-3-fine-grained-authorization">Phase 3 — Fine-grained authorization</h3>
+<p><strong>Deliverable:</strong> AVP/Cedar policies, tenant isolation in Cedar <em>and</em> the data layer, auditor
+scoping, admin consoles, policy-coverage CI gate.
+<strong>Acceptance:</strong> cross-tenant IDOR suite fails to breach (S5); every route has a policy (S4); auditor
+access auto-expires at engagement close (S7).</p>
+<h3 id="phase-4-continuous-verification-and-risk">Phase 4 — Continuous verification and risk</h3>
+<p><strong>Deliverable:</strong> posture service, server-side signals, ACR-based step-up, custom risk authenticator,
+breached-password authenticator, tuned brute-force detection.
+<strong>Acceptance:</strong> a degraded posture triggers step-up rather than silent access; step-up is
+<code>acr_values</code>-driven and verifiable; the replacement controls in Section 7.1 demonstrably cover the
+capabilities lost from Cognito Plus.</p>
+<h3 id="phase-5-segmentation-and-workload-identity">Phase 5 — Segmentation and workload identity</h3>
+<p><strong>Deliverable:</strong> per-function IAM and security groups, VPC endpoints, OIDC CI, service identities,
+RDS Proxy, secrets rotation.
+<strong>Acceptance:</strong> evidence-upload function provably cannot read the audit table; no long-lived keys.</p>
+<h3 id="phase-6-assurance-and-operations">Phase 6 — Assurance and operations</h3>
+<p><strong>Deliverable:</strong> immutable audit pipeline, detection rules, <strong>Keycloak upgrade and DR runbook</strong>,
+ZTMM self-assessment, red-team exercise.
+<strong>Acceptance:</strong> audit log tamper-evident (S8); the upgrade runbook is rehearsed and a patch is
+deployable within 48 hours (S11); red team cannot reach cross-tenant data or platform admin within
+the agreed time box.</p>
+<p><strong>Phase 6 is materially heavier than in the Cognito plan.</strong> Running the IdP means version upgrades,
+Postgres failover drills, and restore testing are ongoing obligations, not one-time deliverables.</p>
+<hr>
+</section>
+<section id="10-non-goals"><h2>10. Non-goals</h2>
+<p>Recorded so they can be renegotiated deliberately rather than drifted into.</p>
+<ul>
+<li><strong>Building our own FIDO2/WebAuthn server.</strong> Rejected — ADR-001. We run Keycloak; we do not
+  reimplement it.</li>
+<li><strong>Becoming an identity product.</strong> We operate an IdP for <em>our</em> application. We are not offering
+  IdP-as-a-service, multi-tenant IdP isolation for customers, or BYO-IdP hosting.</li>
+<li><strong>Multi-region active-active Keycloak.</strong> Phase 6 targets a rehearsed restore and a single-region
+  Multi-AZ deployment. Active-active across regions is a much larger project and is out of scope
+  until a contractual requirement exists.</li>
+<li><strong>A custom Keycloak theme beyond basic branding.</strong> Cosmetic work with real upgrade cost (themes
+  break across versions). Use stock login screens.</li>
+<li><strong>Forking Keycloak.</strong> Extensions only, via documented SPIs. A fork makes CVE patching (S11)
+  unbounded.</li>
+<li><strong>Client-side malware and malicious browser extensions.</strong> Out of scope. A hostile extension that
+  shares the browser context defeats DPoP in practice. We reduce but do not eliminate this; the
+  threat model says so explicitly.</li>
+<li><strong>Physical coercion / evil-maid attacks.</strong> Out of scope for this application&rsquo;s risk profile.</li>
+<li><strong>Being the identity provider for a customer&rsquo;s other systems.</strong> Attest is a relying party for our
+  own app. Federation <em>in</em> (customer SAML/OIDC) is now cheap with Keycloak and is a plausible later
+  feature; federation <em>out</em> is not.</li>
+<li><strong>Full network microsegmentation of a corporate estate.</strong> We segment our own AWS workload.</li>
+<li><strong>Formal certification.</strong> This plan maps to NIST SP 800-207 / 800-63B-4, OMB M-22-09, and CISA
+  ZTMM, but mapping is not certification, and no auditor has reviewed it.</li>
+<li><strong>A device agent and MDM integration</strong> (Phase 4b) — deferred, gated on demand.</li>
+</ul>
+</section>
+<section id="11-cost-model"><h2>11. Cost model</h2>
+<p>The cost shape changed fundamentally. Cognito was <strong>per-MAU</strong>; Keycloak is <strong>fixed compute</strong>,
+independent of user count. That inverts the economics: more expensive at low volume, cheaper at
+high volume, and — the underrated benefit — <strong>fully predictable</strong>, which matters more for planning
+than either.</p>
+<p>I could not extract current Cognito unit prices during the original planning pass, and I have not
+priced Keycloak hosting either. Rather than invent numbers, here are the drivers.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Cost driver</th>
+<th>Scaling dimension</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RDS Postgres Multi-AZ</td>
+<td><strong>Fixed, dominant</strong></td>
+<td>The largest single line item. Sized by realm/user count, not request rate. Multi-AZ roughly doubles instance cost.</td>
+</tr>
+<tr>
+<td>ECS Fargate tasks</td>
+<td>Fixed (task count)</td>
+<td>Minimum 2 tasks for availability, plus autoscaling headroom for login bursts.</td>
+</tr>
+<tr>
+<td>ALB</td>
+<td>Fixed + LCU</td>
+<td>One ALB, or shared with other services.</td>
+</tr>
+<tr>
+<td>NAT Gateway</td>
+<td>Fixed + data</td>
+<td>Needed for private-subnet egress.</td>
+</tr>
+<tr>
+<td>CloudFront + WAF</td>
+<td>Requests + rule count</td>
+<td>Managed rule groups are a meaningful fixed monthly cost.</td>
+</tr>
+<tr>
+<td>API Gateway / Lambda</td>
+<td>Request volume</td>
+<td>DPoP verification runs per request — keep the authorizer lean, and cache JWKS.</td>
+</tr>
+<tr>
+<td>Amazon Verified Permissions</td>
+<td>API calls + policies</td>
+<td>Retained from the original plan.</td>
+</tr>
+<tr>
+<td>DynamoDB / S3</td>
+<td>Storage + requests</td>
+<td>Evidence storage dominates, not auth.</td>
+</tr>
+<tr>
+<td>KMS + S3 Object Lock</td>
+<td>Keys + storage</td>
+<td>Object Lock storage grows monotonically — model retention deliberately.</td>
+</tr>
+<tr>
+<td>CloudWatch / audit retention</td>
+<td>Log volume</td>
+<td>Keycloak emits substantial event volume. Tier aggressively, but never drop authz decisions (S8).</td>
+</tr>
+<tr>
+<td><strong>Engineering time</strong></td>
+<td><strong>Recurring</strong></td>
+<td>The real cost of self-hosting: upgrades, patching, DR drills, incident response. Budget it explicitly or it becomes invisible and then becomes an outage.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Action before Phase 0:</strong> price RDS Multi-AZ, Fargate, ALB, and NAT for the target region, and
+record live Cognito-equivalent figures for comparison. Treat every number above as <code>VERIFY</code>. The
+break-even question — &ldquo;at what MAU is self-hosted Keycloak cheaper than Cognito Essentials/Plus?&rdquo; —
+cannot be answered without those figures.</p>
+</section>
+<section id="12-risk-register"><h2>12. Risk register</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Risk</th>
+<th>Impact</th>
+<th>Likelihood</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1</td>
+<td><strong>We operate the IdP.</strong> Unpatched Keycloak CVE, failed upgrade, or DB outage takes authentication down or compromises it</td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Version pinning + 48-hour patch SLA (S11), rehearsed upgrade runbook, automated Postgres backups with tested restore, Multi-AZ, managed-Keycloak fallback documented (ADR-010)</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>Misreading &ldquo;Keycloak does DPoP&rdquo; and never verifying proofs at our API</td>
+<td>Critical</td>
+<td><strong>Medium-High</strong></td>
+<td>DPoP Verifying Authorizer is an explicit Phase 2 deliverable with a replay test (S3); ADR-004 states the boundary in bold</td>
+</tr>
+<tr>
+<td>R3</td>
+<td>Keycloak clustering on Fargate (no Kubernetes DNS) is misconfigured, causing session loss or split brain</td>
+<td>High</td>
+<td>Medium</td>
+<td>Spike #7; jdbc-ping discovery; verify before Phase 1</td>
+</tr>
+<tr>
+<td>R4</td>
+<td>Loss of managed adaptive auth degrades risk detection versus Cognito Plus</td>
+<td>High</td>
+<td>Medium-High</td>
+<td>ADR-012 replacement workstream in Phase 4; Keycloak&rsquo;s richer event stream partly compensates</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>Realm configuration drifts from code (console changes) and becomes unreproducible</td>
+<td>High</td>
+<td>Medium</td>
+<td>Declarative config in CI (S12); admin access restricted and audited (B9)</td>
+</tr>
+<tr>
+<td>R6</td>
+<td>Custom Keycloak SPIs (risk, breached-password authenticators) break on upgrade</td>
+<td>Medium</td>
+<td>High</td>
+<td>Extensions only, no fork; pin versions; upgrade runbook includes SPI compatibility check</td>
+</tr>
+<tr>
+<td>R7</td>
+<td>Recovery flow becomes the weakest link and re-opens phishing</td>
+<td>High</td>
+<td>Medium-High</td>
+<td>Recovery designed in Section 8 of the identity doc; admin-assisted with identity proofing, never email-OTP-only</td>
+</tr>
+<tr>
+<td>R8</td>
+<td>Cedar policy sprawl becomes unmaintainable</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Policy-as-code, coverage gate in CI, templates plus per-tenant overrides</td>
+</tr>
+<tr>
+<td>R9</td>
+<td>Two realms create a confusing duplicate-identity experience for staff</td>
+<td>Low</td>
+<td>High</td>
+<td>Accept it; staff are few and the separation is the point (ADR-002)</td>
+</tr>
+<tr>
+<td>R10</td>
+<td>Scope creep toward the non-goals in Section 10</td>
+<td>High</td>
+<td>High</td>
+<td>Section 10 exists to be cited in review. Still the most likely way the project fails</td>
+</tr>
+<tr>
+<td>R11</td>
+<td>RDS becomes a single point of failure or a bottleneck under login bursts</td>
+<td>High</td>
+<td>Low-Medium</td>
+<td>Multi-AZ, RDS Proxy, connection pooling tuned, load test in Phase 6</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="13-compliance-mapping"><h2>13. Compliance mapping</h2>
+<p>Mapping, not certification. Useful for framing, not as evidence.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Framework</th>
+<th>What it demands</th>
+<th>Where addressed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NIST SP 800-207 (Zero Trust Architecture)</td>
+<td>PDP/PEP separation; per-request decisions; assume-breach posture</td>
+<td>Sections 4.3, 4.4, 6</td>
+</tr>
+<tr>
+<td>NIST SP 800-63B-4 / 800-63Bsup1</td>
+<td>Phishing-resistant authenticators; treatment of syncable authenticators</td>
+<td>identity-and-passkeys.md, ADR-003</td>
+</tr>
+<tr>
+<td>OMB M-22-09</td>
+<td>Phishing-resistant MFA; no password-only fallback for privileged users</td>
+<td>Phase 1 acceptance (S1)</td>
+</tr>
+<tr>
+<td>CISA Zero Trust Maturity Model</td>
+<td>Five pillars: identity, devices, networks, applications, data</td>
+<td>Phases 1–6 map roughly one per pillar</td>
+</tr>
+<tr>
+<td>SOC 2 (as a product feature)</td>
+<td>Access control, change management, monitoring, evidence integrity</td>
+<td>Audit pipeline (Phase 6), Object Lock, CI policy gates</td>
+</tr>
+<tr>
+<td>NIST IR 8587 (token protection)</td>
+<td>Sender-constrained tokens, replay resistance</td>
+<td>DPoP (Phase 2), Spike #1</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+</section>
+<section id="14-immediate-next-actions"><h2>14. Immediate next actions</h2>
+<ol>
+<li><strong>Run <code>aws login</code></strong> and confirm target account + region. Everything downstream is blocked.</li>
+<li><strong>Review the 8 verification spikes</strong> in <a href="adr.html">decisions.md</a>. #1 (DPoP end-to-end) and #7
+   (Fargate clustering) are the two most likely to force a design change.</li>
+<li><strong>Confirm Section 10 (non-goals)</strong> — particularly &ldquo;no multi-region active-active&rdquo; and &ldquo;no custom
+   theming&rdquo;. Both are commonly discovered later as implicit requirements.</li>
+<li><strong>Confirm Section 3 success criteria</strong>, especially the two new ones (S11, S12). If the team is not
+   prepared to commit to a 48-hour IdP patch SLA, self-hosting Keycloak is the wrong choice, and it
+   is far cheaper to discover that now than in production.</li>
+<li><strong>Resolve the pnpm/corepack issue</strong> and confirm Docker is running.</li>
+<li>On approval: Phase 0, then Phase 1.</li>
+</ol></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="decisions.html"><span>Previous</span><b>Decisions and why</b></a><a class="pn next" href="identity.html"><span>Next</span><b>Identity in detail</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

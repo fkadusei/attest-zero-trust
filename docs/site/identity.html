@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Identity in detail — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Realm configuration, exact WebAuthn policy settings, enrolment and recovery." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html" class="current">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-assurance-claim">1. The assurance claim</a></li>
+<li><a href="#2-passkey-taxonomy-and-why-it-decides-the-realm-design">2. Passkey taxonomy, and why it decides the realm design</a></li>
+<li><a href="#3-why-keycloak-the-four-capabilities">3. Why Keycloak: the four capabilities</a></li>
+<li><a href="#4-realm-design">4. Realm design</a></li>
+<li><a href="#5-authentication-flows-and-policy-configuration">5. Authentication flows and policy configuration</a></li>
+<li class="lvl3"><a href="#51-enabling-passkeys">5.1 Enabling passkeys</a></li>
+<li class="lvl3"><a href="#52-the-conditional-credential-authenticator">5.2 The “Conditional - credential” authenticator</a></li>
+<li class="lvl3"><a href="#53-webauthn-policy-settings">5.3 WebAuthn policy settings</a></li>
+<li class="lvl3"><a href="#54-enrolment">5.4 Enrolment</a></li>
+<li><a href="#6-dpop-configuration">6. DPoP configuration</a></li>
+<li><a href="#7-aaguid-enforcement-the-capability-cognito-lacked">7. AAGUID enforcement — the capability Cognito lacked</a></li>
+<li class="lvl3"><a href="#71-how-it-works">7.1 How it works</a></li>
+<li class="lvl3"><a href="#72-verified-by-spike-3">7.2 Verified by Spike #3</a></li>
+<li class="lvl3"><a href="#73-the-attestation-conveyance-trap">7.3 The attestation-conveyance trap</a></li>
+<li class="lvl3"><a href="#74-what-still-requires-care">7.4 What still requires care</a></li>
+<li class="lvl3"><a href="#73-residual-limitation-stated-honestly">7.3 Residual limitation, stated honestly</a></li>
+<li><a href="#8-step-up-authentication-via-acr">8. Step-up authentication via ACR</a></li>
+<li><a href="#9-account-recovery-the-weakest-link">9. Account recovery — the weakest link</a></li>
+<li class="lvl3"><a href="#91-standard-realm-attest-users">9.1 Standard realm (attest-users)</a></li>
+<li class="lvl3"><a href="#92-privileged-realm-attest-privileged">9.2 Privileged realm (attest-privileged)</a></li>
+<li><a href="#10-password-deprecation-path">10. Password deprecation path</a></li>
+<li><a href="#11-realm-configuration-as-code">11. Realm configuration as code</a></li>
+<li><a href="#12-operating-the-identity-provider">12. Operating the identity provider</a></li>
+<li><a href="#13-verification-spikes-owned-by-this-document">13. Verification spikes owned by this document</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Identity in detail</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Identity in detail</h1>
+        <p class="blurb">Realm configuration, exact WebAuthn policy settings, enrolment and recovery.</p>
+      </header>
+      <section id="overview"><p>How Attest implements phishing-resistant, passwordless authentication on self-hosted Keycloak.
+Companion to <a href="plan.html">PLAN.md</a> and <a href="adr.html">decisions.md</a>.</p>
+<hr></section>
+<section id="1-the-assurance-claim"><h2>1. The assurance claim</h2>
+<p>Be precise about what is being claimed, because &ldquo;phishing-resistant MFA&rdquo; is used loosely and the
+distinctions drive real design work.</p>
+<p><strong>What we claim:</strong> interactive sign-in to Attest uses FIDO2/WebAuthn public-key credentials, which
+are <strong>phishing-resistant</strong> because the credential is cryptographically bound to the relying party
+ID. A credential registered for <code>attest.example.com</code> cannot be replayed to <code>attest-example.evil.com</code>,
+even by a perfect reverse proxy. This is the property that TOTP, SMS, and push-approval MFA do
+<strong>not</strong> have, and it is the specific thing OMB M-22-09 asks for.</p>
+<p><strong>What we claim for privileged users specifically:</strong> because the privileged realm enforces a
+<strong>device-bound authenticator allowlist</strong> and requires <strong>user verification</strong>, passkey-only sign-in
+there is a genuine multi-factor authentication — possession of the hardware authenticator <em>plus</em>
+inherence or knowledge to unlock it. Section 7 explains why this is the argument that makes a
+passwordless realm defensible rather than merely convenient.</p>
+<p><strong>The important corollary:</strong> phishing resistance protects the <em>login ceremony</em>. It does nothing for
+a token stolen <em>after</em> login. That is Phase 2&rsquo;s job
+(<a href="authorization.html">authorization-and-sessions.md</a>) and it is why Phase 1 alone does
+not satisfy success criterion S3.</p>
+<hr>
+</section>
+<section id="2-passkey-taxonomy-and-why-it-decides-the-realm-design"><h2>2. Passkey taxonomy, and why it decides the realm design</h2>
+<p>Not all passkeys are equivalent, and the difference determines whether a passwordless realm is
+actually multi-factor.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Synced passkey</strong></th>
+<th><strong>Device-bound passkey</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Example</td>
+<td>iCloud Keychain, Google Password Manager, 1Password, Windows Hello synced</td>
+<td>YubiKey, TPM-bound platform credential</td>
+</tr>
+<tr>
+<td>Private key</td>
+<td>Replicated across the user&rsquo;s devices via a cloud sync provider</td>
+<td>Never leaves the secure element</td>
+</tr>
+<tr>
+<td>UX</td>
+<td>Excellent — survives device loss automatically</td>
+<td>Requires carrying a key; loss means re-enrolment</td>
+</tr>
+<tr>
+<td>Phishing-resistant</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Recovery model</td>
+<td>Sync provider account becomes the trust root</td>
+<td>Physical possession is the trust root</td>
+</tr>
+<tr>
+<td>NIST treatment</td>
+<td>Governed by SP 800-63Bsup1 — a <strong>syncable authenticator</strong>, which changes the assurance calculus</td>
+<td>Conventional hardware authenticator, counts as possession</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Why this is the crux:</strong> a synced passkey moves the trust root from the device to the sync provider
+account. That is usually a good trade for a consumer account. For platform admins — who can read
+every tenant&rsquo;s data — it is a meaningful weakening, because compromise of one consumer cloud account
+(or of the sync provider) yields a credential that walks straight into the highest privilege level in
+the system.</p>
+<p><strong>Design decision (ADR-003):</strong> synced passkeys are accepted on <code>attest-users</code>. On
+<code>attest-privileged</code>, registration is <strong>restricted by AAGUID allowlist and authenticator attachment</strong>,
+so only device-bound hardware authenticators can be enrolled. Section 7 covers the enforcement.</p>
+<blockquote>
+<p><strong>The upgrade from the Cognito design:</strong> under Cognito this policy could only be <em>approximated</em>,
+because Cognito never exposed the AAGUID. Keycloak enforces it at registration. Same intent,
+materially stronger control — and it is the single strongest argument for the switch.</p>
+<p><strong>Compliance note worth verifying before certification:</strong> NIST SP 800-63Bsup1
+(<a href="https://www.nist.gov/publications/incorporating-syncable-authenticators-nist-sp-800-63b">NIST</a>)
+addresses how syncable authenticators count toward assurance. The precise clause-level consequence
+for our configuration is Spike #6 — do not make a compliance claim in marketing material until it
+is confirmed against the current text.</p>
+</blockquote>
+<hr>
+</section>
+<section id="3-why-keycloak-the-four-capabilities"><h2>3. Why Keycloak: the four capabilities</h2>
+<p>The original plan targeted Cognito and hit four limitations. Keycloak 26.4+ addresses all four.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Cognito</th>
+<th>Keycloak 26.4+</th>
+<th>Consequence for us</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Sender-constrained tokens</strong></td>
+<td>Absent — no DPoP, and Lambda triggers cannot see the <code>DPoP</code> header</td>
+<td><strong>DPoP officially supported</strong>; binds access and refresh tokens; <code>dpop_jkt</code> on authorization requests</td>
+<td>Removes the token-issuing Session Broker (the original plan&rsquo;s largest risk)</td>
+</tr>
+<tr>
+<td><strong>Authenticator identity</strong></td>
+<td>No AAGUID exposed — only attachment and transports</td>
+<td><strong>Acceptable AAGUIDs</strong> in the WebAuthn policy, alongside attachment and attestation conveyance</td>
+<td>Device-bound enforcement becomes real rather than heuristic</td>
+</tr>
+<tr>
+<td><strong>Passkeys</strong></td>
+<td>Paid tier; managed login v2 only; v1 unsupported</td>
+<td><strong>GA</strong>, conditional and modal UI, no browser-flow changes required</td>
+<td>No tier gating; better UX</td>
+</tr>
+<tr>
+<td><strong>Step-up</strong></td>
+<td>Cryptographic verifiability was an open question</td>
+<td><strong>ACR → Level of Authentication mapping</strong></td>
+<td>Standards-based elevation via <code>acr_values</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Source: <a href="https://www.keycloak.org/2025/10/dpop-support-26-4">DPoP in 26.4</a>,
+<a href="https://www.keycloak.org/2025/09/passkeys-support-26-4">passkeys in 26.4</a>.</p>
+<p><strong>What Keycloak does not provide:</strong> a managed risk-based adaptive authentication engine. Cognito&rsquo;s
+Plus tier did. Losing it is the main <em>added build cost</em> of this route — see
+<a href="plan.html">PLAN.md §7.1</a> and ADR-012.</p>
+<hr>
+</section>
+<section id="4-realm-design"><h2>4. Realm design</h2>
+<p>Realms are the identity isolation unit, and they are a direct analogue of the two-pool design: each
+realm has its own signing keys, user store, WebAuthn policy, and session state. Nothing crosses.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><code>attest-users</code></th>
+<th><code>attest-privileged</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Population</td>
+<td>Customers (tenants&rsquo; employees, external auditors)</td>
+<td>Attest staff</td>
+</tr>
+<tr>
+<td>Password authenticator</td>
+<td><strong>Enabled</strong> (migration affordance)</td>
+<td><strong>Not configured at all</strong></td>
+</tr>
+<tr>
+<td>Passkeys</td>
+<td>Enabled</td>
+<td>Enabled — the only interactive path</td>
+</tr>
+<tr>
+<td>Authenticator attachment</td>
+<td>Not restricted</td>
+<td><strong>Cross-platform only</strong></td>
+</tr>
+<tr>
+<td>Acceptable AAGUIDs</td>
+<td>Not restricted</td>
+<td><strong>Allowlist of hardware authenticators</strong></td>
+</tr>
+<tr>
+<td>User verification</td>
+<td><code>preferred</code></td>
+<td><strong><code>required</code></strong></td>
+</tr>
+<tr>
+<td>Attestation conveyance</td>
+<td><code>none</code></td>
+<td><strong><code>direct</code></strong> (so attestation is available for enforcement)</td>
+</tr>
+<tr>
+<td>DPoP</td>
+<td>Required on clients</td>
+<td>Required on clients</td>
+</tr>
+<tr>
+<td>Brute-force protection</td>
+<td>Enabled, tuned</td>
+<td>Enabled, tuned more strictly</td>
+</tr>
+<tr>
+<td>Federation</td>
+<td>Available for customer SAML/OIDC</td>
+<td>None — staff accounts are local</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Why separate realms rather than one realm with roles:</strong> assurance policy is enforced by realm
+<em>configuration</em> rather than by conditional logic in application code. Application logic is where such
+rules silently regress, and a regression here would mean a platform admin authenticated at the
+customer assurance level without anyone noticing. Separate realms also mean a compromise of the
+customer realm grants nothing in the privileged realm (trust boundary B7).</p>
+<p><strong>Cost of the choice:</strong> staff who are also customers hold two identities, and there are two realm
+configurations to keep in sync. Both are accepted; the population is small and the separation is the
+point (ADR-002).</p>
+<hr>
+</section>
+<section id="5-authentication-flows-and-policy-configuration"><h2>5. Authentication flows and policy configuration</h2>
+<h3 id="51-enabling-passkeys">5.1 Enabling passkeys</h3>
+<p>Passkeys in Keycloak <strong>are not enabled by default</strong>. Per the Keycloak 26.4 announcement, the
+WebAuthn Passwordless policy must be enabled under <strong>Authentication → Policies → WebAuthn
+Passwordless Policy</strong>. After that, the default browser flow works without modification, which is the
+main advantage over hand-rolling the ceremony.</p>
+<p>Two UI modes are supported and both should be enabled:</p>
+<ul>
+<li><strong>Conditional UI</strong> — passkey autofill in the username field. Best UX; depends on browser and
+  password-manager support.</li>
+<li><strong>Modal UI</strong> — a &ldquo;Sign in with Passkey&rdquo; button. Always available; the reliable path for hardware
+  keys requiring a PIN or touch.</li>
+</ul>
+<h3 id="52-the-conditional-credential-authenticator">5.2 The &ldquo;Conditional - credential&rdquo; authenticator</h3>
+<p>This is the piece that implements correct AAL reasoning for us. Keycloak 26.4 adds a
+<strong>Conditional - credential</strong> authenticator to the default browser flow that detects whether a
+specific credential type (a passkey) was used as the primary credential, and <strong>skips the second
+factor</strong> when it was.</p>
+<p>The logic is right: a passkey with user verification is inherently multi-factor, so demanding a
+TOTP code on top is security theatre that trains users to expect friction. Implementing this
+correctly by hand — including the case where the user authenticated with a password instead — is
+exactly the kind of subtle flow bug the IdP should own.</p>
+<p><strong>Our configuration:</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Realm</th>
+<th>Flow behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attest-users</code></td>
+<td>Password <strong>or</strong> passkey as first factor; passkey short-circuits 2FA; password path still requires 2FA</td>
+</tr>
+<tr>
+<td><code>attest-privileged</code></td>
+<td>Passkey only; no 2FA layer because there is no weaker first factor to compensate for</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="53-webauthn-policy-settings">5.3 WebAuthn policy settings</h3>
+<p>Presented as declarative realm configuration. Exact keys are confirmed in Phase 0 (S12).</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Field names below were VERIFIED against a live Keycloak 26.8.0 realm.</span>
+<span class="c1"># This matters: Keycloak SILENTLY IGNORES unknown keys on realm import, so a</span>
+<span class="c1"># guessed name is a setting that appears configured and does nothing.</span>
+<span class="c1"># See lab/keycloak/SPIKE-3-RESULTS.md section 5.</span>
+
+<span class="nt">attest-users</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessRpEntityName</span><span class="p">:</span><span class="w"> </span><span class="s">"Attest"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessRpId</span><span class="p">:</span><span class="w"> </span><span class="s">"attest.example.com"</span><span class="w">   </span><span class="c1"># MUST match served origin</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAttestationConveyancePreference</span><span class="p">:</span><span class="w"> </span><span class="s">"none"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAuthenticatorAttachment</span><span class="p">:</span><span class="w"> </span><span class="s">"not</span><span class="nv"> </span><span class="s">specified"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessRequireResidentKey</span><span class="p">:</span><span class="w"> </span><span class="s">"Yes"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessResidentKey</span><span class="p">:</span><span class="w"> </span><span class="s">"required"</span><span class="w">      </span><span class="c1"># TWO resident-key fields exist</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessUserVerificationRequirement</span><span class="p">:</span><span class="w"> </span><span class="s">"preferred"</span><span class="w">  </span><span class="c1"># default is "required"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAcceptableAaguids</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span><span class="w">        </span><span class="c1"># unrestricted</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessExtraOrigins</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+
+<span class="nt">attest-privileged</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessRpEntityName</span><span class="p">:</span><span class="w"> </span><span class="s">"Attest</span><span class="nv"> </span><span class="s">Admin"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessRpId</span><span class="p">:</span><span class="w"> </span><span class="s">"admin.attest.example.com"</span><span class="w">  </span><span class="c1"># SEPARATE origin</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAttestationConveyancePreference</span><span class="p">:</span><span class="w"> </span><span class="s">"direct"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAuthenticatorAttachment</span><span class="p">:</span><span class="w"> </span><span class="s">"cross-platform"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessRequireResidentKey</span><span class="p">:</span><span class="w"> </span><span class="s">"Yes"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessResidentKey</span><span class="p">:</span><span class="w"> </span><span class="s">"required"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessUserVerificationRequirement</span><span class="p">:</span><span class="w"> </span><span class="s">"required"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAcceptableAaguids</span><span class="p">:</span><span class="w">            </span><span class="c1"># device-bound hardware only</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"&lt;YubiKey</span><span class="nv"> </span><span class="s">5</span><span class="nv"> </span><span class="s">series</span><span class="nv"> </span><span class="s">AAGUID&gt;"</span><span class="w">                         </span><span class="c1"># VERIFY against Yubico's list</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">"&lt;other</span><span class="nv"> </span><span class="s">approved</span><span class="nv"> </span><span class="s">hardware</span><span class="nv"> </span><span class="s">AAGUID&gt;"</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">webAuthnPolicyPasswordlessExtraOrigins</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+</code></pre></div>
+
+<p>Note the spelling: <strong><code>...AvoidSameAuthenticatorRegister</code></strong>, not <code>...Registration</code>. The plan
+originally had the wrong name, which Keycloak would have ignored without complaint.</p>
+<p>Two settings carry most of the weight:</p>
+<ul>
+<li><strong><code>rpId</code> differs between realms</strong> (<code>admin.attest.example.com</code> vs <code>attest.example.com</code>). Passkey
+  credentials are origin-bound, so a credential registered for the standard realm <strong>cannot</strong> be used
+  against the admin realm and vice versa. That gives origin-level separation enforced by the
+  browser&rsquo;s own security model rather than by our application logic. The admin console must
+  genuinely be served from that origin for this to hold.</li>
+<li><strong><code>authenticatorAttachment: cross-platform</code> plus an AAGUID allowlist</strong> is what excludes synced
+  platform passkeys. Either alone is weaker: attachment alone still admits some non-hardware
+  cross-platform authenticators, and AAGUID alone requires us to have enumerated every model we
+  reject. Together they are a real control.</li>
+</ul>
+<h3 id="54-enrolment">5.4 Enrolment</h3>
+<p>Two supported paths, both native:</p>
+<ul>
+<li><strong>Required action</strong> — set <strong>Webauthn Register Passwordless</strong> as a default required action for new
+  users in a realm; users are forced to enrol at first login.</li>
+<li><strong>Account Console</strong> — users self-enrol via Account Console → Signing In → Passkeys.</li>
+</ul>
+<p><strong>Enrolment policy:</strong> users must register <strong>at least two</strong> credentials before the second is trusted
+for recovery purposes. One passkey plus a lost device equals a locked account and a support ticket,
+which is how organisations end up re-introducing SMS. Two credentials, ideally of different types,
+is the cheapest structural fix. <code>avoidSameAuthenticatorRegistration</code> prevents the degenerate case of
+the same key being registered twice to satisfy a count.</p>
+<hr>
+</section>
+<section id="6-dpop-configuration"><h2>6. DPoP configuration</h2>
+<p>DPoP is enabled per client. In the Admin Console it is the <strong>&ldquo;Require DPoP bound tokens&rdquo;</strong> switch in
+the client&rsquo;s Settings tab under Capability config. Keycloak 26.4 also supports binding <strong>only
+refresh tokens</strong> for public clients while leaving access tokens as bearer.</p>
+<p><strong>For Attest we bind both</strong>, because our API is a resource server that must reject a stolen access
+token:</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">attest-spa</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">clientId</span><span class="p">:</span><span class="w"> </span><span class="s">"attest-spa"</span>
+<span class="w">  </span><span class="nt">publicClient</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># browser SPA: no client secret</span>
+<span class="w">  </span><span class="nt">standardFlowEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">directAccessGrantsEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">attributes</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">pkce.code.challenge.method</span><span class="p">:</span><span class="w"> </span><span class="s">"S256"</span>
+<span class="w">    </span><span class="nt">dpop.bound.access.tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># bind access tokens, not just refresh</span>
+</code></pre></div>
+
+<p>The browser holds a <strong>non-extractable</strong> P-256 key generated with WebCrypto and stored in IndexedDB,
+so injected JavaScript can <em>use</em> the key but cannot <em>export</em> it.</p>
+<p><strong>The boundary to keep in mind (this is the most important paragraph in this document):</strong> Keycloak
+verifies the DPoP proof at <strong>its own token endpoint</strong> and issues a token carrying <code>cnf.jkt</code>.
+Keycloak is <strong>not in the request path for our API</strong>. Our resource server must therefore verify the
+proof on every call. Keycloak binding the token without our API checking the binding would give us a
+token that <em>looks</em> sender-constrained and is not — the worst possible outcome, because it would
+satisfy a checklist while failing in practice. Phase 2 exists to prevent exactly this
+(<a href="authorization.html">authorization-and-sessions.md §3</a>).</p>
+<hr>
+</section>
+<section id="7-aaguid-enforcement-the-capability-cognito-lacked"><h2>7. AAGUID enforcement — the capability Cognito lacked</h2>
+<h3 id="71-how-it-works">7.1 How it works</h3>
+<p>The privileged realm combines three policy settings, all enforced <strong>at registration</strong>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Excludes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authenticatorAttachment</code></td>
+<td><code>cross-platform</code></td>
+<td>Platform-resident credentials (Touch ID, Windows Hello, most synced passkeys)</td>
+</tr>
+<tr>
+<td><code>acceptableAaguids</code></td>
+<td>Hardware-authenticator allowlist</td>
+<td>Any authenticator model not explicitly approved</td>
+</tr>
+<tr>
+<td><code>attestationConveyancePreference</code></td>
+<td><code>direct</code></td>
+<td>Nothing directly — but makes attestation data available, which is what makes the allowlist trustworthy</td>
+</tr>
+</tbody>
+</table></div>
+<p>Because enforcement is at registration, a user cannot enrol a synced passkey and then use it — a
+meaningfully stronger position than the Cognito design, which could only inspect credentials <em>after</em>
+they existed and reject them on use.</p>
+<h3 id="72-verified-by-spike-3">7.2 Verified by Spike #3</h3>
+<p>Enforcement was tested against a live Keycloak 26.8.0 realm using a Chrome CDP virtual
+authenticator. Full matrix in <a href="lab-results.html">SPIKE-3-RESULTS.md</a>. Summary:</p>
+<ul>
+<li><strong>The allowlist is genuinely enforced at enrolment.</strong> A non-approved authenticator is rejected, not
+  silently admitted.</li>
+<li><strong>The attachment restriction is genuinely enforced.</strong> An <code>internal</code> (platform) transport was
+  rejected under <code>cross-platform</code> and accepted when unrestricted — with both controls passing, so the
+  rejection is attributable.</li>
+<li><strong>An authenticator that declines to attest is rejected, not admitted.</strong> Its AAGUID is all-zeros,
+  which does not match the allowlist. This disproves the silent-bypass risk recorded in the threat
+  model.</li>
+<li><strong>Keycloak does not validate AAGUID format</strong> — <code>"not-a-guid"</code> was stored verbatim. A typo creates a
+  silently dead entry that fails <em>closed</em> (lockout), not open. <strong>S12&rsquo;s CI gate must therefore validate
+  AAGUID format itself.</strong></li>
+<li><strong>Keycloak <em>does</em> expose the AAGUID</strong> — nested in <code>credentialData</code> as a JSON string, not as a
+  top-level field. Cognito exposed nothing comparable, so this is a genuine improvement and enables
+  later attestation auditing.</li>
+</ul>
+<h3 id="73-the-attestation-conveyance-trap">7.3 The attestation-conveyance trap</h3>
+<p><strong>The single most important finding.</strong> An allowlist evaluated under
+<code>attestationConveyancePreference: "none"</code> is weaker than it looks.</p>
+<p>With <code>none</code>, there is <strong>no attestation statement to verify</strong>. The AAGUID then travels in the
+authenticator data signed only by the credential&rsquo;s own key — it is <strong>self-asserted</strong>. A software
+authenticator can claim any AAGUID, including an allowlisted one.</p>
+<p>Spike #3 isolated the variable: with the allowlist empty and attachment unrestricted, changing
+<code>none</code> → <code>direct</code> <strong>alone</strong> caused enrolment to fail for a non-attesting authenticator. So <code>direct</code>
+is an active requirement, not a passive preference. That is a cost — it excludes any authenticator
+that cannot attest — but it is the <strong>only</strong> configuration in which the AAGUID is trustworthy, because
+attestation is what binds the AAGUID to genuine hardware.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Rejects synced/platform passkeys</th>
+<th>AAGUID trustworthy</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Allowlist + <code>none</code></td>
+<td>Yes</td>
+<td><strong>No — self-asserted</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td>Allowlist + <code>direct</code></td>
+<td>Yes</td>
+<td><strong>Yes</strong></td>
+<td>Excludes non-attesting authenticators</td>
+</tr>
+<tr>
+<td><code>direct</code> only</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No per-model control</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Decision: keep <code>direct</code> on <code>attest-privileged</code>.</strong> The population is small and hardware-key-bearing
+by policy, so excluding non-attesting authenticators is acceptable — and it is the only setting under
+which the allowlist means what ADR-003 claims. The availability cost is accepted deliberately, and
+the enrolment failure message must be intelligible to a user whose key was refused.</p>
+<h3 id="74-what-still-requires-care">7.4 What still requires care</h3>
+<ul>
+<li><strong>Allowlist maintenance is an operational duty.</strong> New hardware models have new AAGUIDs. An
+  unmaintained allowlist silently locks users out (discoverable, recoverable) or, worse, gets a
+  wildcard entry added under pressure (not discoverable). Treat it as reviewed configuration with a
+  documented change process and format validation in CI.</li>
+<li><strong>The acceptance path is still unproven.</strong> No test has shown a genuine allowlisted YubiKey
+  enrolling successfully under <code>direct</code> + allowlist, because a virtual authenticator cannot attest.
+  <strong>A physical security key is still required</strong> to validate the happy path. Until then the known
+  failure mode is lockout, not bypass.</li>
+<li><strong>Real platform-authenticator AAGUIDs are unverified.</strong> Whether iCloud Keychain, Google Password
+  Manager, and Windows Hello report all-zeros or a real AAGUID determines which control is actually
+  doing the rejecting in production.</li>
+<li><strong>The AAGUID values themselves are unverified</strong> against physical hardware.</li>
+</ul>
+<h3 id="73-residual-limitation-stated-honestly">7.3 Residual limitation, stated honestly</h3>
+<p>Even with an allowlist, we are trusting:
+1. the authenticator&rsquo;s attestation statement, and
+2. Keycloak&rsquo;s enforcement of the allowlist.</p>
+<p>We are not independently verifying attestation chains against FIDO metadata. That would be a
+meaningful additional control (and is a plausible future enhancement via FIDO MDS), but it is not in
+scope, and the assurance claim should not imply it.</p>
+<hr>
+</section>
+<section id="8-step-up-authentication-via-acr"><h2>8. Step-up authentication via ACR</h2>
+<div class="admonition danger">
+<p class="admonition-title">This section is NOT verified, and the mechanism did not work when tested</p>
+<p><strong>S5 tested exactly this and it failed.</strong> Asking for a higher authentication level made no
+difference: the second factor was demanded whether a higher level was requested, a lower one, or
+nothing at all. The configuration was confirmed correct and read back from the server, and five
+different ways of requesting a level all behaved identically.</p>
+<p><strong>Do not build on this.</strong> The mechanism either requires a flow arrangement not yet found, or does
+not work as documented. S5b in <code>WORK.md</code> is a time-boxed follow-up to decide which; if it cannot
+be made to work, the fallback is forcing a full re-authentication, which proves the check is
+<em>fresh</em> rather than <em>stronger</em>.</p>
+<p>Everything below describes the <strong>intended</strong> design. Read it as a plan, not as a description of
+working behaviour. Full evidence: <code>lab/keycloak/SPIKE-5-RESULTS.md</code>.</p>
+</div>
+<p>Continuous verification (Phase 4) requires that a session can be <strong>upgraded</strong> for a sensitive action
+without forcing a full re-login. Keycloak supports this natively through <strong>ACR → Level of
+Authentication (LoA) mapping</strong>: authentication flows carry an LoA, and a client can request a
+specific level with the <code>acr_values</code> parameter (or an essential <code>acr</code> claim), causing Keycloak to
+force whatever additional authentication that level requires.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Base requirement</th>
+<th>Step-up requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Read own tenant evidence</td>
+<td>Standard session</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Export tenant-wide access report</td>
+<td>Standard session</td>
+<td>LoA requiring fresh passkey assertion</td>
+</tr>
+<tr>
+<td>Invite or remove a tenant admin</td>
+<td>Standard session</td>
+<td>Fresh assertion + second approver</td>
+</tr>
+<tr>
+<td>Platform admin: cross-tenant view</td>
+<td>Privileged session</td>
+<td>Fresh assertion + recorded business justification</td>
+</tr>
+<tr>
+<td>Platform admin: impersonate user</td>
+<td>Privileged session</td>
+<td>Fresh assertion + <strong>tenant-consented</strong> + full audit</td>
+</tr>
+<tr>
+<td>Break-glass AWS access</td>
+<td>Not a Keycloak flow</td>
+<td>Quorum approval + hardware key + session recording</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Mechanism:</strong> request with an elevated LoA, Keycloak re-prompts for a passkey assertion (the
+re-authentication form supports passkeys), and the resulting token carries the higher <code>acr</code> value.
+Our DPoP Verifying Authorizer maps <code>acr</code> into <code>context.assurance</code>, and Cedar policies evaluate it.</p>
+<p><strong>This was expected to be better than the original design</strong> — elevation as an IdP-issued,
+token-carried fact rather than a client-reported timestamp. <strong>S5 showed it does not work in practice,
+so that comparison is void until S5b resolves it.</strong></p>
+<p><strong>Bound the freshness in policy, not in the UI.</strong> A high <code>acr</code> value must not be treated as
+permanently valid for the session; Cedar policies that care about freshness must also evaluate a
+recency signal. An elevated token that stays elevated all day is a weaker control than one that
+expires.</p>
+<p><strong>Impersonation is the highest-risk feature in the product</strong> and is treated accordingly: it requires
+tenant consent, writes an immutable audit entry visible to the tenant, is time-boxed, and cannot be
+used to reach other tenants. If it cannot be built to that standard, it should be cut.</p>
+<hr>
+</section>
+<section id="9-account-recovery-the-weakest-link"><h2>9. Account recovery — the weakest link</h2>
+<p>Every strong authentication system is eventually defeated through its recovery path. It is worth
+stating plainly: <strong>a phishing-resistant primary factor plus an email-OTP recovery path is a
+phishing-vulnerable system.</strong> Attackers will not attack the passkey; they will attack the reset.</p>
+<p>Keycloak provides credential reset and required-action machinery, but <strong>not a recovery policy</strong> —
+that is ours to design.</p>
+<h3 id="91-standard-realm-attest-users">9.1 Standard realm (<code>attest-users</code>)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recovery path</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Second passkey registered</td>
+<td>Self-service via remaining passkey</td>
+<td>No support involvement, no downgrade</td>
+</tr>
+<tr>
+<td>All passkeys lost, email verified</td>
+<td><strong>Enrolment-link flow with identity proofing</strong> — see below</td>
+<td>Must not silently downgrade</td>
+</tr>
+<tr>
+<td>Suspicious recovery request</td>
+<td>Support-assisted with out-of-band verification</td>
+<td>Manual by design</td>
+</tr>
+</tbody>
+</table></div>
+<p>The self-service &ldquo;lost everything&rdquo; flow <strong>must not</strong> issue a session directly from an email link. An
+email link is a bearer credential in a mailbox, and treating it as sufficient would make every
+passkey in the system decorative. Instead:</p>
+<ol>
+<li>Request → email link to <strong>begin</strong> recovery (not to complete it)</li>
+<li>Link opens a fresh enrolment ceremony via a Keycloak required action, requiring a <em>new</em> passkey</li>
+<li>Device and network signals captured and scored</li>
+<li>If signals are low-confidence → hold for support review rather than auto-approve</li>
+<li>Recovery event written to the immutable audit log <strong>and emailed to the account owner</strong>, so an
+   attacker with mailbox access cannot act silently</li>
+</ol>
+<p><strong>Implementation note:</strong> this must be driven by a required action rather than by a direct
+credential-reset API call. A reset that sets a password would defeat the purpose, and Keycloak will
+happily do that if asked.</p>
+<h3 id="92-privileged-realm-attest-privileged">9.2 Privileged realm (<code>attest-privileged</code>)</h3>
+<p><strong>No self-service recovery. Full stop.</strong> Recovery requires:</p>
+<ul>
+<li>Out-of-band verification with the security team (video + manager confirmation)</li>
+<li>A second privileged admin approving (quorum — no single-person recovery)</li>
+<li>A new hardware security key enrolled in person or via a verified channel</li>
+<li>Break-glass session, time-boxed, fully recorded</li>
+</ul>
+<p>The asymmetry is intentional. Recovery cost for staff is real but bounded; the cost of a compromised
+platform admin is unbounded.</p>
+<hr>
+</section>
+<section id="10-password-deprecation-path"><h2>10. Password deprecation path</h2>
+<p>Passwords exist only on <code>attest-users</code>, and only as a migration affordance. <code>attest-privileged</code> has
+no password authenticator configured from day one.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th><code>attest-users</code></th>
+<th><code>attest-privileged</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Phase 1</td>
+<td>Password + passkey coexist</td>
+<td>Passkey only</td>
+</tr>
+<tr>
+<td>Phase 1 + 90 days</td>
+<td>Nudge users with passkeys to remove the password; password becomes step-up-only</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>Phase 3</td>
+<td>Password disabled for users with ≥ 2 passkeys</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>Phase 5 (target)</td>
+<td>Password disabled realm-wide, pending customer migration data</td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Gate on data, not dates:</strong> do not disable passwords until telemetry shows ≥ 95% of active users
+have two or more passkeys registered. Disabling early produces support load, and support load is what
+produces a weak recovery flow, which is what undoes the whole project.</p>
+<hr>
+</section>
+<section id="11-realm-configuration-as-code"><h2>11. Realm configuration as code</h2>
+<p><strong>Realm configuration is not infrastructure and must not be console-clicked</strong> (S12, ADR-011).</p>
+<ul>
+<li><strong>AWS infrastructure</strong> (ECS, RDS, ALB, security groups, Secrets Manager) is <strong>CDK</strong>.</li>
+<li><strong>Realm configuration</strong> (realms, clients, WebAuthn policies, flows, required actions, AAGUID
+  allowlist) is applied by <strong>keycloak-config-cli</strong> in CI — purpose-built, idempotent, and it consumes
+  the realm export format directly.</li>
+</ul>
+<p>Using the Keycloak Terraform provider is a reasonable alternative given Terraform is already
+installed locally, at the cost of running two IaC tools. Either is acceptable; <strong>console-only changes
+are not</strong>, because they make the environment unreproducible and make S12 unverifiable.</p>
+<p>CI gates:</p>
+<div class="codehilite"><pre><span></span><code>1. keycloak-config-cli validate + apply to an ephemeral realm
+2. export the realm and assert the WebAuthn policy matches expectations
+3. assert attest-privileged has NO password authenticator in its browser flow   &lt;- S1
+4. assert acceptableAaguids is non-empty on attest-privileged                   &lt;- ADR-003
+5. assert dpop.bound.access.tokens is true on all realm clients                 &lt;- S3 prerequisite
+</code></pre></div>
+
+<p>Gates 3–5 are the regression guards. <strong>Configuration that is not asserted in a test is configuration
+that will be silently reverted by a future change</strong> — and for realm 3 the consequence would be a
+platform admin able to authenticate with a password.</p>
+<hr>
+</section>
+<section id="12-operating-the-identity-provider"><h2>12. Operating the identity provider</h2>
+<p>Self-hosting means these are ongoing obligations, not setup steps. They are the price of the OSS
+route and they are why S11 exists.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Approach</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Version pinning</strong></td>
+<td>Pin the image tag (<code>quay.io/keycloak/keycloak:26.8.0</code>). Never track <code>latest</code>. Drift check: the plan originally pinned 26.6, but 26.8 was current at spike time — <strong>re-check before every deploy</strong>, and prefer the most-patched minor.</td>
+</tr>
+<tr>
+<td><strong>CVE patching</strong></td>
+<td>48-hour SLA for critical CVEs (S11). Subscribe to Keycloak security advisories; rehearse the upgrade.</td>
+</tr>
+<tr>
+<td><strong>Image build</strong></td>
+<td>Run <code>kc.sh build</code> at image build time and start with <code>--optimized</code> — avoids build cost on every task start.</td>
+</tr>
+<tr>
+<td><strong>Clustering</strong></td>
+<td>≥ 2 ECS tasks. Keycloak&rsquo;s embedded Infinispan needs a discovery mechanism; on Fargate there is no Kubernetes DNS, so a JDBC-based ping stack is the likely answer. <strong>Spike #7 — resolve before Phase 1.</strong></td>
+</tr>
+<tr>
+<td><strong>Sessions/cache</strong></td>
+<td>Verify session replication across tasks; ALB stickiness may be required to mask misconfiguration.</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>RDS Postgres Multi-AZ, encrypted, automated backups, deletion protection, <strong>RDS Proxy</strong> so task churn does not exhaust connections.</td>
+</tr>
+<tr>
+<td><strong>Secrets</strong></td>
+<td>DB credentials and bootstrap admin in Secrets Manager with rotation.</td>
+</tr>
+<tr>
+<td><strong>Health checks</strong></td>
+<td>Enable health endpoints (<code>KC_HEALTH_ENABLED=true</code>) and target the readiness endpoint on the management port; keep the management port off the ALB.</td>
+</tr>
+<tr>
+<td><strong>Reverse proxy</strong></td>
+<td>Keycloak must be told it is behind a proxy and what its public hostname is, or issuer URLs and redirects break in confusing ways. Verify the issuer in a token matches the configured hostname.</td>
+</tr>
+<tr>
+<td><strong>DR</strong></td>
+<td>Documented and <strong>rehearsed</strong> restore from snapshot. An untested backup is not a backup.</td>
+</tr>
+<tr>
+<td><strong>Upgrades</strong></td>
+<td>Rehearsed on a clone against a restored snapshot before production. Custom SPIs must be compatibility-checked (R6).</td>
+</tr>
+<tr>
+<td><strong>Escape hatch</strong></td>
+<td>Managed Keycloak (Phase Two / Cloud-IAM / Skycloak) is the documented fallback if operating the IdP proves unsustainable (ADR-010).</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+</section>
+<section id="13-verification-spikes-owned-by-this-document"><h2>13. Verification spikes owned by this document</h2>
+<p>Spikes #3, #5, #6, and #7 in <a href="adr.html">decisions.md</a>. Summarised:</p>
+<ol>
+<li><strong>AAGUID allowlist enforcement semantics</strong> (#3) — does a non-allowlisted authenticator actually
+   get rejected, and at what stage? This is the control the whole privileged-access argument rests on.</li>
+<li><strong>ACR step-up forces a fresh assertion</strong> (#5) — confirm <code>acr_values</code> genuinely re-prompts rather
+   than being satisfied by the existing session.</li>
+<li><strong>NIST sup1 clause-level consequence</strong> (#6) for our exact configuration.</li>
+<li><strong>Keycloak clustering on Fargate</strong> (#7) — jdbc-ping discovery and session replication across tasks.</li>
+</ol></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="plan.html"><span>Previous</span><b>Architecture and plan</b></a><a class="pn next" href="authorization.html"><span>Next</span><b>Sessions and authorization</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>
