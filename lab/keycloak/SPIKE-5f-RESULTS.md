@@ -60,9 +60,19 @@ It is everything the requirement asked for:
 - **requires no password** — it lands the user directly on the passkey registration action
 
 Testing it required a mail server, so the lab now has one — `smtp_sink.py`, a dependency-free SMTP sink
-that captures messages to disk. (Its first version named files per-connection, so two messages in the
-same second overwrote each other; the test then waited forever for a file that had already been
-replaced. Fixed.)
+that captures messages to disk, running as a **compose service on the same Docker network** as Keycloak.
+
+Three faults were found in that sink, all worth recording because each was silent:
+
+1. **Files were named per-connection**, so two messages in the same second overwrote each other and the
+   test waited forever for a file that had already been replaced.
+2. **It bound to loopback only.** A connection from a container arrives on the Docker bridge interface,
+   not on loopback, so it was refused. This *appeared* to work under Docker Desktop — which proxies
+   `host.docker.internal` to the host's loopback — and failed on a Linux runner with no error anywhere.
+3. **Reaching it via `host.docker.internal` was the wrong design.** Running the sink on the host and
+   adding `extra_hosts` works on Docker Desktop and not reliably on a runner. Putting the sink on the
+   same Docker network removes the entire class of problem: Docker's DNS resolves the name, identically
+   everywhere, and there is no host networking to get wrong.
 
 ## 3. The results
 
@@ -139,11 +149,11 @@ mechanism itself**, rather than by a check bolted onto it. That is the differenc
 ## 7. Reproducing
 
 ```bash
-# the mail sink, in the background
-./.venv/bin/python lab/keycloak/scripts/smtp_sink.py 2525 /tmp/attest-mail &
+# the mail sink runs as a compose service on the same Docker network as Keycloak
+docker compose -f lab/keycloak/compose.yaml up -d smtp-sink
 
-# the realm must point at it (host.docker.internal reaches the host from the container)
-# smtpServer: {host: host.docker.internal, port: 2525, from: attest-lab@example.test}
+# the matrix points the realm at it itself:
+#   smtpServer: {host: smtp-sink, port: 2525, from: attest-lab@example.test}
 
 ./.venv/bin/python lab/keycloak/scripts/spike5f-matrix.py     # 16 checks
 ```

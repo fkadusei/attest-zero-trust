@@ -54,6 +54,25 @@ services:
       - ./realm-config:/opt/keycloak/data/import:ro
     networks: [labnet]
 
+  # The S5f mail sink, ON THE SAME NETWORK as Keycloak.
+  #
+  # It was first run on the host and reached via host.docker.internal. That works
+  # on Docker Desktop and NOT on a Linux runner, and the failure is SILENT: the
+  # container simply never connects and no mail arrives, with nothing in any log
+  # to say why. Putting it on the same Docker network removes the whole class of
+  # problem — Docker's own DNS resolves the name, identically everywhere.
+  smtp-sink:
+    image: python:3.12-alpine
+    container_name: attest-lab-smtp
+    working_dir: /scripts
+    volumes:
+      - ./scripts:/scripts:ro
+      - /tmp/attest-mail:/mail
+    command: ["python", "smtp_sink.py", "--host", "0.0.0.0", "2525", "/mail"]
+    ports:
+      - "2525:2525"
+    networks: [labnet]
+
 volumes:
   pgdata:
 

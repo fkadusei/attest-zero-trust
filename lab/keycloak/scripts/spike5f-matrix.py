@@ -249,11 +249,14 @@ def main() -> int:
     print("\n[setup] point the realm at the mail sink (read-modify-write)")
     st, realm0 = call("GET", f"/{REALM}")
     if not (realm0 or {}).get("smtpServer", {}).get("host"):
-        # host.docker.internal is how the container reaches the host.
+        # `smtp-sink` is a service in compose.yaml, on the same Docker network,
+        # so Docker's own DNS resolves it. host.docker.internal was used first and
+        # works only on Docker Desktop — on a Linux runner the container never
+        # connects and no mail arrives, with no error to explain it.
         # A PARTIAL PUT would replace the realm representation (S5e lesson), so the
         # whole object is read, changed and written back.
         call("PUT", f"/{REALM}", {**realm0, "smtpServer": {
-            "host": "host.docker.internal", "port": "2525",
+            "host": "smtp-sink", "port": "2525",
             "from": "attest-lab@example.test", "fromDisplayName": "Attest Lab",
             "ssl": "false", "starttls": "false", "auth": "false"}})
     st, realm1 = call("GET", f"/{REALM}")

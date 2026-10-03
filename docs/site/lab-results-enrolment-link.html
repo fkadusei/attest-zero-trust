@@ -128,9 +128,19 @@ build we run, impersonation is a browser-session mechanism for an administrator,
 <li><strong>requires no password</strong> — it lands the user directly on the passkey registration action</li>
 </ul>
 <p>Testing it required a mail server, so the lab now has one — <code>smtp_sink.py</code>, a dependency-free SMTP sink
-that captures messages to disk. (Its first version named files per-connection, so two messages in the
-same second overwrote each other; the test then waited forever for a file that had already been
-replaced. Fixed.)</p>
+that captures messages to disk, running as a <strong>compose service on the same Docker network</strong> as Keycloak.</p>
+<p>Three faults were found in that sink, all worth recording because each was silent:</p>
+<ol>
+<li><strong>Files were named per-connection</strong>, so two messages in the same second overwrote each other and the
+   test waited forever for a file that had already been replaced.</li>
+<li><strong>It bound to loopback only.</strong> A connection from a container arrives on the Docker bridge interface,
+   not on loopback, so it was refused. This <em>appeared</em> to work under Docker Desktop — which proxies
+   <code>host.docker.internal</code> to the host&rsquo;s loopback — and failed on a Linux runner with no error anywhere.</li>
+<li><strong>Reaching it via <code>host.docker.internal</code> was the wrong design.</strong> Running the sink on the host and
+   adding <code>extra_hosts</code> works on Docker Desktop and not reliably on a runner. Putting the sink on the
+   same Docker network removes the entire class of problem: Docker&rsquo;s DNS resolves the name, identically
+   everywhere, and there is no host networking to get wrong.</li>
+</ol>
 </section>
 <section id="3-the-results"><h2>3. The results</h2>
 <div class="tablewrap"><table>
@@ -294,11 +304,11 @@ be a conscious acceptance:</p>
 mechanism itself</strong>, rather than by a check bolted onto it. That is the difference that matters.</p>
 </section>
 <section id="7-reproducing"><h2>7. Reproducing</h2>
-<div class="codehilite"><pre><span></span><code><span class="c1"># the mail sink, in the background</span>
-./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/smtp_sink.py<span class="w"> </span><span class="m">2525</span><span class="w"> </span>/tmp/attest-mail<span class="w"> </span><span class="p">&amp;</span>
+<div class="codehilite"><pre><span></span><code><span class="c1"># the mail sink runs as a compose service on the same Docker network as Keycloak</span>
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>lab/keycloak/compose.yaml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>smtp-sink
 
-<span class="c1"># the realm must point at it (host.docker.internal reaches the host from the container)</span>
-<span class="c1"># smtpServer: {host: host.docker.internal, port: 2525, from: attest-lab@example.test}</span>
+<span class="c1"># the matrix points the realm at it itself:</span>
+<span class="c1">#   smtpServer: {host: smtp-sink, port: 2525, from: attest-lab@example.test}</span>
 
 ./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/spike5f-matrix.py<span class="w">     </span><span class="c1"># 16 checks</span>
 </code></pre></div>

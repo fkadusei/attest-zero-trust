@@ -182,24 +182,15 @@ jobs:
       - name: Apply the WebAuthn policies
         run: python3 lab/keycloak/scripts/configure-realms.py
 
-      - name: Start the mail sink
-        # Keycloak sends to host.docker.internal:2525; on a Linux runner that is
-        # not the host by default, so add it explicitly.
+      - name: Prepare the mail drop
+        # The sink runs as a compose service on the same Docker network as
+        # Keycloak, so there is no host-networking to get wrong. This only clears
+        # the directory it writes into.
         run: |
           rm -rf /tmp/attest-mail && mkdir -p /tmp/attest-mail
-          # --host 0.0.0.0 is REQUIRED here: the sender is a container, and a
-          # connection from the Docker bridge arrives on the bridge interface, not
-          # on loopback. A loopback-only sink refuses it. (Docker Desktop hides
-          # this by proxying host.docker.internal to the host's loopback.)
-          nohup python3 lab/keycloak/scripts/smtp_sink.py --host 0.0.0.0 2525 /tmp/attest-mail \
-            > /tmp/smtp-sink.log 2>&1 &
+          docker compose -f lab/keycloak/compose.yaml up -d smtp-sink
           sleep 2
-          head -1 /tmp/smtp-sink.log
-          # host.docker.internal resolves INSIDE the container via extra_hosts in
-          # compose.yaml. Editing the runner's /etc/hosts does not affect it.
-          docker compose -f lab/keycloak/compose.yaml exec -T keycloak \
-            sh -c 'command -v getent >/dev/null && getent hosts host.docker.internal' \
-            || echo "(getent unavailable in the image; delivery is asserted by the test)"
+          docker compose -f lab/keycloak/compose.yaml logs smtp-sink --tail 5
 
       - name: Launch Chrome with remote debugging
         run: |
