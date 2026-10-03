@@ -226,6 +226,11 @@ documentation implies.
   still return the *previous* commit's run for a minute or so. Reading that as "the fix did not work"
   sent this session chasing a solved problem and adding an unnecessary diagnostic step. Always compare
   `headSha` against what was just pushed.
+- **Keycloak impersonation is not a shareable link.** The endpoint returns `Set-Cookie:
+  KEYCLOAK_IDENTITY` **to the API caller**, so the session belongs to whoever called it. Opening the
+  returned URL with no cookies sets nothing. Keycloak's own PR #40767 says the same, and the variant
+  that would work is unmerged. If a per-user, shareable link is needed, use **`execute-actions-email`**
+  — the action token does exactly that, needs no password, and lands on the required action.
 - **A test that cannot tell "denied" from "broken" is not a test.** An independent adversarial audit
   found this same defect in **five more places**, three of them rows the register called *Verified*:
   a check comparing a constant to itself (S5d D1); a check re-parsing the same token and comparing it
@@ -325,7 +330,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ✅ S5c | Does the replacement force a fresh check? | — *yes, **14/14** with controls* |
 | ✅ S5d | Make the privileged flow require a passkey | — *yes, **12/12**; found a password bypass* |
 | ⚠ S5e | Time-box and audit the enrolment window | — *14/14; per-user gate **unmet**, and it fails open* |
-| **▶ S5f** | Can enrolment be made per-user with impersonation? | nothing |
+| ✅ S5f | Can enrolment be made per-user? | — *yes, by emailed link; **impersonation ruled out*** |
+| **▶ S9** | Does a phishing proxy actually fail? | **approval to edit `/etc/hosts`** |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

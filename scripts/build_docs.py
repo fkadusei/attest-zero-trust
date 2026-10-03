@@ -118,6 +118,8 @@ PAGES: list[Page] = [
          "Making the privileged realm passkey-only, and the password bypass that the login page hid."),
     Page("lab-results-enrolment-window", "lab/keycloak/SPIKE-5e-RESULTS.md", "Reference", "Lab results: the enrolment window",
          "Bounding and auditing the password window needed to enrol a first passkey — and the per-user restriction that would not work."),
+    Page("lab-results-enrolment-link", "lab/keycloak/SPIKE-5f-RESULTS.md", "Reference", "Lab results: enrolment by link",
+         "Why impersonation cannot work, and the action-token link that does — verified by completing a real enrolment."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

@@ -145,6 +145,84 @@ jobs:
         run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
+  # Enrolment by link (S5f). Needs a browser for the one check that matters —
+  # completing a real enrolment through the emailed link — and a mail sink to
+  # capture the link.
+  # ---------------------------------------------------------------------------
+  enrolment-link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install the toolchains
+        run: |
+          pip install -r requirements-lab.txt
+          npm --prefix lab/keycloak install --no-audit --no-fund
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: Apply the WebAuthn policies
+        run: python3 lab/keycloak/scripts/configure-realms.py
+
+      - name: Start the mail sink
+        # Keycloak sends to host.docker.internal:2525; on a Linux runner that is
+        # not the host by default, so add it explicitly.
+        run: |
+          rm -rf /tmp/attest-mail && mkdir -p /tmp/attest-mail
+          nohup python3 lab/keycloak/scripts/smtp_sink.py 2525 /tmp/attest-mail \
+            > /tmp/smtp-sink.log 2>&1 &
+          sleep 2
+          head -1 /tmp/smtp-sink.log
+          grep -q "host.docker.internal" /etc/hosts \
+            || echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
+
+      - name: Launch Chrome with remote debugging
+        run: |
+          google-chrome --headless --disable-gpu --no-sandbox \
+            --disable-dev-shm-usage --remote-debugging-port=9222 \
+            --user-data-dir=/tmp/ci-chrome-s5f about:blank &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "Chrome did not expose a debugging port"
+          exit 1
+
+      - name: S5f — is enrolment per-user by link?
+        run: |
+          set +e
+          python3 lab/keycloak/scripts/spike5f-matrix.py > /tmp/s5f.log 2>&1
+          code=$?
+          cat /tmp/s5f.log
+          echo "===== end of S5f output (exit $code) ====="
+          exit $code
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          docker compose -f lab/keycloak/compose.yaml logs --tail 80
+          echo "--- mail sink ---"
+          cat /tmp/smtp-sink.log || true
+
+  # ---------------------------------------------------------------------------
   # The enrolment window (S5e). No browser needed.
   # ---------------------------------------------------------------------------
   enrolment-window:

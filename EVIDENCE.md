@@ -60,6 +60,12 @@ here, **this file is right and the other one is a bug.** Please report it.
 | Keycloak's **`conditional-user-role` gates correctly** — with `negate` as the discriminator | Corrected S5e pass: `negate=false` shows the password only *with* the role; `negate=true` shows it only *without*. Requires identity-first (username split from password) | **Verified** |
 | **A conditional that skips the only credential step issues a token** | A real token obtained with **no credential at all**, only a username, against the identity-first arrangement | **Verified** |
 | The **shipped S5e design does not have that bypass** | After restoring it: a username-only POST returns HTTP 200, no code, password form still required | **Verified** |
+| **Keycloak impersonation is NOT a shareable link** | The endpoint returns `Set-Cookie: KEYCLOAK_IDENTITY` to the **API caller**; opening the redirect with no cookies sets no session. Corroborated by Keycloak PR #40767, open and unmerged, which says the same | **Verified** |
+| An **action-token link** can be emailed for one named user, needs no password, and reaches passkey registration | S5f F1-F4, captured through a local SMTP sink | **Verified** |
+| That link **completes a real enrolment on the named user**, and on no other | S5f F4b-d — a real passkey registered through the link | **Verified** |
+| The link is **invalidated once the action completes** | S5f F5b | **Verified** |
+| An **expired link is refused** | S5f F6 | **Verified** |
+| The link is a **bearer token**: opening it does not consume it | S5f — re-opening before completion still renders the action. Recorded as a finding, not a gate | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -235,7 +241,13 @@ Recorded because the instruction is explicit: **say when you are not certain.**
     candidate replacement is **Keycloak impersonation**, which yields a one-time, per-user,
     time-limited, audited link and removes the password path entirely. **That is untested.**
 
-14. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+14. **The enrolment link is a bearer token, and its security is the mailbox's security.** It stays
+    live until the action completes or it expires, so anyone who obtains it in that window can
+    **complete the enrolment first** and register their own passkey on that account. Bounded, not
+    open-ended — emailed reset links behave the same way — but it must be a conscious acceptance with a
+    **short** lifespan. See `lab/keycloak/SPIKE-5f-RESULTS.md` §4.
+
+15. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 

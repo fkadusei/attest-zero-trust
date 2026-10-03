@@ -46,7 +46,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
 | **S5d** | Make the privileged flow actually require a passkey | ✅ **done — 12/12; found a bypass** |
 | **S5e** | Time-box and audit the enrolment window | ⚠ **done — bounded and audited, but not per-user** |
-| **S5f** | Can enrolment be made per-user with impersonation? | ▶ **NEXT** |
+| **S5f** | Can enrolment be made per-user with impersonation? | ✅ **done — impersonation ruled out; a link works** |
+| **S9** | Does a phishing proxy actually fail? | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -302,39 +303,69 @@ Full write-up: `lab/keycloak/SPIKE-5e-RESULTS.md`.
 
 ---
 
-## ▶ S5f — Can enrolment be made per-user, using impersonation? — **NEXT**
+## ✅ S5f — Can enrolment be made per-user? — **YES, but not with impersonation**
 
-**In plain words.** The enrolment window still is not restricted to one person. The obvious fix —
-gating the password form with a role condition — **turned out to fail open**: skipping the credential
-step issued a token to anyone who typed a username. So that route is closed, and for a much better
-understood reason than "it didn't work".
+**Result: 16/16. Impersonation is ruled out with evidence; a different mechanism meets the requirement,
+and it was verified by completing a real enrolment.**
 
-There is a cleaner mechanism, and it removes the password path from enrolment entirely:
+**Impersonation cannot do it.** The endpoint **returns the identity cookie to the API caller**
+(`Set-Cookie: KEYCLOAK_IDENTITY=…`), so the session belongs to whoever made the call — not to the
+person who needs to enrol. Opening the returned URL with no cookies set no session at all. Keycloak's own
+[PR #40767](https://github.com/keycloak/keycloak/pull/40767) says the same thing, and the variant that
+*would* work is **open and unmerged**.
 
-**Keycloak impersonation.** `POST /admin/realms/{realm}/users/{id}/impersonation` returns a
-**one-time link for exactly one user**. Opened on their own device, it starts a session as that user,
-so the "register a passkey" required action runs. That is:
+**What works: an action-token link.** `PUT /users/{id}/execute-actions-email` emails a link that names
+one user, needs **no password**, and lands them on the passkey registration action. Testing it needed a
+mail server, so the lab now has one (`smtp_sink.py`).
 
-- **per-user by construction** — the administrator names the person, so the requirement is met by the
-  mechanism rather than bolted onto it
-- **time-limited** — the link carries an expiring token
-- **audited** — impersonation is a privileged admin action and is logged as one
-- **no password path at all**, so the whole window problem disappears
+**This meets the requirement S5e could not**, and by the mechanism itself rather than by a check bolted
+onto it:
 
-**What to test, with controls:**
+| | S5e's window | S5f's link |
+|---|---|---|
+| Who can use it | **any user**, while open | **one named user**, by construction |
+| Needs a password | **yes** | **no** |
+| Bounded by | a sweep that must keep running | the token's own lifespan |
 
-1. An impersonation link works for the named user and reaches the passkey registration.
-2. **Control:** the link does **not** work for a different user.
-3. **Control:** the link stops working after it expires, and after it is used once.
-4. The resulting session is **flagged as impersonated**, so it can be audited and constrained.
-5. **Control:** with no impersonation in play, the password path is still gone from the realm.
+**The load-bearing check is the one that completes the enrolment.** Page inspection cannot settle
+*whose* account a link acts on; only doing it can. The link drove a real passkey registration through a
+virtual authenticator and the credential landed on the named user and nowhere else.
 
-⚠️ **Impersonation is a powerful capability.** It must be limited to a named role, every use must be
-logged, and the resulting session must be distinguishable from a normal one. Do not adopt it without
-testing those — that is the whole point of the slice.
+**The finding — the link is a bearer token.** Opening it does not consume it; it dies only when the
+action **completes** or it **expires**. Anyone who obtains it in that window can complete the enrolment
+first and register **their own passkey** on that account. Bounded, not open-ended, and emailed reset
+links share the property — but it must be a conscious acceptance with a **short** lifespan.
 
-**Needs:** nothing. Runs on this machine.
-**Time:** half a day.
+Full write-up: `lab/keycloak/SPIKE-5f-RESULTS.md`.
+
+---
+
+## ▶ S9 — Does a phishing proxy actually fail? — **NEXT**
+
+**In plain words.** Everything so far tests the parts. This tests **the claim the whole project rests
+on**: that a user can be tricked into visiting an attacker's copy of the login page, hand over
+everything they can, and **still not get in**. That has never been demonstrated here. It is the top
+entry in `EVIDENCE.md` §7 and the one thing most likely to invalidate the design.
+
+**What to build:**
+
+1. A reverse proxy that serves a real copy of the sign-in page and relays to the real Keycloak — a
+   genuine adversary-in-the-middle, not a mock-up.
+2. Walk a full sign-in through it with a virtual authenticator.
+3. **The claim:** the ceremony fails, because WebAuthn binds the assertion to the **relying-party ID**
+   — the domain — and the proxy's domain is not the real one. The credential simply will not answer.
+4. **Control:** the same sign-in against the **real** origin must still succeed, or "it failed" proves
+   only that the harness is broken.
+5. **Control:** the proxy must be shown to be faithfully relaying — the victim must reach a page
+   visually identical to the real one, or the test is measuring nothing.
+
+⚠️ **The trap that makes a naive version worthless:** WebAuthn's relying-party ID **ignores the port**.
+A proxy on another `localhost` port shares the RP ID with the real site, so the credential *would*
+answer and the test would show a **false bypass**. Distinct **hostnames** are required, which means
+editing `/etc/hosts` — **outside the workspace, so it needs approval before I touch it.**
+
+**Needs:** approval to edit `/etc/hosts`; otherwise nothing.
+**Time:** one day.
 
 ---
 
