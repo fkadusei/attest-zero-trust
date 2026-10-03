@@ -191,8 +191,11 @@ jobs:
             > /tmp/smtp-sink.log 2>&1 &
           sleep 2
           head -1 /tmp/smtp-sink.log
-          grep -q "host.docker.internal" /etc/hosts \
-            || echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
+          # NOTE: host.docker.internal is resolved INSIDE the container, via
+          # extra_hosts in compose.yaml. Editing the runner's /etc/hosts does not
+          # affect the container and was a mistake. Verify from inside instead.
+          docker compose -f lab/keycloak/compose.yaml exec -T keycloak \
+            getent hosts host.docker.internal || echo "WARNING: not resolvable in-container"
 
       - name: Launch Chrome with remote debugging
         run: |
