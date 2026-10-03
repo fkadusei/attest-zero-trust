@@ -222,6 +222,13 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A test that passes because the target does not exist proves nothing.** The first traversal test
+  asked for `/etc/passwd` and saw `undefined`, which looked like a refusal — but the adapter reads a
+  `.meta` sidecar that `/etc/passwd` lacks, so the read failed for an unrelated reason. **Plant the
+  target so it WOULD be served**: put the victim inside the root but outside the tenant directory,
+  with a valid sidecar. Then only the defence stands between the caller and the bytes, and mutation
+  testing can tell the difference. Removing both traversal defences left the old test green while a
+  real file leaked and a real file was deleted.
 - **Row-Level Security is bypassed by SUPERUSERS, always, and by the TABLE OWNER unless `FORCE`.**
   An application connecting as either gets **no RLS at all, silently** — every query succeeds, every
   test passes, and the boundary is absent. The application role must be `NOSUPERUSER NOBYPASSRLS` and

@@ -23,7 +23,7 @@ end to end. It is not a complete product.
 | **End-to-end HTTP tests** | ✅ **17 of them**, through the real request path |
 | Cedar authorization (L4) | ✅ **Implemented.** Policies in `policies/attest.cedar`, evaluated in-process |
 | Persistence | ✅ **PostgreSQL adapter with Row-Level Security**, plus a portable in-memory default |
-| Object storage | ❌ Interface only — no implementation |
+| Object storage | ✅ **Filesystem adapter + in-memory default**, integrity checked on read |
 | Customer-facing features | ❌ None |
 
 **The API surface today:**
@@ -34,6 +34,8 @@ end to end. It is not a complete product.
 | `GET /v1/session` | Authentication only — reports what was verified |
 | `GET /v1/evidence` | **Authorized** list, scoped to the caller's tenant |
 | `GET /v1/evidence/:id` | **Authorized** read, scoped to the caller's tenant |
+| `GET /v1/evidence/:id/content` | **Authorized** artifact download, digest verified against the record |
+| `PUT /v1/evidence/:id/content` | **Authorized** artifact upload, requires the `writer` role |
 
 **One finding is worth reading before anything else**, because it is the reason the end-to-end tests
 exist at all. Keycloak issues DPoP-bound access tokens with a **different payload `typ`** than
@@ -187,7 +189,7 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**134 tests** across seven files, all passing:
+**159 tests** across eight files, all passing (2 skipped, with reasons).
 
 | File | Tests | What it covers |
 |---|---|---|
@@ -195,6 +197,7 @@ npm test --workspace @attest/api
 | `dpop.test.ts` | 26 | L2, against real DPoP-bound tokens |
 | `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
 | `postgres.test.ts` | 10 | The RLS boundary, with a superuser negative control and a connection-reuse check |
+| `object-storage.test.ts` | 20 | Both adapters against one contract: tenancy, traversal, integrity |
 | `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
 | `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
@@ -230,6 +233,12 @@ making the application role a superuser, changing the policy to `USING (true)`, 
 are **all caught**. One of those is weaker evidence than the others and is recorded as such: removing
 `FORCE` is caught by a **configuration assertion**, not by an observed leak, because the application
 role is not the table owner today. It guards a future where it is.
+
+**Mutation-tested, and it found a worthless test.** Removing either traversal defence alone leaves
+the suite green — each catches what the other misses — but removing **both** now fails, which is the
+question that matters. Before the test was rewritten, removing both left it **green**: traversal
+genuinely leaked a planted secret and deleted a file outside the tenant directory while the suite
+reported success.
 
 **And a caution about reading mutation results.** In `server.ts`, removing the early no-proof check —
 and then removing the downgrade guard as well — leaves the suite **green**. That is not a blind spot:
@@ -365,11 +374,46 @@ project, so publishing there would have connected these tests to the wrong datab
 3. **An unset tenant matches nothing.** `current_setting(..., true)` returns NULL when unset, and
    `tenant_id = NULL` is never true. A connection with no tenant sees no rows at all — **fail closed**.
 
-## 10. What is not built
+## 10. L6 — evidence artifacts
+
+Bytes now have somewhere to live, reached through the same authorized path as the metadata.
+
+**Two portable adapters**, both needing no cloud: in-memory (the default, for tests and a laptop)
+and filesystem. An S3 or GCS adapter would implement the same port; which one is used is a deployment
+decision (ADR-015).
+
+**The digest recorded on the evidence comes from the bytes the storage actually holds**, computed by
+the adapter — never from a value the caller supplied. A caller-supplied hash would let someone attest
+to content they never uploaded. On download the stored bytes are re-hashed and compared to the
+record, so a disagreement between storage and the database is reported rather than papered over.
+
+**No signed URLs, deliberately.** A pre-signed URL is a bearer capability that outlives the
+authorization decision that produced it. Reads go through the API so the policy is re-evaluated on
+every request.
+
+**Path traversal is the vulnerability this adapter exists to avoid**, and it is guarded three times
+over:
+
+1. the tenant directory name is **percent-encoded**, so a tenant id containing `../..` becomes one
+   path segment rather than three traversals
+2. the ref is validated against a **strict allowlist** before it is used as a path
+3. the **resolved path is checked for containment** in the tenant directory — the backstop that holds
+   however a traversal was spelled
+
+> **A test defect worth recording.** The first traversal test asked for `/etc/passwd` and got
+> `undefined`, which looked like a refusal. It was not: the adapter also reads a `.meta` sidecar,
+> which does not exist for `/etc/passwd`, so the read failed for an unrelated reason. **Mutation
+> testing exposed it** — removing both traversal defences left the suite green. The test now plants a
+> victim *inside* the storage root but *outside* the tenant directory, **with a valid sidecar**, so
+> nothing but the traversal defence stands between the caller and the bytes. With both defences
+> removed it now fails, as it should.
+
+## 11. What is not built
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **No object storage.** Evidence artifacts have a reference but no bytes anywhere.
+- **No S3 or GCS adapter.** Filesystem is persistent and portable; a cloud adapter is a deployment
+  choice, not a rewrite.
 - **No migrations tooling.** The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.
 - **Four routes.** Still no product surface a customer would recognise.
@@ -380,7 +424,7 @@ Stated plainly, because this list is as useful as the rest of the page:
 
 ---
 
-## 11. Extending it
+## 12. Extending it
 
 The pattern is the same for every capability that varies by environment:
 

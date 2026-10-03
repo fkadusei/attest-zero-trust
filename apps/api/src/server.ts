@@ -10,6 +10,7 @@ import type { Clock } from "./ports/clock.ts";
 import type { ReplayCache } from "./ports/replay-cache.ts";
 import type { PolicyDecisionPoint, PolicyRequest, TenantScope } from "./ports/policy.ts";
 import type { EvidenceRepository } from "./ports/repository.ts";
+import type { ObjectStorage } from "./ports/object-storage.ts";
 
 /**
  * The API as a running service — the policy *enforcement point*.
@@ -42,6 +43,8 @@ export interface ServerDeps {
   readonly pdp: PolicyDecisionPoint;
   /** Evidence storage, scoped by tenant at the data layer. */
   readonly evidence: EvidenceRepository;
+  /** Artifact bytes, tenant-scoped, with integrity verified on read. */
+  readonly artifacts: ObjectStorage;
 }
 
 /** Attached to the request by `authenticate`, for handlers to read. */
@@ -88,6 +91,17 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     logger: { redact: ["req.headers.authorization", "req.headers.dpop"] },
     disableRequestLogging: false,
     bodyLimit: 1024 * 1024,
+  });
+
+  // Evidence artifacts are arbitrary bytes with arbitrary content types. Fastify has
+  // no parser for text/plain or application/octet-stream by default, so a perfectly
+  // legitimate upload was rejected with 415 before any handler ran. This accepts the
+  // body as a Buffer and makes no attempt to interpret it — interpreting an evidence
+  // artifact is not this service's job.
+  //
+  // The 10 MiB ceiling here is the default; the upload route raises it deliberately.
+  app.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: 10 * 1024 * 1024 }, (_req, body, done) => {
+    done(null, body);
   });
 
   /**
@@ -284,6 +298,105 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       ...(auth.thumbprint !== undefined ? { keyThumbprint: auth.thumbprint } : {}),
     };
   });
+
+  // ---------------------------------------------------------------- artifacts
+  /**
+   * Upload the bytes for an evidence record.
+   *
+   * Authorization happens FIRST and against the stored record's tenant, not against
+   * anything the caller supplied. A caller cannot create a record in someone else's
+   * tenant by uploading to it, because there is no parameter that names a tenant.
+   */
+  app.put<{ Params: { id: string } }>(
+    "/v1/evidence/:id/content",
+    { preHandler: authenticate, bodyLimit: 10 * 1024 * 1024 },
+    async (request, reply) => {
+      const auth = request.auth!;
+      const tenant: TenantScope = { tenantId: auth.tenantId };
+
+      const record = await deps.evidence.findById(tenant, request.params.id);
+      if (!record) {
+        // 404 for both "no such record" and "belongs to someone else", matching the
+        // read route. A 403 here would confirm the record exists elsewhere.
+        return reply.code(404).send({ error: "not_found" });
+      }
+
+      const allowed = await authorize(
+        request,
+        reply,
+        "WriteEvidence",
+        { type: "Evidence", id: record.id, tenant: { tenantId: record.tenantId } },
+      );
+      if (!allowed) return reply;
+
+      const body = request.body;
+      if (!(body instanceof Uint8Array) && typeof body !== "string") {
+        return reply.code(415).send({ error: "unsupported_body" });
+      }
+      const bytes = typeof body === "string" ? new TextEncoder().encode(body) : new Uint8Array(body);
+
+      const contentType =
+        typeof request.headers["content-type"] === "string"
+          ? request.headers["content-type"]
+          : "application/octet-stream";
+
+      // The ref is derived by the adapter, never accepted from the caller.
+      const { ref, sha256 } = await deps.artifacts.put(tenant, record.id, bytes, contentType);
+
+      // The digest recorded on the EVIDENCE is the one the STORAGE computed from the
+      // bytes it actually holds, not one the caller claimed. A caller-supplied hash
+      // would let someone attest to content they never uploaded.
+      await deps.evidence.put(tenant, { ...record, artifactRef: ref, sha256 });
+
+      return reply.code(201).send({ id: record.id, artifactRef: ref, sha256 });
+    },
+  );
+
+  /**
+   * Download the bytes for an evidence record.
+   *
+   * Reads go through here rather than through a pre-signed URL. A signed URL is a
+   * bearer capability that outlives the decision that produced it; this re-evaluates
+   * the policy on every request, which is the premise of the whole design.
+   */
+  app.get<{ Params: { id: string } }>(
+    "/v1/evidence/:id/content",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const auth = request.auth!;
+      const tenant: TenantScope = { tenantId: auth.tenantId };
+
+      const record = await deps.evidence.findById(tenant, request.params.id);
+      if (!record) return reply.code(404).send({ error: "not_found" });
+
+      const allowed = await authorize(
+        request,
+        reply,
+        "ReadEvidence",
+        { type: "Evidence", id: record.id, tenant: { tenantId: record.tenantId } },
+      );
+      if (!allowed) return reply;
+
+      const artifact = await deps.artifacts.get(tenant, record.artifactRef);
+      if (!artifact) return reply.code(404).send({ error: "artifact_missing" });
+
+      // The stored bytes must still match what the RECORD attests to. Storage and
+      // the database are separate systems; if they disagree, something happened that
+      // an evidence product must not paper over.
+      if (artifact.sha256 !== record.sha256) {
+        request.log.error(
+          { id: record.id, recorded: record.sha256, actual: artifact.sha256 },
+          "artifact digest does not match the evidence record",
+        );
+        return reply.code(409).send({ error: "integrity_mismatch" });
+      }
+
+      return reply
+        .header("content-type", artifact.contentType)
+        .header("x-attest-sha256", artifact.sha256)
+        .send(Buffer.from(artifact.bytes));
+    },
+  );
 
   // ---------------------------------------------------------------- evidence
   /**

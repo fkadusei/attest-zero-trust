@@ -20,7 +20,9 @@ import { systemClock } from "../src/ports/clock.ts";
 import { buildServer } from "../src/server.ts";
 import { CedarPolicyDecisionPoint } from "../src/pdp-cedar.ts";
 import { InMemoryEvidenceRepository } from "../src/ports/memory-repository.ts";
+import { InMemoryObjectStorage } from "../src/ports/memory-object-storage.ts";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createDpopKey, getBoundToken, setupBoundToken, DPOP_CLIENT, type DpopKey } from "./dpop-harness.ts";
 import { API_CLIENT, ISSUER, JWKS_URI, ensureLabFixtures, getRealToken, isLabUp } from "./lab.ts";
 
@@ -79,6 +81,7 @@ describe("the API over HTTP", { skip: labUp ? false : "Keycloak is not running" 
       replayCache: new InMemoryReplayCache(),
       pdp: new CedarPolicyDecisionPoint({ policies }),
       evidence,
+      artifacts: new InMemoryObjectStorage(),
     });
     await app.ready();
 
@@ -302,6 +305,70 @@ describe("the API over HTTP", { skip: labUp ? false : "Keycloak is not running" 
     assert.equal(ids.length, 1, `expected exactly one record, got ${JSON.stringify(ids)}`);
     assert.equal(ids[0], "own-evidence");
     assert.ok(!ids.includes("other-tenant-evidence"), "another tenant's record leaked into a list");
+  });
+
+  // ---------------------------------------------------------------- artifacts (L6)
+  it("uploads and downloads artifact bytes through the AUTHORIZED path", async () => {
+    const body = "SOC 2 evidence payload";
+    const up = await app.inject({
+      method: "PUT",
+      url: "/v1/evidence/own-evidence/content",
+      headers: { authorization: `Bearer ${unboundToken}`, "content-type": "text/plain" },
+      payload: body,
+    });
+    assert.equal(up.statusCode, 201, up.body);
+    const { sha256 } = up.json();
+    assert.match(sha256, /^[0-9a-f]{64}$/);
+
+    const down = await app.inject({
+      method: "GET",
+      url: "/v1/evidence/own-evidence/content",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    assert.equal(down.statusCode, 200, down.body);
+    assert.equal(down.body, body);
+    assert.equal(down.headers["x-attest-sha256"], sha256);
+  });
+
+  it("the recorded digest comes from the STORED bytes, not from the caller", async () => {
+    // A caller-supplied hash would let someone attest to content they never
+    // uploaded. The record's digest must equal the adapter's own computation.
+    const body = "content whose hash we will verify";
+    const up = await app.inject({
+      method: "PUT",
+      url: "/v1/evidence/own-evidence/content",
+      headers: { authorization: `Bearer ${unboundToken}` },
+      payload: body,
+    });
+    const expected = createHash("sha256").update(body).digest("hex");
+    assert.equal(up.json().sha256, expected);
+  });
+
+  it("ARTIFACTS ARE TENANT-SCOPED: another tenant's content is not reachable", async () => {
+    // The record belongs to globex, so this caller must not even learn it exists.
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/evidence/other-tenant-evidence/content",
+      headers: { authorization: `Bearer ${unboundToken}` },
+    });
+    assert.equal(res.statusCode, 404, `cross-tenant artifact read: ${res.body}`);
+  });
+
+  it("another tenant's content cannot be OVERWRITTEN either", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/v1/evidence/other-tenant-evidence/content",
+      headers: { authorization: `Bearer ${unboundToken}` },
+      payload: "malicious replacement",
+    });
+    assert.equal(res.statusCode, 404, `cross-tenant write: ${res.body}`);
+  });
+
+  it("the artifact routes require authentication", async () => {
+    for (const method of ["GET", "PUT"] as const) {
+      const res = await app.inject({ method, url: "/v1/evidence/own-evidence/content", payload: "x" });
+      assert.equal(res.statusCode, 401, `${method} was reachable without credentials`);
+    }
   });
 
   it("the evidence routes still require authentication", async () => {

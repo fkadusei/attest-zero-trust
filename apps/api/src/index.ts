@@ -19,6 +19,9 @@ import { InMemoryReplayCache } from "./ports/replay-cache.ts";
 import { InMemoryEvidenceRepository } from "./ports/memory-repository.ts";
 import { PostgresEvidenceRepository } from "./ports/postgres-repository.ts";
 import type { EvidenceRepository } from "./ports/repository.ts";
+import type { ObjectStorage } from "./ports/object-storage.ts";
+import { InMemoryObjectStorage } from "./ports/memory-object-storage.ts";
+import { FilesystemObjectStorage } from "./ports/filesystem-object-storage.ts";
 import { systemClock } from "./ports/clock.ts";
 import { CedarPolicyDecisionPoint, DEFAULT_POLICY_PATH } from "./pdp-cedar.ts";
 import { buildServer } from "./server.ts";
@@ -51,12 +54,19 @@ async function main(): Promise<void> {
   // Adapter selection. The portable in-memory default needs nothing running; a
   // DATABASE_URL selects PostgreSQL, where RLS enforces the tenant boundary in the
   // engine rather than in our code.
+  const artifactRoot = process.env["ARTIFACT_ROOT"]?.trim();
   let evidence: EvidenceRepository;
   if (config.databaseUrl) {
     evidence = new PostgresEvidenceRepository({ connectionString: config.databaseUrl });
   } else {
     evidence = new InMemoryEvidenceRepository();
   }
+
+  // Artifacts: the filesystem adapter when a root is configured, otherwise memory.
+  // Both are portable; neither needs a cloud.
+  const artifacts: ObjectStorage = artifactRoot
+    ? new FilesystemObjectStorage({ root: artifactRoot })
+    : new InMemoryObjectStorage();
 
   const app = buildServer({
     config,
@@ -65,11 +75,16 @@ async function main(): Promise<void> {
     replayCache: new InMemoryReplayCache(),
     pdp,
     evidence,
+    artifacts,
   });
 
   // Say one thing about the replay cache out loud, because it is the one component
   // whose correctness depends on how many processes are running. An operator who
   // sees this line in a multi-replica deployment has been warned.
+  app.log.info(
+    { storage: artifactRoot ?? "in-memory" },
+    `artifact storage: ${artifactRoot ? "filesystem" : "in-memory"}`,
+  );
   app.log.warn(
     "replay cache is in-process: correct for a single instance, INCORRECT for a fleet. " +
       "A proof replayed to another replica would be treated as fresh.",
