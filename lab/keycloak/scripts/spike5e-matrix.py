@@ -133,8 +133,14 @@ def admin_token() -> str:
         return json.load(r)["access_token"]
 
 
-def ensure_other_user() -> None:
-    """A second user, to prove the window is not restricted to the named one."""
+def ensure_user(name: str) -> None:
+    """Create the user if it is missing, with a known password.
+
+    The matrix must not assume a user exists. `spike-attest-privileged` is
+    created by S3's harness, and in a fresh CI realm this job never runs that —
+    so `open` failed with "no such user" and every downstream check failed too.
+    A self-contained test creates what it needs.
+    """
     t = admin_token()
 
     def call(method, path, body=None):
@@ -150,13 +156,19 @@ def ensure_other_user() -> None:
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode()[:150]
 
-    st, users = call("GET", f"/{REALM}/users?username={OTHER_USER}&exact=true")
+    st, users = call("GET", f"/{REALM}/users?username={name}&exact=true")
     if not users:
-        call("POST", f"/{REALM}/users", {"username": OTHER_USER, "enabled": True,
-                                         "emailVerified": True, "email": f"{OTHER_USER}@lab.invalid"})
-        st, users = call("GET", f"/{REALM}/users?username={OTHER_USER}&exact=true")
+        call("POST", f"/{REALM}/users", {
+            "username": name, "enabled": True, "emailVerified": True,
+            "email": f"{name}@lab.invalid", "firstName": "Spike", "lastName": "Lab",
+        })
+        st, users = call("GET", f"/{REALM}/users?username={name}&exact=true")
     call("PUT", f"/{REALM}/users/{users[0]['id']}/reset-password",
          {"type": "password", "value": PASSWORD, "temporary": False})
+    # Clear required actions so a profile prompt cannot be mistaken for a
+    # credential failure.
+    st, u = call("GET", f"/{REALM}/users/{users[0]['id']}")
+    call("PUT", f"/{REALM}/users/{users[0]['id']}", {**u, "requiredActions": []})
 
 
 def main() -> int:
@@ -175,7 +187,8 @@ def main() -> int:
     if not ok:
         print(r.stdout[-400:], r.stderr[-400:])
         return 1
-    ensure_other_user()
+    ensure_user(USER)
+    ensure_user(OTHER_USER)
 
     ENR_REDIRECT = "http://localhost:8099/callback"
     ACC_REDIRECT = f"{KC}/realms/{REALM}/account/"
@@ -194,6 +207,12 @@ def main() -> int:
     print("\n[E4-E5] window open")
     out = window("open", USER, "1")
     opened = "window OPEN" in out
+    if not opened:
+        # Print WHY. A bare "False" here cost a CI round trip: the cause was a
+        # missing user, and the tool had said so in text nobody was reading.
+        print("       the window tool said:")
+        for line in out.splitlines():
+            print(f"         {line}")
     check("E4a the window opened", opened, True)
     check("E4b enrolment client offers a password while open",
           has_password(CLIENT, ENR_REDIRECT), True)
