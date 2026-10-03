@@ -82,7 +82,7 @@
         <h1>Lab results: when it breaks</h1>
         <p class="blurb">The counter-case, measured: the same relay is refused under a narrow relying-party ID and answers under a broad one.</p>
       </header>
-      <section id="overview"><p><strong>Status: RESOLVED — CONFIRMED BY MEASUREMENT. 6/6.</strong></p>
+      <section id="overview"><p><strong>Status: RESOLVED — CONFIRMED BY MEASUREMENT. 7/7.</strong></p>
 <p>S9 proved a passkey cannot be used through a phishing proxy. What it could not show was the
 <strong>counter-case</strong>: that this depends on the relying-party ID being narrow, rather than on something else
 entirely.</p>
@@ -97,6 +97,10 @@ entirely.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>The suite creates its own fixtures, with a working password</td>
+<td><strong>pass</strong></td>
+</tr>
 <tr>
 <td><strong>Narrow</strong> RP ID: a passkey registers</td>
 <td><strong>pass</strong></td>
@@ -212,7 +216,7 @@ make deliberately rather than by default.</p>
 </ul>
 </section>
 <section id="6-reproducing"><h2>6. Reproducing</h2>
-<div class="codehilite"><pre><span></span><code>./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/spike9b-meta.py<span class="w">    </span><span class="c1"># 6 checks, ~3 minutes</span>
+<div class="codehilite"><pre><span></span><code>./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/spike9b-meta.py<span class="w">    </span><span class="c1"># 7 checks, ~3 minutes</span>
 </code></pre></div>
 
 <p>Chrome is launched by the script with both flags; the relay runs on <code>0.0.0.0:9001</code> and rewrites URLs

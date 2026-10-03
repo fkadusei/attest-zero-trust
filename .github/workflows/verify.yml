@@ -258,34 +258,6 @@ jobs:
       - name: Apply the WebAuthn policies
         run: python3 lab/keycloak/scripts/configure-realms.py
 
-      - name: Seed the fixtures the suite reuses
-        # The user and client are created by spike9-matrix; this suite reuses them.
-        run: |
-          cd lab/keycloak
-          node scripts/spike5d-matrix.mjs >/dev/null 2>&1 || true
-          cd ../..
-          python3 - <<'PYEOF'
-          import json, urllib.request, urllib.parse
-          d = urllib.parse.urlencode({"grant_type":"password","client_id":"admin-cli",
-              "username":"admin","password":"lab-only-not-a-secret"}).encode()
-          T = json.load(urllib.request.urlopen(urllib.request.Request(
-              "http://localhost:8080/realms/master/protocol/openid-connect/token", data=d)))["access_token"]
-          def post(p, b):
-              r = urllib.request.Request(f"http://localhost:8080/admin/realms{p}",
-                                         data=json.dumps(b).encode(), method="POST")
-              r.add_header("Authorization", f"Bearer {T}"); r.add_header("Content-Type","application/json")
-              try: urllib.request.urlopen(r)
-              except Exception: pass
-          post("/attest-privileged/users", {"username":"spike-phishing","enabled":True,
-              "emailVerified":True,"email":"spike-phishing@example.test",
-              "firstName":"Spike","lastName":"Lab"})
-          post("/attest-privileged/clients", {"clientId":"phishing-lab","enabled":True,
-              "publicClient":True,"standardFlowEnabled":True,"directAccessGrantsEnabled":False,
-              "redirectUris":["http://app.attest.test:8080/callback",
-                              "http://evil.attest.test:9001/callback"],"webOrigins":["+"]})
-          print("fixtures seeded")
-          PYEOF
-
       - name: S9b — is a broad relying-party ID exploitable?
         run: |
           set +e

@@ -117,10 +117,54 @@ def set_rp_id(rp_id: str) -> None:
         "webAuthnPolicyPasswordlessAttestationConveyancePreference": "none"})
 
 
+def ensure_fixtures() -> None:
+    """Create the user and client this suite needs, with a working password.
+
+    The standing rule for this project, learned the hard way three times: **every
+    harness creates the fixtures it depends on.** Its violation here was subtle —
+    a CI seeding step DID create the user, but without credentials, so the
+    enrolment sat on the login page and reported "no-register-button", which looks
+    like a missing UI element rather than a missing password.
+    """
+    st, us = call("GET", f"/{REALM}/users?username={USER}&exact=true")
+    if not us:
+        call("POST", f"/{REALM}/users", {
+            "username": USER, "enabled": True, "emailVerified": True,
+            "email": f"{USER}@example.test", "firstName": "Spike", "lastName": "Lab",
+            "credentials": [{"type": "password", "value": PASSWORD, "temporary": False}]})
+        st, us = call("GET", f"/{REALM}/users?username={USER}&exact=true")
+    if not us:
+        raise SystemExit(f"could not create or find user: {USER}")
+
+    uid = us[0]["id"]
+    st, fresh = call("GET", f"/{REALM}/users/{uid}")
+    call("PUT", f"/{REALM}/users/{uid}", {**fresh,
+        "firstName": fresh.get("firstName") or "Spike",
+        "lastName": fresh.get("lastName") or "Lab",
+        "email": fresh.get("email") or f"{USER}@example.test",
+        "emailVerified": True, "requiredActions": []})
+    # Set the password every time: an existing user may have none, and a login
+    # that fails leaves the flow on the login page looking like a missing button.
+    call("PUT", f"/{REALM}/users/{uid}/reset-password",
+         {"type": "password", "value": PASSWORD, "temporary": False})
+
+    st, cs = call("GET", f"/{REALM}/clients?clientId={CLIENT}")
+    body = {
+        "clientId": CLIENT, "enabled": True, "publicClient": True,
+        "standardFlowEnabled": True, "directAccessGrantsEnabled": False,
+        "redirectUris": [f"{REAL_ORIGIN}/callback", f"{PHISH_ORIGIN}/callback"],
+        "webOrigins": ["+"],
+    }
+    if cs:
+        call("PUT", f"/{REALM}/clients/{cs[0]['id']}", {**cs[0], **body})
+    else:
+        call("POST", f"/{REALM}/clients", body)
+
+
 def user_id() -> str:
     st, us = call("GET", f"/{REALM}/users?username={USER}&exact=true")
     if not us:
-        raise SystemExit(f"no such user: {USER} — run spike9-matrix.py first")
+        raise SystemExit(f"no such user: {USER}")
     return us[0]["id"]
 
 
@@ -141,6 +185,11 @@ def cred_count() -> int:
 
 
 def ensure_client() -> None:
+    """Kept for compatibility; ensure_fixtures() does the real work."""
+    ensure_fixtures()
+
+
+def _legacy_ensure_client() -> None:
     st, cs = call("GET", f"/{REALM}/clients?clientId={CLIENT}")
     body = {"redirectUris": [f"{REAL_ORIGIN}/callback", f"{PHISH_ORIGIN}/callback"],
             "webOrigins": ["+"]}
@@ -324,7 +373,9 @@ def main() -> int:
     time.sleep(2)
     print(f"  relay on 0.0.0.0:{PROXY_PORT} (Chrome maps evil.attest.test to it)")
 
-    ensure_client()
+    ensure_fixtures()
+    check("setup: the test user has a password",
+          call("GET", f"/{REALM}/users/{user_id()}/credentials")[1] is not None, True)
 
     # ---------------------------------------------------------------- narrow
     print("\n[NARROW] RP ID = app.attest.test — the control for what follows")

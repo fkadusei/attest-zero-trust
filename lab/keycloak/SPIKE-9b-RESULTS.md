@@ -1,6 +1,6 @@
 # S9b Results — is a BROAD relying-party ID actually exploitable?
 
-**Status: RESOLVED — CONFIRMED BY MEASUREMENT. 6/6.**
+**Status: RESOLVED — CONFIRMED BY MEASUREMENT. 7/7.**
 
 S9 proved a passkey cannot be used through a phishing proxy. What it could not show was the
 **counter-case**: that this depends on the relying-party ID being narrow, rather than on something else
@@ -14,6 +14,7 @@ entirely.
 
 | Check | Result |
 |---|---|
+| The suite creates its own fixtures, with a working password | **pass** |
 | **Narrow** RP ID: a passkey registers | **pass** |
 | **Narrow**: signs in at the real origin | **pass** |
 | **Narrow CONTROL: the phishing origin is REFUSED** | **pass** — `rejected:SecurityError` |
@@ -110,7 +111,7 @@ make deliberately rather than by default.
 ## 6. Reproducing
 
 ```bash
-./.venv/bin/python lab/keycloak/scripts/spike9b-meta.py    # 6 checks, ~3 minutes
+./.venv/bin/python lab/keycloak/scripts/spike9b-meta.py    # 7 checks, ~3 minutes
 ```
 
 Chrome is launched by the script with both flags; the relay runs on `0.0.0.0:9001` and rewrites URLs
