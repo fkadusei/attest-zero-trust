@@ -218,6 +218,11 @@ documentation implies.
 
 ## 7. Where everything lives
 
+**Public repository:** <https://github.com/fkadusei/attest-zero-trust> (MIT licence, `main` branch).
+Work here is committed with `git` — the repo was initialised at the design checkpoint, so there is no
+history containing anything that predates the security policy.
+
+
 ```
 docs/
   src/                    ← SOURCE. The Guide and Evidence pages. Edit these.

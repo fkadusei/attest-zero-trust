@@ -3,7 +3,8 @@
 A multi-tenant B2B SaaS application built on Zero Trust principles, with **passwordless,
 phishing-resistant authentication** (FIDO2/WebAuthn passkeys) as its identity foundation.
 
-> **Status: design complete, two verification spikes done, no production code yet.**
+> **Status: design complete, four verification experiments run — three hold, one failed. No
+> production code yet.** MIT licensed.
 
 > ### 🔄 Starting a fresh session, or picking this up cold?
 >
