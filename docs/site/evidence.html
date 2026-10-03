@@ -368,6 +368,11 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong>Keycloak&rsquo;s access-token marker is the PAYLOAD <code>typ</code> (&ldquo;Bearer&rdquo;), not the header&rsquo;s.</strong> The header <code>typ</code> is <code>"JWT"</code> for access tokens and ID tokens alike, so a header check cannot distinguish them</td>
+<td>L1 — decoded from live tokens: access <code>{header: JWT, payload: Bearer}</code>, ID <code>{header: JWT, payload: ID}</code></td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><strong>WebAuthn requires a secure context</strong>; <code>*.localhost</code> is one over plain HTTP and a real domain is not</td>
 <td>S9b — Keycloak reported <code>WebAuthnUnsupportedBrowser</code> until Chrome was told to treat the origins as secure. <strong>Not a DNS problem</strong></td>
 <td><strong>Verified</strong></td>
@@ -727,6 +732,14 @@ remains <strong>unmet</strong>, and the obvious way to build it is unsafe.</p>
     <strong>A resolvable hostname over HTTP is not enough</strong> — this needs TLS, or Chrome&rsquo;s
     <code>--unsafely-treat-insecure-origin-as-secure</code>. It was never a DNS problem, and time was spent on DNS
     before the log said otherwise.</p>
+</li>
+<li>
+<p><strong>An access-token check in the wrong place is worse than none.</strong> Keycloak marks access
+    tokens with payload <code>typ: "Bearer"</code> and ID tokens with <code>typ: "ID"</code> — but the JOSE <strong>header</strong>
+    <code>typ</code> is <code>"JWT"</code> for both. An early version of the API verifier checked the header. The
+    positive control caught it. <strong>The dangerous &ldquo;fix&rdquo; would have been to change the expected value
+    to <code>"JWT"</code>,</strong> which would have made the test pass while the check protected nothing. Asserting
+    the <em>reason</em> for each rejection is what exposed this; asserting only &ldquo;it failed&rdquo; would not have.</p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by

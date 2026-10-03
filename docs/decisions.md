@@ -734,3 +734,69 @@ Stated explicitly so no one mistakes an assumption for a fact.
 | NIST AAL2 conclusion for synced vs device-bound passkeys | **Not verified — Spike #6** |
 | Exact Keycloak env var and config key names, cluster sizing, and ECS task counts | **Not verified.** Presented conceptually; confirmed in Phase 0 |
 | All cost figures | **Not verified.** PLAN §11 is a driver structure only. No hosting or Cognito figures were obtained |
+
+---
+
+### ADR-014 — TypeScript on Node for the application stack
+
+**Status:** Accepted — **proposed during the build, not in the original plan.** The plan named AWS
+services but never named a language or framework. That gap was invisible while every slice was an
+experiment; it becomes a decision the moment application code starts.
+
+**Context:** Three constraints, already fixed by earlier decisions, pull in the same direction:
+
+1. **Cedar is committed** (ADR-005). AWS publishes `@cedar-policy/cedar-wasm`, which evaluates the
+   *same* policy language locally. Policies written and tested against the lab therefore port to
+   Amazon Verified Permissions **unchanged** — no rewrite, no divergence between what was tested and
+   what runs. Without that, local policy testing tests something other than what ships.
+
+2. **Infrastructure will be code.** The CDK for the deployment is TypeScript-first. One language
+   across application, policy, tests and infrastructure is one toolchain, one version pinning
+   problem, one set of CI caches.
+
+3. **DPoP is committed** (ADR-004), which means verifying JWS signatures, JWK thumbprints (RFC 7638)
+   for the `cnf.jkt` claim, and `ath` bindings. **JOSE verification is exactly the kind of code that
+   must not be hand-rolled** — the failure modes are silent, and a subtly wrong verifier accepts
+   forged tokens. `jose` is mature, widely reviewed, and implements the primitives directly.
+
+The lab's browser harnesses are already Node (puppeteer), so tests and application share a runtime.
+
+**Decision:** **TypeScript (strict) on Node**, with:
+
+| Concern | Choice |
+|---|---|
+| HTTP | **Fastify** — schema validation at the boundary, low overhead |
+| JOSE / DPoP | **`jose`** — never hand-rolled |
+| Policy | **`@cedar-policy/cedar-wasm`** locally, Amazon Verified Permissions deployed |
+| Infrastructure | **AWS CDK (TypeScript)** |
+| Tests | **`node:test`** — no extra runner |
+
+**Consequences — good:**
+
+- Policies tested locally are the policies deployed. This is the single biggest reason.
+- One language for application, policy, tests and infrastructure.
+- Crypto comes from a reviewed library rather than from us. Given that this project's headline claim
+  rests on token binding, a hand-rolled verifier would be the most dangerous code in the repository.
+- Strict mode plus explicit schema validation at every trust boundary.
+
+**Consequences — bad:**
+
+- **Node's memory and cold-start profile on Lambda is worse than Rust or Go.** Accepted because the
+  API is deliberately thin (ADR-004 rejects a custom token broker) and this is not a
+  high-throughput data plane.
+- **`cedar-wasm` crosses a WASM boundary**, so policy evaluation is slower than native. Accepted;
+  policy decisions here are per-request, not per-byte.
+- **TypeScript types vanish at runtime.** The compiler proves nothing about data from the network.
+  Validation must be explicit and must live at trust boundaries — noted here because the entire
+  premise of this project is *not trusting inputs*, and a type annotation is not a check.
+
+**Alternatives considered:**
+
+- **Python / FastAPI** — excellent framework, and the lab tooling is Python. Rejected because the
+  Cedar story is weaker, the CDK story is weaker, and it would split the project across two
+  toolchains for no gain.
+- **Go** — best runtime profile and a strong crypto story. Rejected because the CDK and Cedar
+  ergonomics are worse and the team-of-one velocity is lower. Revisit if the API ever becomes
+  throughput-bound.
+- **Java / Quarkus** — the natural neighbour to Keycloak. Rejected as heaviest for the least benefit
+  at this size.

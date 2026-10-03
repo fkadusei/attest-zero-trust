@@ -222,6 +222,16 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Keycloak puts the token type in TWO places, and they disagree.** Header `typ` is `"JWT"` for
+  **every** token; the payload claim `typ` is `"Bearer"` for an access token and `"ID"` for an ID
+  token. **Only the payload claim distinguishes them**, and it is trustworthy only after the
+  signature verifies. A header check looks like protection and provides none — and the tempting
+  "fix" (expect `"JWT"`) makes the test pass while removing the control entirely.
+- **Mutation-test the suite, and measure the mutation test by EXIT CODE.** The first attempt at the
+  meta-test reported all mutants as "GREEN" because a `grep` for the summary counts did not match —
+  the harness was broken, not the mutants undetected. The same "cannot tell denied from broken"
+  failure this project keeps hitting. **Deleting the `sub` check really did go undetected** until a
+  synthetic issuer was added to mint claims Keycloak will not.
 - **WebAuthn only exists in a SECURE CONTEXT, and that constrains every local test.** `*.localhost` is
   treated as trustworthy over plain HTTP; **any other hostname is not**, and `window.PublicKeyCredential`
   is undefined. Keycloak reports it as `WebAuthnUnsupportedBrowser`, which reads like a browser problem

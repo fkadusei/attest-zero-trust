@@ -70,6 +70,7 @@ here, **this file is right and the other one is a bug.** Please report it.
 | The **same credential signs in at the real origin**, so the refusal is a refusal and not a broken harness | S9 T2 — the positive control that makes T4 meaningful | **Verified** |
 | The relay is **faithful**: no reference to the real host survives in the served page | S9 T3/T3b — every absolute URL rewritten to the attacker's origin | **Verified** |
 | **A BROAD relying-party ID IS exploitable** — the browser produces a valid assertion for the attacker's origin | S9b — **the counter-case**, measured. Same relay, same credential: `app.attest.test` gives `SecurityError`, `attest.test` gives `resolved` | **Verified** |
+| **Keycloak's access-token marker is the PAYLOAD `typ` ("Bearer"), not the header's.** The header `typ` is `"JWT"` for access tokens and ID tokens alike, so a header check cannot distinguish them | L1 — decoded from live tokens: access `{header: JWT, payload: Bearer}`, ID `{header: JWT, payload: ID}` | **Verified** |
 | **WebAuthn requires a secure context**; `*.localhost` is one over plain HTTP and a real domain is not | S9b — Keycloak reported `WebAuthnUnsupportedBrowser` until Chrome was told to treat the origins as secure. **Not a DNS problem** | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
@@ -275,7 +276,14 @@ Recorded because the instruction is explicit: **say when you are not certain.**
     `--unsafely-treat-insecure-origin-as-secure`. It was never a DNS problem, and time was spent on DNS
     before the log said otherwise.
 
-18. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+18. **An access-token check in the wrong place is worse than none.** Keycloak marks access
+    tokens with payload `typ: "Bearer"` and ID tokens with `typ: "ID"` — but the JOSE **header**
+    `typ` is `"JWT"` for both. An early version of the API verifier checked the header. The
+    positive control caught it. **The dangerous "fix" would have been to change the expected value
+    to `"JWT"`,** which would have made the test pass while the check protected nothing. Asserting
+    the *reason* for each rejection is what exposed this; asserting only "it failed" would not have.
+
+19. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 
