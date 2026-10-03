@@ -44,9 +44,15 @@ site. Start with `docs/site/index.html`.
 
 ## 2. State of play, in one paragraph
 
-**The design is complete and written down. Seven experiments have been run: four hold, one holds for
-Chromium only, one failed and was resolved by rejecting the mechanism it tested, and one verified the
-replacement for that mechanism.** No production code has been written yet. The identity provider (Keycloak) runs locally
+**The design is complete and written down. Eight experiments have been run: five hold, one holds for
+Chromium only, one failed and was resolved by rejecting the mechanism it tested, one verified the
+replacement, and one proved the privileged realm passkey-only — finding a password bypass in the
+process.** No production code has been written yet.
+
+**The most serious open item:** a passkey-only browser flow does not make a realm passkey-only.
+Direct grants bypass the flow entirely, and `admin-cli` — created by Keycloak in **every** realm and
+public — accepts them by default. Closed in `attest-privileged` (S5d); **`attest-users` has not been
+checked.** See `EVIDENCE.md` §5.9. The identity provider (Keycloak) runs locally
 in Docker with two realms configured. Everything else is design, not deployment — the documentation is
 deliberately explicit about which is which, and you should preserve that distinction.
 
@@ -278,7 +284,8 @@ Numbered slices. `S1`–`S8` prove things; `S20`+ build things. Numbers match th
 | ❌ S5 | Does asking for a stronger check actually force one? | — *ran, did not work* |
 | ✅ S5b | Can step-up be made to work at all? | — *answered: **rejected**, live CVE* |
 | ✅ S5c | Does the replacement force a fresh check? | — *yes, **14/14** with controls* |
-| **▶ S5d** | Make the privileged flow require a passkey | nothing — **lockout risk** |
+| ✅ S5d | Make the privileged flow require a passkey | — *yes, **12/12**; found a password bypass* |
+| **▶ S5e** | Time-box and audit the enrolment window | nothing |
 | ⚠ S1b | Does the proof survive the network edge? | AWS |
 | ⚠ S2 | Does the permissions engine accept our tokens? | AWS |
 | 🔑 S3b | Is a real hardware key actually accepted? | **a physical key** |

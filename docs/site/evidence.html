@@ -58,6 +58,7 @@
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -236,6 +237,36 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <tr>
 <td>A freshness policy <strong>refuses a future <code>auth_time</code></strong></td>
 <td>S5c T6d</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A passkey-only browser flow leaves <strong>no password field</strong> and no username field</td>
+<td>S5d A1/A2 — the flow is usernameless</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>A passkey signs in successfully</strong> against the passkey-only flow</td>
+<td>S5d B2 — the positive case that makes &ldquo;refused&rdquo; meaningful</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>A user with <strong>no passkey is locked out</strong></td>
+<td>S5d C1 — the expected cost, demonstrated</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>Recovery from a broken flow is <strong>one API call</strong></td>
+<td>S5d D1/D2 — the original flow is never edited, only unbound</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The <code>flow_tool</code> backup/restore <strong>detects a broken flow and restores it</strong></td>
+<td>Tested in a scratch realm: passes untouched, detects damage, restores exactly</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>A passkey-only browser flow does NOT stop direct password grants</strong></td>
+<td>S5d A′ — <code>admin-cli</code> had <code>directAccessGrantsEnabled: true</code>, so a password still bought a token despite the login page refusing one</td>
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
@@ -439,6 +470,21 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
    verified <strong>freshness</strong> and, today, <strong>no strength</strong>. Corrected in ADR-013 and tracked as S5d.
    Anything user-facing must say <em>&ldquo;you signed in again just now&rdquo;</em>, never <em>&ldquo;you used your key just
    now&rdquo;</em>, until that flow work is done.</p>
+</li>
+<li>
+<p><strong>A passkey-only browser flow is not a passkey-only realm.</strong> The most serious thing S5d found:
+   direct grants at the token endpoint bypass the browser flow entirely, so a realm can refuse
+   passwords at the login page and still issue tokens for one. <code>admin-cli</code> is created by Keycloak in
+   <strong>every realm</strong> and is public, so nothing protects it by default. <strong>This is now closed in
+   <code>attest-privileged</code>, but the same gap exists in <code>attest-users</code> and in any realm not yet checked.</strong>
+   It is a configuration default, not a one-off mistake.</p>
+</li>
+<li>
+<p><strong>A negative test can pass for the wrong reason.</strong> S5d&rsquo;s direct-grant check reported <strong>pass</strong> on its
+    first run — because the test user&rsquo;s password had not been set to the value the test used. The grant
+    failed on bad credentials, not on being refused. It only became a real check once the positive case
+    (a passkey signing in) also worked. <strong>A refusal is only evidence when the grant would otherwise
+    succeed.</strong></p>
 </li>
 <li>
 <p><strong>The decision to reject LoA step-up does not rest on the CVE.</strong> S5 independently showed by

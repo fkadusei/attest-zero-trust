@@ -114,6 +114,8 @@ PAGES: list[Page] = [
          "How a failed experiment uncovered a live, unmitigated CVE in the component the design depended on."),
     Page("lab-results-freshness", "lab/keycloak/SPIKE-5c-RESULTS.md", "Reference", "Lab results: forcing a fresh check",
          "The step-up replacement verified as a working control, 14/14 with its controls — and one premise it disproved."),
+    Page("lab-results-passkey-only", "lab/keycloak/SPIKE-5d-RESULTS.md", "Reference", "Lab results: passkey-only, actually",
+         "Making the privileged realm passkey-only, and the password bypass that the login page hid."),
 ]
 
 #: Source path (relative to repo root, POSIX) -> output slug. Used to rewrite

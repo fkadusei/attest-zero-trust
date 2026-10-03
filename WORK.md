@@ -44,7 +44,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5** | Does asking for a stronger check actually force one? | ❌ **UNRESOLVED** — the condition never gated |
 | **S5b** | Can step-up be made to work at all? | ✅ **answered — rejected (ADR-013)** |
 | **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
-| **S5d** | Make the privileged flow actually require a passkey | ▶ **NEXT** |
+| **S5d** | Make the privileged flow actually require a passkey | ✅ **done — 12/12; found a bypass** |
+| **S5e** | Time-box and audit the enrolment window | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
@@ -221,30 +222,71 @@ Full write-up: `lab/keycloak/SPIKE-5c-RESULTS.md`.
 
 ---
 
-## ▶ S5d — Make the privileged flow actually require a passkey — **NEXT**
+## ✅ S5d — Make the privileged flow actually require a passkey — **DONE, 12/12**
 
-**In plain words.** The privileged realm is supposed to be the one where only a hardware key gets you
-in. It currently still accepts a password. Until that changes, "prove yourself again" on this realm
-proves *you signed in just now* — not that you used your key.
+**Result: the privileged realm is now passkey-only — and getting there found a password bypass that
+the login page was hiding.**
 
-This is flow surgery on the privileged browser flow:
+**The finding that matters.** The first full run failed on exactly one check: a **direct password
+grant** at the token endpoint. Direct grants never touch the browser flow, so `attest-privileged` was
+passkey-only at the *login page* while `admin-cli` — a built-in client, created by Keycloak in **every**
+realm, and public — would still hand out tokens for a password.
 
-1. Make the **`Username Password Form`** no longer REQUIRED — remove it, or make it ALTERNATIVE only
-   for a documented recovery path.
-2. Make **`WebAuthn Authenticator`** the primary path, REQUIRED.
-3. Keep the `Condition - credential` step, which is what lets a passkey satisfy 2FA without a second
-   prompt.
-4. **Prove it with a matrix in the S3 style**: a password alone must be **refused**; a passkey must be
-   **accepted**; and a control must show the harness can tell the difference.
+> **A passkey-only browser flow does not make a realm passkey-only.**
 
-**Do not skip the refusal test.** The whole point is that a password stops working. A flow that
-"supports passkeys" while still accepting passwords is the exact gap this slice exists to close.
+That is now closed here. **`attest-users` has not been checked and likely has the same gap.**
 
-⚠️ **Lockout risk.** Get this wrong and privileged administrators cannot sign in at all. Build and
-verify the recovery path *before* removing the password form, not after.
+**It passed the first time for the wrong reason.** The check reported PASS initially because the test
+user's password had not been set to the value the test used — so the grant failed on *bad credentials*
+rather than on *being refused*. It only became a real check once the positive case (a passkey actually
+signing in) worked too. **A refusal is only evidence when the grant would otherwise succeed.**
 
-**Needs:** nothing. Runs on this machine, using the virtual authenticator from S3.
-**Time:** one day, most of it on the recovery path.
+**What was built:**
+- **Copy** the built-in flow (Keycloak refuses to modify built-in flows — the wall S5 hit), add the
+  passwordless authenticator, disable the password form, bind the copy.
+- **Recovery is one API call**, because the original flow is never edited, only unbound. Tested.
+- A **backup/restore tool**, self-tested in a scratch realm before being relied on.
+
+**The bootstrap problem, stated plainly.** A passkey can only be registered by someone who can already
+authenticate, so a passkey-only realm has no way to enrol anyone. The test's setup *is* the procedure:
+bind the original flow, enrol, bind the passkey-only flow, close direct grants. **In production the
+enrolment window must be time-boxed and audited** — that is S5e.
+
+**Three traps, none of which produced a useful error**, and in all three the only place the real reason
+appeared was the container log:
+1. A **partial `PUT`** to the realm does not merge, so the policy change silently never applied.
+2. **`AvoidSameAuthenticatorRegister = true`** silently refuses a repeat enrolment — the ceremony even
+   *completes* and asks for a label, and nothing is stored.
+3. The registration page **waits for a click**; it does not start on its own.
+
+Full write-up: `lab/keycloak/SPIKE-5d-RESULTS.md`.
+
+---
+
+## ▶ S5e — Time-box and audit the enrolment window — **NEXT**
+
+**In plain words.** To give someone their first passkey, the password has to work again for a moment.
+Right now that window is "whenever an administrator runs the script". If that is left as-is, the
+passkey-only realm has a permanent, unaudited password path — which is exactly the bypass S5d just
+closed, wearing a different hat.
+
+**What to build and test:**
+
+1. A **dedicated enrolment flow**, not the normal one — reachable only for a named user, so enabling it
+   for one person does not open the door for everyone.
+2. A **time limit** that closes it automatically. Test that it closes: leave it open, wait, and confirm
+   the password no longer works.
+3. An **audit record** — who was enrolled, by whom, and when. An enrolment window that leaves no trace
+   is indistinguishable from an attacker using it.
+4. **Control:** the enrolment flow must be unreachable while closed. Prove it, don't assume it.
+
+**Needs:** nothing. Runs on this machine.
+**Time:** half a day.
+
+**The bigger one still waiting:** the **phishing-proxy test** — the project's headline claim, and the
+top entry in `EVIDENCE.md` §7. It needs care: WebAuthn's relying-party ID ignores the *port*, so a
+proxy on a different localhost port would share the RP ID and the test would show a false bypass. It
+needs distinct hostnames, which means editing `/etc/hosts`.
 
 ---
 

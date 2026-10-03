@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: passkey-only, actually — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Making the privileged realm passkey-only, and the password bypass that the login page hid." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="evidence.html">Evidence register</a></li>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html" class="current">Lab results: passkey-only, actually</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-what-passkey-only-means-here">1. What “passkey-only” means here</a></li>
+<li><a href="#2-the-result">2. The result</a></li>
+<li><a href="#3-the-finding-that-matters-the-browser-flow-was-never-the-only-way-in">3. The finding that matters: the browser flow was never the only way in</a></li>
+<li class="lvl3"><a href="#it-passed-the-first-time-for-the-wrong-reason">It passed the first time for the wrong reason</a></li>
+<li><a href="#4-the-bootstrap-problem-stated-plainly">4. The bootstrap problem, stated plainly</a></li>
+<li><a href="#5-what-the-change-actually-is">5. What the change actually is</a></li>
+<li><a href="#6-three-traps-all-of-which-produced-no-useful-error">6. Three traps, all of which produced no useful error</a></li>
+<li><a href="#7-what-this-means-for-adr-013">7. What this means for ADR-013</a></li>
+<li><a href="#8-what-was-not-tested">8. What was NOT tested</a></li>
+<li><a href="#9-reproducing">9. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: passkey-only, actually</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: passkey-only, actually</h1>
+        <p class="blurb">Making the privileged realm passkey-only, and the password bypass that the login page hid.</p>
+      </header>
+      <section id="overview"><p><strong>Status: RESOLVED — 12/12 checks pass, including four controls.</strong></p>
+<p>S5c found that ADR-013&rsquo;s strength argument did not hold: the privileged browser flow still contained a
+<code>Username Password Form</code>, so re-authentication could be a password. This slice does the flow surgery,
+and finds <strong>a second, more serious way in that the flow surgery alone does not close</strong>.</p>
+<hr></section>
+<section id="1-what-passkey-only-means-here"><h2>1. What &ldquo;passkey-only&rdquo; means here</h2>
+<p>Four separate claims, each of which could be true while the others are false:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>How it is tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The login page offers no password</td>
+<td>no <code>input[type=password]</code>, no username field either (it is usernameless)</td>
+</tr>
+<tr>
+<td><strong>A password cannot be used at the token endpoint</strong></td>
+<td>a direct grant is attempted. <strong>This is the one that mattered.</strong></td>
+</tr>
+<tr>
+<td>A passkey <strong>is</strong> accepted</td>
+<td>without this, &ldquo;refused&rdquo; would also be satisfied by a flow that refuses everything</td>
+</tr>
+<tr>
+<td>A user with no passkey is locked out</td>
+<td>the expected cost, demonstrated rather than assumed</td>
+</tr>
+<tr>
+<td>Recovery restores access</td>
+<td>a mistake here must be survivable</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="2-the-result"><h2>2. The result</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Policy relaxed for enrolment, and read back to confirm it took</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>Stale passkeys cleared before enrolling</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>A <strong>new</strong> passkey was registered (by id, not by count)</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>The <strong>strict</strong> allowlist restored afterwards</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>No password field on the login page</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>No username field either — usernameless</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>The passkey button is offered</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>A direct password grant is refused</strong></td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>A passkey button is present at sign-in</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Signing in with the passkey succeeds</strong></td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td><strong>Control:</strong> the test user for &ldquo;no passkey&rdquo; really has none</td>
+<td><strong>pass</strong></td>
+</tr>
+<tr>
+<td>Recovery: rebinding the original flow restores password access</td>
+<td><strong>pass</strong></td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section id="3-the-finding-that-matters-the-browser-flow-was-never-the-only-way-in"><h2>3. The finding that matters: the browser flow was never the only way in</h2>
+<p><strong>The first full run failed on exactly one check</strong> — the direct grant — and it is the most important
+result in this slice.</p>
+<p>A direct grant posts a username and password straight to the token endpoint. <strong>It never touches the
+browser flow at all.</strong> So <code>attest-privileged</code> was passkey-only at the <em>login page</em> while
+<code>admin-cli</code> — a built-in client with <code>directAccessGrantsEnabled: true</code> — would still issue tokens for
+a password.</p>
+<blockquote>
+<p><strong>A passkey-only browser flow does not make a realm passkey-only. Any client accepting direct
+grants is a password bypass around the entire flow.</strong></p>
+</blockquote>
+<p><code>admin-cli</code> is created by Keycloak in every realm, and it is <code>public</code>, so nothing protected it. It is
+now closed by <code>apply</code>, and its prior state is recorded so <code>revert</code> restores it.</p>
+<h3 id="it-passed-the-first-time-for-the-wrong-reason">It passed the first time for the wrong reason</h3>
+<p>The first run reported this check as <strong>passing</strong>. That was a <strong>false pass</strong>: the test user&rsquo;s password
+had not been set to the value the test used, so the grant failed on <em>bad credentials</em> rather than on
+<em>being refused</em>. Once the password was known, the check failed — and the bypass was real.</p>
+<p>Worth recording because the shape recurs: a negative test that passes because the input was wrong is
+indistinguishable from a control working, unless something makes the positive case succeed too. That
+is why check B — a passkey actually signing in — is not optional.</p>
+</section>
+<section id="4-the-bootstrap-problem-stated-plainly"><h2>4. The bootstrap problem, stated plainly</h2>
+<p><strong>A passkey can only be registered by someone who can already authenticate.</strong> Making a realm
+passkey-only removes the only way to reach the registration flow.</p>
+<p>This is a genuine property of passkey-only realms, not an artefact of the lab. The test&rsquo;s setup step
+<em>is</em> the bootstrap procedure, and it is why that step runs against the original flow first:</p>
+<ol>
+<li>bind the original flow (password usable) — for enrolment only</li>
+<li>register the passkey</li>
+<li>bind the passkey-only flow</li>
+<li>close direct grants</li>
+</ol>
+<p><strong>This is the recommendation for production</strong>, with two additions that are not yet built:</p>
+<ul>
+<li>the enrolment window should be <strong>time-boxed and audited</strong>, not an open capability</li>
+<li><strong>the recovery path is a runbook, not a login page.</strong> Recovery here is one API call against the
+  <code>master</code> realm — which none of this touches. An organisation needs two named people who can run it,
+  and a rehearsal, before this ships.</li>
+</ul>
+</section>
+<section id="5-what-the-change-actually-is"><h2>5. What the change actually is</h2>
+<p>Built with <code>make_privileged_passkey_only.py</code>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Copy</strong> the built-in <code>browser</code> flow</td>
+<td>Keycloak refuses to modify built-in flows: <em>&ldquo;It is illegal to add execution to a built in flow&rdquo;</em> — the same wall S5 hit</td>
+</tr>
+<tr>
+<td>Add <code>WebAuthn Passwordless Authenticator</code> to the copy</td>
+<td>passkey as the <strong>first</strong> factor, not a second one</td>
+</tr>
+<tr>
+<td>Set it <code>REQUIRED</code>; set <code>Username Password Form</code> <code>DISABLED</code></td>
+<td>no password path remains in the flow</td>
+</tr>
+<tr>
+<td><strong>Close direct grants</strong></td>
+<td>otherwise the flow is irrelevant — see §3</td>
+</tr>
+<tr>
+<td>Bind the copy as <code>browserFlow</code></td>
+<td>the realm now uses it</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recovery is one call, because the original flow was never edited.</strong> Nothing is rebuilt; the realm is
+pointed back at <code>browser</code>. That is why the copy-then-modify approach is worth the extra step.</p>
+</section>
+<section id="6-three-traps-all-of-which-produced-no-useful-error"><h2>6. Three traps, all of which produced no useful error</h2>
+<ol>
+<li>
+<p><strong>A partial <code>PUT</code> to the realm does not merge.</strong> Sending only the two policy fields replaced the
+   representation and the change never applied. Enrolment failed with <code>invalid cert path</code>, which
+   points at certificates rather than at the policy that was never set. <code>patch-realm.py</code> uses
+   read-modify-write for this reason; the matrix now does the same.</p>
+</li>
+<li>
+<p><strong><code>AvoidSameAuthenticatorRegister = true</code> silently refuses a repeat enrolment.</strong> The symptom is
+   that the ceremony <strong>completes</strong> — Keycloak even prompts for the passkey&rsquo;s label — and then no
+   credential is stored. Nothing in the UI or the API says why. Clear the existing passkeys first.</p>
+</li>
+<li>
+<p><strong>The registration page does not start the ceremony on its own.</strong> It waits for
+   <code>registerWebAuthn</code> to be clicked. Tracing the page showed it sitting there indefinitely with no
+   error at all.</p>
+</li>
+</ol>
+<p><strong>In all three cases the only place the real reason appeared was the container log</strong> — for example
+<code>web_authn_registration_error_detail="invalid cert path"</code>. That is now the third time this project has
+learned to check the server log first.</p>
+</section>
+<section id="7-what-this-means-for-adr-013"><h2>7. What this means for ADR-013</h2>
+<p>ADR-013&rsquo;s corrected text says the privileged realm gives freshness but not strength, because the flow
+still accepted a password. <strong>That flow work is now done and tested</strong>, so the argument holds — <em>when the
+passkey-only configuration is applied</em>.</p>
+<p>It is applied on demand rather than left on, deliberately: <code>attest-privileged</code> is a shared lab fixture,
+and S3&rsquo;s matrix signs in with a password against it. <code>status</code> reports which state a realm is in, and
+says so loudly when a password bypass is open.</p>
+</section>
+<section id="8-what-was-not-tested"><h2>8. What was NOT tested</h2>
+<ul>
+<li><strong>A physical security key</strong> signing in. The passkey here is a CDP virtual authenticator, which
+  cannot attest — the same limitation as S3.</li>
+<li><strong>The enrolment window</strong> being time-boxed or audited. It is currently an open capability.</li>
+<li><strong>Recovery by a second person</strong>, which is a process requirement and not a code path.</li>
+<li><strong>Existing sessions.</strong> The flow has <code>Cookie</code> at the top level, so a session established before the
+  change keeps working afterwards. Changing a flow does not revoke anything — that is S8&rsquo;s problem,
+  and it should not be assumed to be solved here.</li>
+<li><strong>Whether <code>admin-cli</code> is needed for anything.</strong> It was closed on the basis that nothing in this
+  project uses it in <code>attest-privileged</code>. If something does, this would break it — loudly, at the
+  token endpoint, rather than silently.</li>
+</ul>
+</section>
+<section id="9-reproducing"><h2>9. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># apply / inspect / revert the configuration</span>
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/make_privileged_passkey_only.py<span class="w"> </span>status
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/make_privileged_passkey_only.py<span class="w"> </span>apply
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/make_privileged_passkey_only.py<span class="w"> </span>revert
+
+<span class="c1"># the enforcement matrix (needs Chrome on port 9222)</span>
+<span class="nb">cd</span><span class="w"> </span>lab/keycloak<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>node<span class="w"> </span>scripts/spike5d-matrix.mjs
+
+<span class="c1"># the safety net, independently tested in a scratch realm</span>
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/flow_tool.py<span class="w"> </span>verify<span class="w"> </span>attest-privileged<span class="w"> </span>browser
+./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/flow_tool.py<span class="w"> </span>restore<span class="w"> </span>attest-privileged<span class="w"> </span>browser
+</code></pre></div>
+
+<p>The matrix leaves the realm <strong>reverted</strong>, so the shared fixture stays usable. Exits non-zero if any
+check fails; negative-tested by inverting one check (12/12 → exit 0; 11/12 → exit 1).</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-freshness.html"><span>Previous</span><b>Lab results: forcing a fresh check</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

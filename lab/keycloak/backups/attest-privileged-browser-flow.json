@@ -1,0 +1,287 @@
+{
+  "realm": "attest-privileged",
+  "flow_alias": "browser",
+  "exported_from": "GET /authentication/flows/browser/executions",
+  "executions": [
+    {
+      "id": "91fdc015-8e97-4cca-8da5-6d2b63c6240e",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Cookie",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-cookie",
+      "level": 0,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "74e88278-2a50-407a-a641-540935608e0c",
+      "requirement": "DISABLED",
+      "displayName": "Kerberos",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-spnego",
+      "level": 0,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "eb077891-3b00-4a80-8e36-0ca55a15adac",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Identity Provider Redirector",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": true,
+      "providerId": "identity-provider-redirector",
+      "level": 0,
+      "index": 2,
+      "priority": 25
+    },
+    {
+      "id": "fcb7ac3c-8f1b-45c7-aa99-6d40ecd738db",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Organization",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "98598919-acda-49b6-97a2-ad409d9f5c5e",
+      "level": 0,
+      "index": 3,
+      "priority": 26
+    },
+    {
+      "id": "b94c4f55-af93-4a7e-9bba-c390c4c5226a",
+      "requirement": "CONDITIONAL",
+      "displayName": "Browser - Conditional Organization",
+      "description": "Flow to determine if the organization identity-first login is to be used",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "b3376a96-f9a3-45c9-8eaa-bda0e9e29231",
+      "level": 1,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "62ffc157-03a0-460c-a67b-b239e490a32d",
+      "requirement": "REQUIRED",
+      "displayName": "Condition - user configured",
+      "requirementChoices": [
+        "REQUIRED",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "conditional-user-configured",
+      "level": 2,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "5d416083-9eba-4e34-b74b-dea5f4f6681c",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Organization Identity-First Login",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": true,
+      "providerId": "organization",
+      "level": 2,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "f06bf0a6-03af-4745-91f4-db38507dbe19",
+      "requirement": "ALTERNATIVE",
+      "displayName": "forms",
+      "description": "Username, password, otp and other auth forms.",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "10e9e57a-9d8a-49b4-b267-64bcc851d5a6",
+      "level": 0,
+      "index": 4,
+      "priority": 30
+    },
+    {
+      "id": "bc269534-35bd-41b8-a6ce-77b5f82271c7",
+      "requirement": "REQUIRED",
+      "displayName": "Username Password Form",
+      "requirementChoices": [
+        "REQUIRED"
+      ],
+      "configurable": false,
+      "providerId": "auth-username-password-form",
+      "level": 1,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "f37bba7f-03c7-4c20-8e81-1b1d6b7141ec",
+      "requirement": "CONDITIONAL",
+      "displayName": "Browser - Conditional 2FA",
+      "description": "Flow to determine if any 2FA is required for the authentication",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "113a5f42-1ab5-42bb-ada3-60aee5b4d8eb",
+      "level": 1,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "bbf10556-158b-470d-bcc9-ea5347abf715",
+      "requirement": "REQUIRED",
+      "displayName": "Condition - user configured",
+      "requirementChoices": [
+        "REQUIRED",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "conditional-user-configured",
+      "level": 2,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "9022fbce-9ec9-4946-98a8-2aae54200d07",
+      "requirement": "REQUIRED",
+      "displayName": "Condition - credential",
+      "alias": "browser-conditional-credential",
+      "requirementChoices": [
+        "REQUIRED",
+        "DISABLED"
+      ],
+      "configurable": true,
+      "providerId": "conditional-credential",
+      "authenticationConfig": "59fa2c9a-a067-42b7-95bd-6a3392d3fabc",
+      "level": 2,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "0c822d96-c601-46ce-b117-3e29c565ad0d",
+      "requirement": "ALTERNATIVE",
+      "displayName": "OTP Form",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-otp-form",
+      "level": 2,
+      "index": 2,
+      "priority": 30
+    },
+    {
+      "id": "d650474b-8c66-47cc-b870-c9cd12e02c14",
+      "requirement": "DISABLED",
+      "displayName": "WebAuthn Authenticator",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "webauthn-authenticator",
+      "level": 2,
+      "index": 3,
+      "priority": 40
+    },
+    {
+      "id": "f0b1d658-dfa6-4973-b860-6fc7dd3b748b",
+      "requirement": "DISABLED",
+      "displayName": "Recovery Authentication Code Form",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-recovery-authn-code-form",
+      "level": 2,
+      "index": 4,
+      "priority": 50
+    }
+  ],
+  "realm_webauthn_policy": {
+    "otpPolicyType": "totp",
+    "otpPolicyAlgorithm": "HmacSHA1",
+    "otpPolicyInitialCounter": 0,
+    "otpPolicyDigits": 6,
+    "otpPolicyLookAheadWindow": 1,
+    "otpPolicyPeriod": 30,
+    "otpPolicyCodeReusable": false,
+    "otpSupportedApplications": [
+      "totpAppFreeOTPName",
+      "totpAppGoogleName",
+      "totpAppMicrosoftAuthenticatorName"
+    ],
+    "webAuthnPolicyRpEntityName": "keycloak",
+    "webAuthnPolicySignatureAlgorithms": [
+      "ES256",
+      "RS256"
+    ],
+    "webAuthnPolicyRpId": "",
+    "webAuthnPolicyAttestationConveyancePreference": "not specified",
+    "webAuthnPolicyAuthenticatorAttachment": "not specified",
+    "webAuthnPolicyRequireResidentKey": "not specified",
+    "webAuthnPolicyResidentKey": "not specified",
+    "webAuthnPolicyUserVerificationRequirement": "not specified",
+    "webAuthnPolicyCreateTimeout": 0,
+    "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+    "webAuthnPolicyAcceptableAaguids": [],
+    "webAuthnPolicyExtraOrigins": [],
+    "webAuthnPolicyPasswordlessRpEntityName": "Attest Admin",
+    "webAuthnPolicyPasswordlessSignatureAlgorithms": [
+      "ES256",
+      "RS256"
+    ],
+    "webAuthnPolicyPasswordlessRpId": "localhost",
+    "webAuthnPolicyPasswordlessAttestationConveyancePreference": "direct",
+    "webAuthnPolicyPasswordlessAuthenticatorAttachment": "cross-platform",
+    "webAuthnPolicyPasswordlessRequireResidentKey": "Yes",
+    "webAuthnPolicyPasswordlessResidentKey": "required",
+    "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+    "webAuthnPolicyPasswordlessCreateTimeout": 0,
+    "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": true,
+    "webAuthnPolicyPasswordlessAcceptableAaguids": [
+      "fa2b99dc-9e39-4257-8f92-4a30d23c4118"
+    ],
+    "webAuthnPolicyPasswordlessExtraOrigins": [],
+    "browserFlow": "browser"
+  }
+}

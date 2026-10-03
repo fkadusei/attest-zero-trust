@@ -1,0 +1,240 @@
+{
+  "realm": "attest-flowtool-test",
+  "flow_alias": "browser",
+  "note": "Restore with: python3 flow_tool.py restore <realm> <flow>",
+  "executions": [
+    {
+      "id": "4f52d68c-eb6f-443e-933b-77ea1dfdadda",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Cookie",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-cookie",
+      "level": 0,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "26fc985b-03db-4f30-9c6b-89dc52c23e42",
+      "requirement": "DISABLED",
+      "displayName": "Kerberos",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-spnego",
+      "level": 0,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "33217e40-eb50-4523-95b9-cbbb2da29050",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Identity Provider Redirector",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": true,
+      "providerId": "identity-provider-redirector",
+      "level": 0,
+      "index": 2,
+      "priority": 25
+    },
+    {
+      "id": "be77c131-6642-4e61-9ba9-daac1c3d3a62",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Organization",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "2c1e0151-8a65-40ae-b9af-c96f6c657251",
+      "level": 0,
+      "index": 3,
+      "priority": 26
+    },
+    {
+      "id": "11a89506-958b-4f79-a3c9-be4f6a12ab19",
+      "requirement": "CONDITIONAL",
+      "displayName": "Browser - Conditional Organization",
+      "description": "Flow to determine if the organization identity-first login is to be used",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "42834551-3fa5-4198-99b1-aab08f2013c4",
+      "level": 1,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "18d66716-8591-4d0a-8e6d-f5e450abb3c5",
+      "requirement": "REQUIRED",
+      "displayName": "Condition - user configured",
+      "requirementChoices": [
+        "REQUIRED",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "conditional-user-configured",
+      "level": 2,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "623afa2d-d45d-4042-9c19-9bb99dee7113",
+      "requirement": "ALTERNATIVE",
+      "displayName": "Organization Identity-First Login",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": true,
+      "providerId": "organization",
+      "level": 2,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "c6e896a9-6aac-4d88-9627-964f2affdc53",
+      "requirement": "ALTERNATIVE",
+      "displayName": "forms",
+      "description": "Username, password, otp and other auth forms.",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "ba89a3b4-20a0-432f-9b95-987c03612968",
+      "level": 0,
+      "index": 4,
+      "priority": 30
+    },
+    {
+      "id": "1fecab0f-992a-42d0-bdd0-a90a1c71c710",
+      "requirement": "REQUIRED",
+      "displayName": "Username Password Form",
+      "requirementChoices": [
+        "REQUIRED"
+      ],
+      "configurable": false,
+      "providerId": "auth-username-password-form",
+      "level": 1,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "041aa3c8-7de3-4f0a-8f77-bc9da5ebda43",
+      "requirement": "CONDITIONAL",
+      "displayName": "Browser - Conditional 2FA",
+      "description": "Flow to determine if any 2FA is required for the authentication",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED",
+        "CONDITIONAL"
+      ],
+      "configurable": false,
+      "authenticationFlow": true,
+      "flowId": "f322579d-f2cc-450b-98b7-0f79a64e6a8e",
+      "level": 1,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "64d53107-95ac-408b-a142-5bab56e8f654",
+      "requirement": "REQUIRED",
+      "displayName": "Condition - user configured",
+      "requirementChoices": [
+        "REQUIRED",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "conditional-user-configured",
+      "level": 2,
+      "index": 0,
+      "priority": 10
+    },
+    {
+      "id": "2971a7b3-46c0-452f-82e2-717780894745",
+      "requirement": "REQUIRED",
+      "displayName": "Condition - credential",
+      "alias": "browser-conditional-credential",
+      "requirementChoices": [
+        "REQUIRED",
+        "DISABLED"
+      ],
+      "configurable": true,
+      "providerId": "conditional-credential",
+      "authenticationConfig": "9462f549-7d46-44c9-aa77-3b0609de074e",
+      "level": 2,
+      "index": 1,
+      "priority": 20
+    },
+    {
+      "id": "92cdb2ec-b44c-4991-b588-aa490979fd48",
+      "requirement": "ALTERNATIVE",
+      "displayName": "OTP Form",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-otp-form",
+      "level": 2,
+      "index": 2,
+      "priority": 30
+    },
+    {
+      "id": "efa74af6-a2ac-4f8c-812b-d31ffaab57d2",
+      "requirement": "DISABLED",
+      "displayName": "WebAuthn Authenticator",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "webauthn-authenticator",
+      "level": 2,
+      "index": 3,
+      "priority": 40
+    },
+    {
+      "id": "ad3f1758-c16b-416a-bdd0-c34b1999968c",
+      "requirement": "DISABLED",
+      "displayName": "Recovery Authentication Code Form",
+      "requirementChoices": [
+        "REQUIRED",
+        "ALTERNATIVE",
+        "DISABLED"
+      ],
+      "configurable": false,
+      "providerId": "auth-recovery-authn-code-form",
+      "level": 2,
+      "index": 4,
+      "priority": 50
+    }
+  ]
+}

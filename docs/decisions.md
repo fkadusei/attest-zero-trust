@@ -409,9 +409,21 @@ when authentication actually happened, so it is unaffected by a flaw in how a *l
 
     Forcing re-authentication therefore gives us **freshness** — which S5c verified as a working
     control, 14/14 with its controls — and **not strength**. The two come from the same act only once
-    the flow requires a passkey. Until that flow work is done, a sensitive action on the privileged
-    realm proves *"you signed in again just now"* and **not** *"you used your hardware key just
-    now"*. That distinction must not be blurred anywhere user-facing.
+    the flow requires a passkey.
+
+    **S5d did that flow work and tested it (12/12).** The privileged realm is passkey-only *when the
+    configuration is applied*: it is applied on demand, because `attest-privileged` is a shared lab
+    fixture that S3's matrix signs into with a password.
+
+**The generalisable finding from S5d — and it is not specific to step-up:**
+
+> **A passkey-only browser flow does not make a realm passkey-only.** Direct grants at the token
+> endpoint bypass the browser flow entirely. `admin-cli` is created by Keycloak in **every** realm,
+> is public, and accepts them by default — so a realm can refuse passwords at the login page and still
+> issue tokens for one.
+
+It was found only because a negative test was paired with its positive: the bypass check passed at
+first, but only because the password was unknown. See `EVIDENCE.md` §5.9 and §5.10.
 
 **Consequences — bad:** A full re-authentication is a blunter experience than a targeted step-up, and
 on the customer realm it proves freshness plus whatever strength that realm's policy provides — which

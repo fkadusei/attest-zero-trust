@@ -58,6 +58,7 @@
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
@@ -403,10 +404,20 @@ found a <code>Username Password Form</code> still present, with WebAuthn only as
 factor. So re-authentication there can be <strong>a password</strong>, not a hardware-key assertion.</p>
 <p>Forcing re-authentication therefore gives us <strong>freshness</strong> — which S5c verified as a working
 control, 14/14 with its controls — and <strong>not strength</strong>. The two come from the same act only once
-the flow requires a passkey. Until that flow work is done, a sensitive action on the privileged
-realm proves <em>&ldquo;you signed in again just now&rdquo;</em> and <strong>not</strong> <em>&ldquo;you used your hardware key just
-now&rdquo;</em>. That distinction must not be blurred anywhere user-facing.</p>
+the flow requires a passkey.</p>
+<p><strong>S5d did that flow work and tested it (12/12).</strong> The privileged realm is passkey-only <em>when the
+configuration is applied</em>: it is applied on demand, because <code>attest-privileged</code> is a shared lab
+fixture that S3&rsquo;s matrix signs into with a password.</p>
 </div>
+<p><strong>The generalisable finding from S5d — and it is not specific to step-up:</strong></p>
+<blockquote>
+<p><strong>A passkey-only browser flow does not make a realm passkey-only.</strong> Direct grants at the token
+endpoint bypass the browser flow entirely. <code>admin-cli</code> is created by Keycloak in <strong>every</strong> realm,
+is public, and accepts them by default — so a realm can refuse passwords at the login page and still
+issue tokens for one.</p>
+</blockquote>
+<p>It was found only because a negative test was paired with its positive: the bypass check passed at
+first, but only because the password was unknown. See <code>EVIDENCE.md</code> §5.9 and §5.10.</p>
 <p><strong>Consequences — bad:</strong> A full re-authentication is a blunter experience than a targeted step-up, and
 on the customer realm it proves freshness plus whatever strength that realm&rsquo;s policy provides — which
 must be stated plainly rather than implied. This is custom work the IdP would otherwise have owned.</p>

@@ -46,6 +46,12 @@ here, **this file is right and the other one is a bug.** Please report it.
 | A freshness policy **refuses** stale tokens | S5c T6b | **Verified** |
 | A freshness policy **refuses a token with no `auth_time`** — fail closed | S5c T6c | **Verified** |
 | A freshness policy **refuses a future `auth_time`** | S5c T6d | **Verified** |
+| A passkey-only browser flow leaves **no password field** and no username field | S5d A1/A2 — the flow is usernameless | **Verified** |
+| **A passkey signs in successfully** against the passkey-only flow | S5d B2 — the positive case that makes "refused" meaningful | **Verified** |
+| A user with **no passkey is locked out** | S5d C1 — the expected cost, demonstrated | **Verified** |
+| Recovery from a broken flow is **one API call** | S5d D1/D2 — the original flow is never edited, only unbound | **Verified** |
+| The `flow_tool` backup/restore **detects a broken flow and restores it** | Tested in a scratch realm: passes untouched, detects damage, restores exactly | **Verified** |
+| **A passkey-only browser flow does NOT stop direct password grants** | S5d A′ — `admin-cli` had `directAccessGrantsEnabled: true`, so a password still bought a token despite the login page refusing one | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -127,7 +133,20 @@ Recorded because the instruction is explicit: **say when you are not certain.**
    Anything user-facing must say *"you signed in again just now"*, never *"you used your key just
    now"*, until that flow work is done.
 
-9. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
+9. **A passkey-only browser flow is not a passkey-only realm.** The most serious thing S5d found:
+   direct grants at the token endpoint bypass the browser flow entirely, so a realm can refuse
+   passwords at the login page and still issue tokens for one. `admin-cli` is created by Keycloak in
+   **every realm** and is public, so nothing protects it by default. **This is now closed in
+   `attest-privileged`, but the same gap exists in `attest-users` and in any realm not yet checked.**
+   It is a configuration default, not a one-off mistake.
+
+10. **A negative test can pass for the wrong reason.** S5d's direct-grant check reported **pass** on its
+    first run — because the test user's password had not been set to the value the test used. The grant
+    failed on bad credentials, not on being refused. It only became a real check once the positive case
+    (a passkey signing in) also worked. **A refusal is only evidence when the grant would otherwise
+    succeed.**
+
+11. **The decision to reject LoA step-up does not rest on the CVE.** S5 independently showed by
    experiment that the mechanism does not gate. That finding stands on its own evidence. This is
    recorded deliberately, so the decision cannot be undermined by someone disputing the advisory.
 

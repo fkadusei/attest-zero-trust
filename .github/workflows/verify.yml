@@ -145,6 +145,70 @@ jobs:
         run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
+  # Passkey-only enforcement (S5d). Needs a browser for one check — the positive
+  # case, that a passkey actually signs in — because a flow that refuses
+  # everything would otherwise satisfy every negative test.
+  # ---------------------------------------------------------------------------
+  passkey-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install the toolchains
+        run: |
+          pip install -r requirements-lab.txt
+          npm --prefix lab/keycloak install --no-audit --no-fund
+
+      - name: Start the identity provider and its database
+        run: docker compose -f lab/keycloak/compose.yaml up -d
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          exit 1
+
+      - name: Apply the WebAuthn policies
+        run: python3 lab/keycloak/scripts/configure-realms.py
+
+      - name: Launch Chrome with remote debugging
+        run: |
+          google-chrome --headless --disable-gpu --no-sandbox \
+            --disable-dev-shm-usage --remote-debugging-port=9222 \
+            --user-data-dir=/tmp/ci-chrome-s5d about:blank &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          echo "Chrome did not expose a debugging port"
+          exit 1
+
+      - name: S5d — is the privileged realm actually passkey-only?
+        # 12 checks. The ones that matter most: a direct password grant must be
+        # refused (that bypass hid behind a passing test once already), and a
+        # passkey must actually sign in (or "refused" would also be satisfied by
+        # a flow that refuses everything).
+        #
+        # This leaves the realm REVERTED on purpose, so the shared fixture stays
+        # usable for the other jobs' expectations.
+        run: cd lab/keycloak && node scripts/spike5d-matrix.mjs
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+
+  # ---------------------------------------------------------------------------
   # The hardware-key experiment (S3). Needs a browser with a virtual
   # authenticator, driven over the Chrome DevTools Protocol.
   # ---------------------------------------------------------------------------
