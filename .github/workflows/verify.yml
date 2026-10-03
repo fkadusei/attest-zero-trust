@@ -241,6 +241,12 @@ jobs:
       - name: Start the identity provider and its database
         run: docker compose -f lab/keycloak/compose.yaml up -d
 
+      - name: Start the application database
+        # Separate from the Keycloak database on purpose: different data, different
+        # blast radius. The schema it runs on first boot creates a NON-superuser
+        # application role and forces Row-Level Security — see lab/app/init.
+        run: docker compose -f lab/app/compose.yaml up -d
+
       - name: Wait for readiness
         run: |
           for i in $(seq 1 60); do
@@ -250,13 +256,22 @@ jobs:
           docker compose -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
+      - name: Wait for the application database
+        run: |
+          for i in $(seq 1 40); do
+            docker exec attest-app-postgres pg_isready -U attest_owner -d attest >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker compose -f lab/app/compose.yaml logs --tail 50
+          exit 1
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck --workspace @attest/api
 
-      - name: L1 + L2 — token and DPoP proof verification
+      - name: L1 + L2 + L3 + L4 + L5 — verification, authorization and storage
         run: |
           set +e
           npm test --workspace @attest/api > /tmp/l1.log 2>&1

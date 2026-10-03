@@ -1,0 +1,30 @@
+# The APPLICATION's database — deliberately NOT the Keycloak lab's.
+#
+# Two reasons for the separation:
+#   1. Different data with a different blast radius. Evidence for customers should
+#      not share a database with the identity provider that authenticates them.
+#   2. Port 5432 on this host is already taken by another project's Postgres.
+#      Publishing there would have connected these tests to the wrong database.
+#
+# Port 55432 is chosen to make a collision obvious rather than silent.
+services:
+  appdb:
+    image: postgres:17-alpine
+    container_name: attest-app-postgres
+    environment:
+      POSTGRES_DB: attest
+      POSTGRES_USER: attest_owner
+      POSTGRES_PASSWORD: lab-only-not-a-secret
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - appdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U attest_owner -d attest"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  appdata:

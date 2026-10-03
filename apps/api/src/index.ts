@@ -17,6 +17,8 @@ import { readFileSync } from "node:fs";
 
 import { InMemoryReplayCache } from "./ports/replay-cache.ts";
 import { InMemoryEvidenceRepository } from "./ports/memory-repository.ts";
+import { PostgresEvidenceRepository } from "./ports/postgres-repository.ts";
+import type { EvidenceRepository } from "./ports/repository.ts";
 import { systemClock } from "./ports/clock.ts";
 import { CedarPolicyDecisionPoint, DEFAULT_POLICY_PATH } from "./pdp-cedar.ts";
 import { buildServer } from "./server.ts";
@@ -46,13 +48,23 @@ async function main(): Promise<void> {
     process.exit(78); // EX_CONFIG
   }
 
+  // Adapter selection. The portable in-memory default needs nothing running; a
+  // DATABASE_URL selects PostgreSQL, where RLS enforces the tenant boundary in the
+  // engine rather than in our code.
+  let evidence: EvidenceRepository;
+  if (config.databaseUrl) {
+    evidence = new PostgresEvidenceRepository({ connectionString: config.databaseUrl });
+  } else {
+    evidence = new InMemoryEvidenceRepository();
+  }
+
   const app = buildServer({
     config,
     jwks: new JwksSource(config.identity.jwksUri),
     clock: systemClock,
     replayCache: new InMemoryReplayCache(),
     pdp,
-    evidence: new InMemoryEvidenceRepository(),
+    evidence,
   });
 
   // Say one thing about the replay cache out loud, because it is the one component
@@ -62,10 +74,18 @@ async function main(): Promise<void> {
     "replay cache is in-process: correct for a single instance, INCORRECT for a fleet. " +
       "A proof replayed to another replica would be treated as fresh.",
   );
-  app.log.warn(
-    "evidence repository is in-memory: EMPTY on every restart, and each replica has its own. " +
-      "Replace with a tenant-scoped PostgreSQL adapter before this serves anyone.",
-  );
+  if (config.databaseUrl) {
+    app.log.info("evidence repository: PostgreSQL (tenant boundary enforced by Row-Level Security)");
+    app.log.warn(
+      "verify the database role is NOT a superuser and NOT the table owner — Row-Level Security " +
+        "is bypassed by both, silently, leaving the tenant boundary absent.",
+    );
+  } else {
+    app.log.warn(
+      "evidence repository is IN-MEMORY: empty on every restart, and each replica has its own. " +
+        "Set DATABASE_URL for the PostgreSQL adapter before this serves anyone.",
+    );
+  }
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {

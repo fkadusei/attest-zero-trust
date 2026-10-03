@@ -22,7 +22,7 @@ end to end. It is not a complete product.
 | **Wiring L1 + L2 into a request path** | ✅ **Implemented.** Every protected route runs the chain |
 | **End-to-end HTTP tests** | ✅ **17 of them**, through the real request path |
 | Cedar authorization (L4) | ✅ **Implemented.** Policies in `policies/attest.cedar`, evaluated in-process |
-| Persistence | ⚠️ In-memory only — correct for one process, **empty on restart** |
+| Persistence | ✅ **PostgreSQL adapter with Row-Level Security**, plus a portable in-memory default |
 | Object storage | ❌ Interface only — no implementation |
 | Customer-facing features | ❌ None |
 
@@ -187,13 +187,14 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**124 tests** across six files, all passing:
+**134 tests** across seven files, all passing:
 
 | File | Tests | What it covers |
 |---|---|---|
 | `verify.test.ts` | 28 | L1, against real tokens from the running Keycloak |
 | `dpop.test.ts` | 26 | L2, against real DPoP-bound tokens |
 | `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
+| `postgres.test.ts` | 10 | The RLS boundary, with a superuser negative control and a connection-reuse check |
 | `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
 | `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
@@ -223,6 +224,12 @@ requires the attribute, so the rule is unreachable and removing it changes no ou
 **safety net for a future careless permit**, and a dedicated test simulates exactly that: a
 deliberately loose permit is added, and the net catches what it lets through, with a control proving
 the net is what did the work.
+
+**Mutation-tested against the database too.** Disabling Row-Level Security, dropping the policy,
+making the application role a superuser, changing the policy to `USING (true)`, and removing `FORCE`
+are **all caught**. One of those is weaker evidence than the others and is recorded as such: removing
+`FORCE` is caught by a **configuration assertion**, not by an observed leak, because the application
+role is not the table owner today. It guards a future where it is.
 
 **And a caution about reading mutation results.** In `server.ts`, removing the early no-proof check —
 and then removing the downgrade guard as well — leaves the suite **green**. That is not a blind spot:
@@ -320,13 +327,51 @@ other.
 body. Otherwise the endpoint is an existence oracle: enumerate ids and learn which ones other tenants
 hold. A test asserts the two responses are byte-identical.
 
-## 9. What is not built
+## 9. L5 — the tenant boundary, enforced by the database
+
+The in-memory repository enforces tenancy in **application code**: a bug in that file could return
+another tenant's rows. The PostgreSQL adapter moves the rule into the **engine**.
+
+`evidence` has Row-Level Security **enabled and forced**, with a policy comparing `tenant_id` against
+`app.current_tenant`. A query that forgets its tenant filter — or one written next year by someone who
+has not read the file — returns nothing it should not, because the database removes those rows before
+the query sees them. That is verified, not assumed:
+
+```
+attest_app, tenant=acme, SELECT with NO WHERE clause  →  e-acme             (one row)
+superuser,   the same unscoped statement              →  e-acme, e-globex   (both rows)
+```
+
+**The difference is the role, and that is the trap this avoids.** Row-Level Security is bypassed by
+**superusers, always**, and by the **table owner** unless `FORCE` is set. An application connecting as
+either gets *no row-level security at all, silently*: every query succeeds, every test passes, and the
+boundary is simply absent. So the schema creates a dedicated **non-superuser, non-owner** role, marks
+the table `FORCE`, and the test suite keeps a **superuser connection on purpose** as the control that
+proves the policy is doing the work.
+
+**The application database is separate from the Keycloak database** — different data, different blast
+radius. Evidence for customers should not share a database with the identity provider that
+authenticates them. (It also turned out that port 5432 on the development host belongs to an unrelated
+project, so publishing there would have connected these tests to the wrong database.)
+
+**Three details in the adapter are load-bearing:**
+
+1. **A dedicated client per operation.** A `SET` issued through a pool could land on a different
+   connection from the query it was meant to scope.
+2. **`SET LOCAL`, not `SET`.** Transaction-scoped, so it reverts. A plain `SET` would persist on a
+   pooled connection and leak the tenant to whichever request picked it up next — a cross-tenant read
+   caused by connection reuse. A test interleaves two tenants across a two-connection pool to prove it
+   cannot happen.
+3. **An unset tenant matches nothing.** `current_setting(..., true)` returns NULL when unset, and
+   `tenant_id = NULL` is never true. A connection with no tenant sees no rows at all — **fail closed**.
+
+## 10. What is not built
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **Persistence is in-memory.** Empty on restart, and each replica has its own. The startup log says
-  so out loud. A tenant-scoped PostgreSQL adapter with Row-Level Security is the portable replacement.
 - **No object storage.** Evidence artifacts have a reference but no bytes anywhere.
+- **No migrations tooling.** The schema is a container init script, which is fine for a lab and is not
+  how schema changes should be managed in production.
 - **Four routes.** Still no product surface a customer would recognise.
 - **No persistence or storage.** Interfaces only.
 - **No admin console, no API surface, no customer-facing feature.**
@@ -335,7 +380,7 @@ Stated plainly, because this list is as useful as the rest of the page:
 
 ---
 
-## 10. Extending it
+## 11. Extending it
 
 The pattern is the same for every capability that varies by environment:
 

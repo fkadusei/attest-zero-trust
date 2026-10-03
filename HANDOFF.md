@@ -222,6 +222,17 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Row-Level Security is bypassed by SUPERUSERS, always, and by the TABLE OWNER unless `FORCE`.**
+  An application connecting as either gets **no RLS at all, silently** — every query succeeds, every
+  test passes, and the boundary is absent. The application role must be `NOSUPERUSER NOBYPASSRLS` and
+  must not own the tables. **Keep a superuser connection in the tests as the negative control**, or the
+  RLS test also passes on a database where RLS does nothing.
+- **Use `SET LOCAL`, never `SET`, for a per-request tenant on a pooled connection.** `SET LOCAL` is
+  transaction-scoped and reverts; a plain `SET` persists on the connection and leaks the tenant to
+  whichever request picks it up next. That is a cross-tenant read caused purely by connection reuse.
+- **Check the port before connecting.** Host port 5432 on this machine belongs to an unrelated project
+  (`pqcscan-development-postgres-1`), not the lab. The application database uses **55432** so a
+  collision is obvious rather than silent.
 - **A permit that does not name the PRINCIPAL TYPE grants access to any entity carrying a matching
   attribute.** A Cedar test caught a `MysteryActor` being allowed. Every permit now lists
   `principal is User || principal is ServiceAccount`, so a new entity kind is denied until someone

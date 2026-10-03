@@ -51,6 +51,19 @@ export interface AppConfig {
   /** Permitted clock skew against the identity provider, in seconds. */
   readonly clockToleranceSec: number;
   readonly http: HttpConfig;
+  /**
+   * Where evidence is stored.
+   *
+   * Absent means the in-memory adapter — the PORTABLE DEFAULT under ADR-015, which
+   * needs nothing running and is what a laptop and CI use. Present selects the
+   * PostgreSQL adapter, whose Row-Level Security enforces the tenant boundary in
+   * the database rather than in our code.
+   *
+   * The connection string must be for the APPLICATION role, never a superuser.
+   * Row-Level Security is bypassed by superusers and by table owners, silently —
+   * see lab/app/init/01-schema.sql. The startup log warns if the role looks wrong.
+   */
+  readonly databaseUrl?: string;
 }
 
 export class ConfigError extends Error {
@@ -125,9 +138,12 @@ export function loadConfig(env: Env = process.env): AppConfig {
     );
   }
 
+  const databaseUrl = env["DATABASE_URL"]?.trim();
+
   return {
     identity: { issuer, jwksUri, audience: required(env, "API_AUDIENCE") },
     publicBaseUrl,
+    ...(databaseUrl ? { databaseUrl } : {}),
     tenantClaim: env["TENANT_CLAIM"]?.trim() || "tenant_id",
     clockToleranceSec: integer(env, "CLOCK_TOLERANCE_SEC", 5, 0, 120),
     http: {

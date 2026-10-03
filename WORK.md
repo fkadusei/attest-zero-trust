@@ -55,7 +55,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **L2** | DPoP proof verification at the API | ✅ **done — 75/75, 13/13 mutants** |
 | **L3** | The API as a running service (HTTP request path) | ✅ **done — 91/91, found a production-breaking bug** |
 | **L4** | Cedar authorization: the PDP, wired to the API | ✅ **done — 124/124, 5/6 policy mutants** |
-| **L5** | A tenant-scoped PostgreSQL adapter (replace in-memory) | ▶ **NEXT** |
+| **L5** | PostgreSQL adapter with Row-Level Security | ✅ **done — 134/134, 5/5 database mutants** |
+| **L6** | Object storage for evidence artifacts | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |

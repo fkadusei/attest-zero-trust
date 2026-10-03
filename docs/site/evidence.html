@@ -369,6 +369,16 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong>PostgreSQL Row-Level Security hides another tenant&rsquo;s rows even from a query with NO WHERE clause</strong>, while the same statement as a superuser returns everything</td>
+<td>L5 — verified against PostgreSQL 17.11, with the superuser as the negative control</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>Row-Level Security is bypassed by superusers and by table owners</strong>, silently — an application connecting as either gets no row-level security at all</td>
+<td>L5 — measured: <code>attest_owner</code> has <code>rolsuper=t, rolbypassrls=t</code> and sees every tenant; <code>attest_app</code> has both false and sees one</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><strong>A Cedar permit that does not constrain the PRINCIPAL TYPE grants access to any entity with a matching tenant attribute</strong></td>
 <td>L4 — a principal of type <code>MysteryActor</code> was ALLOWED until every permit named the kinds of principal it applies to</td>
 <td><strong>Verified</strong></td>

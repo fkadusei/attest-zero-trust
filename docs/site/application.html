@@ -77,8 +77,9 @@
 <li class="lvl3"><a href="#two-failure-modes-the-suite-itself-fell-into">Two failure modes the suite itself fell into</a></li>
 <li><a href="#7-l3-the-service">7. L3 — the service</a></li>
 <li><a href="#8-l4-authorization">8. L4 — authorization</a></li>
-<li><a href="#9-what-is-not-built">9. What is not built</a></li>
-<li><a href="#10-extending-it">10. Extending it</a></li>
+<li><a href="#9-l5-the-tenant-boundary-enforced-by-the-database">9. L5 — the tenant boundary, enforced by the database</a></li>
+<li><a href="#10-what-is-not-built">10. What is not built</a></li>
+<li><a href="#11-extending-it">11. Extending it</a></li>
 </ul></div>
   </aside>
 
@@ -135,7 +136,7 @@ end to end. It is not a complete product.</p>
 </tr>
 <tr>
 <td>Persistence</td>
-<td>⚠️ In-memory only — correct for one process, <strong>empty on restart</strong></td>
+<td>✅ <strong>PostgreSQL adapter with Row-Level Security</strong>, plus a portable in-memory default</td>
 </tr>
 <tr>
 <td>Object storage</td>
@@ -427,7 +428,7 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>124 tests</strong> across six files, all passing:</p>
+<p><strong>134 tests</strong> across seven files, all passing:</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -451,6 +452,11 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 <td><code>server.test.ts</code></td>
 <td>22</td>
 <td>End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation</td>
+</tr>
+<tr>
+<td><code>postgres.test.ts</code></td>
+<td>10</td>
+<td>The RLS boundary, with a superuser negative control and a connection-reuse check</td>
 </tr>
 <tr>
 <td><code>pdp.test.ts</code></td>
@@ -490,6 +496,11 @@ requires the attribute, so the rule is unreachable and removing it changes no ou
 <strong>safety net for a future careless permit</strong>, and a dedicated test simulates exactly that: a
 deliberately loose permit is added, and the net catches what it lets through, with a control proving
 the net is what did the work.</p>
+<p><strong>Mutation-tested against the database too.</strong> Disabling Row-Level Security, dropping the policy,
+making the application role a superuser, changing the policy to <code>USING (true)</code>, and removing <code>FORCE</code>
+are <strong>all caught</strong>. One of those is weaker evidence than the others and is recorded as such: removing
+<code>FORCE</code> is caught by a <strong>configuration assertion</strong>, not by an observed leak, because the application
+role is not the table owner today. It guards a future where it is.</p>
 <p><strong>And a caution about reading mutation results.</strong> In <code>server.ts</code>, removing the early no-proof check —
 and then removing the downgrade guard as well — leaves the suite <strong>green</strong>. That is not a blind spot:
 <code>verifyDpopProof</code> independently refuses a missing proof, so <strong>the property never broke</strong>. A harness
@@ -573,12 +584,45 @@ other.</p>
 body. Otherwise the endpoint is an existence oracle: enumerate ids and learn which ones other tenants
 hold. A test asserts the two responses are byte-identical.</p>
 </section>
-<section id="9-what-is-not-built"><h2>9. What is not built</h2>
+<section id="9-l5-the-tenant-boundary-enforced-by-the-database"><h2>9. L5 — the tenant boundary, enforced by the database</h2>
+<p>The in-memory repository enforces tenancy in <strong>application code</strong>: a bug in that file could return
+another tenant&rsquo;s rows. The PostgreSQL adapter moves the rule into the <strong>engine</strong>.</p>
+<p><code>evidence</code> has Row-Level Security <strong>enabled and forced</strong>, with a policy comparing <code>tenant_id</code> against
+<code>app.current_tenant</code>. A query that forgets its tenant filter — or one written next year by someone who
+has not read the file — returns nothing it should not, because the database removes those rows before
+the query sees them. That is verified, not assumed:</p>
+<div class="codehilite"><pre><span></span><code>attest_app, tenant=acme, SELECT with NO WHERE clause  →  e-acme             (one row)
+superuser,   the same unscoped statement              →  e-acme, e-globex   (both rows)
+</code></pre></div>
+
+<p><strong>The difference is the role, and that is the trap this avoids.</strong> Row-Level Security is bypassed by
+<strong>superusers, always</strong>, and by the <strong>table owner</strong> unless <code>FORCE</code> is set. An application connecting as
+either gets <em>no row-level security at all, silently</em>: every query succeeds, every test passes, and the
+boundary is simply absent. So the schema creates a dedicated <strong>non-superuser, non-owner</strong> role, marks
+the table <code>FORCE</code>, and the test suite keeps a <strong>superuser connection on purpose</strong> as the control that
+proves the policy is doing the work.</p>
+<p><strong>The application database is separate from the Keycloak database</strong> — different data, different blast
+radius. Evidence for customers should not share a database with the identity provider that
+authenticates them. (It also turned out that port 5432 on the development host belongs to an unrelated
+project, so publishing there would have connected these tests to the wrong database.)</p>
+<p><strong>Three details in the adapter are load-bearing:</strong></p>
+<ol>
+<li><strong>A dedicated client per operation.</strong> A <code>SET</code> issued through a pool could land on a different
+   connection from the query it was meant to scope.</li>
+<li><strong><code>SET LOCAL</code>, not <code>SET</code>.</strong> Transaction-scoped, so it reverts. A plain <code>SET</code> would persist on a
+   pooled connection and leak the tenant to whichever request picked it up next — a cross-tenant read
+   caused by connection reuse. A test interleaves two tenants across a two-connection pool to prove it
+   cannot happen.</li>
+<li><strong>An unset tenant matches nothing.</strong> <code>current_setting(..., true)</code> returns NULL when unset, and
+   <code>tenant_id = NULL</code> is never true. A connection with no tenant sees no rows at all — <strong>fail closed</strong>.</li>
+</ol>
+</section>
+<section id="10-what-is-not-built"><h2>10. What is not built</h2>
 <p>Stated plainly, because this list is as useful as the rest of the page:</p>
 <ul>
-<li><strong>Persistence is in-memory.</strong> Empty on restart, and each replica has its own. The startup log says
-  so out loud. A tenant-scoped PostgreSQL adapter with Row-Level Security is the portable replacement.</li>
 <li><strong>No object storage.</strong> Evidence artifacts have a reference but no bytes anywhere.</li>
+<li><strong>No migrations tooling.</strong> The schema is a container init script, which is fine for a lab and is not
+  how schema changes should be managed in production.</li>
 <li><strong>Four routes.</strong> Still no product surface a customer would recognise.</li>
 <li><strong>No persistence or storage.</strong> Interfaces only.</li>
 <li><strong>No admin console, no API surface, no customer-facing feature.</strong></li>
@@ -587,7 +631,7 @@ hold. A test asserts the two responses are byte-identical.</p>
 </ul>
 <hr>
 </section>
-<section id="10-extending-it"><h2>10. Extending it</h2>
+<section id="11-extending-it"><h2>11. Extending it</h2>
 <p>The pattern is the same for every capability that varies by environment:</p>
 <ol>
 <li><strong>Declare the need as a port</strong> in <code>src/ports/</code> — an interface, with a contract written as
