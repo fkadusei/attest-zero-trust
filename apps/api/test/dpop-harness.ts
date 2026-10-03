@@ -1,7 +1,14 @@
 import { calculateJwkThumbprint, exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import { randomUUID } from "node:crypto";
 
-import { API_CLIENT, ISSUER, TEST_REALM, ensureDpopClient, clientSecretFor } from "./lab.ts";
+import {
+  API_CLIENT,
+  ISSUER,
+  TEST_REALM,
+  clientSecretFor,
+  ensureDpopClient,
+  ensureLabFixtures,
+} from "./lab.ts";
 
 /**
  * A DPoP key pair and the proofs it produces — the client half of RFC 9449.
@@ -147,6 +154,13 @@ export async function setupBoundToken(): Promise<{
   payload: Record<string, unknown>;
   thumbprint: string;
 }> {
+  // The REALM first, then the client. Omitting this made the suite depend on
+  // `verify.test.ts` having run earlier in the same lab container: locally that had
+  // happened in a previous session, so it passed. CI runs files alphabetically, so
+  // `dpop` went first, found no realm, and every test in the suite failed with
+  // HTTP 404 "Realm not found". A suite that passes only because another suite ran
+  // first is not passing — it is borrowing.
+  await ensureLabFixtures();
   await ensureDpopClient();
   const key = await createDpopKey();
   const { token, payload } = await getBoundToken(key, DPOP_CLIENT);

@@ -222,6 +222,14 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A suite that passes only because ANOTHER suite ran first is borrowing, not passing.** The L2
+  suite called `ensureDpopClient()` but not `ensureLabFixtures()`. It passed locally because an
+  earlier session had already created the realm; CI ran `dpop` before `verify` alphabetically, found
+  no realm, and failed every test with `HTTP 404 "Realm not found"`. **Reproduce CI ordering locally
+  by DELETING the fixture first** — that is the only way this class of bug shows up.
+- **Test files that share ONE external service must not run in parallel.** Node runs files
+  concurrently by default; two suites creating clients in the same realm race. `--test-concurrency=1`
+  is set deliberately, and the reason is recorded in the script rather than left to be rediscovered.
 - **A DPoP-bound token needs the `DPoP` authorization scheme, not `Bearer`, and a resource proof
   MUST carry `ath`.** Both were S1 findings; L2 now enforces them in code. Keycloak also demands a
   **nonce** on resource requests, which is stricter than RFC 9449 — a resource server choosing to
