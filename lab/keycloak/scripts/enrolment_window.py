@@ -32,6 +32,7 @@ WHAT IT DOES NOT DO, AND THIS MATTERS
     not a rounding error.
 
 Usage:
+    python3 enrolment_window.py setup
     python3 enrolment_window.py status
     python3 enrolment_window.py open <username> [minutes]
     python3 enrolment_window.py close
@@ -142,6 +143,92 @@ def record_event(s: dict, action: str, **fields) -> None:
 # ---------------------------------------------------------------------------
 # The window
 # ---------------------------------------------------------------------------
+FLOW = "browser-enrolment"
+FLOW_FORMS = f"{FLOW} forms"
+
+
+def setup(api: Api) -> int:
+    """Create the enrolment flow and the client that uses it, idempotently.
+
+    S5e needs both, and neither existed as code: they were built by hand while
+    working out the design. A fresh realm therefore had no `enrolment` client at
+    all, and the CI job failed with "client 'enrolment' not found". If a test
+    depends on it, a script must create it.
+    """
+    # Teardown first, and in this order, because Keycloak will not clear a flow
+    # binding back to "none": an empty or null authenticationFlowBindingOverrides
+    # is accepted with 204 and then IGNORED, so the client stays bound, the flow
+    # stays "in use", and deleting it fails with a 500 whose only explanation is
+    # in the container log ("Cannot remove authentication flow, it is currently
+    # in use"). Deleting the client outright is the only reliable unbind.
+    print("1. remove any previous enrolment client and flow")
+    st, clients = api.call("GET", f"/{REALM}/clients?clientId={CLIENT}")
+    if clients:
+        st, _ = api.call("DELETE", f"/{REALM}/clients/{clients[0]['id']}")
+        print(f"   deleted the previous client ({st})")
+
+    st, flows = api.call("GET", f"/{REALM}/authentication/flows")
+    fid = next((f["id"] for f in (flows or []) if f.get("alias") == FLOW), None)
+    if fid:
+        st, realm = api.call("GET", f"/{REALM}")
+        if (realm or {}).get("browserFlow") == FLOW:
+            api.call("PUT", f"/{REALM}", {"browserFlow": "browser"})
+            print("   unbound the realm from the old flow")
+        st, resp = api.call("DELETE", f"/{REALM}/authentication/flows/{fid}")
+        if st not in (200, 204):
+            print(f"   FAILED to remove the old flow: {st} {str(resp)[:120]}")
+            return 1
+        print(f"   deleted the previous flow ({st})")
+
+    print("2. copy the built-in password flow")
+    st, resp = api.call("POST", f"/{REALM}/authentication/flows/browser/copy", {"newName": FLOW})
+    if st not in (200, 201, 204):
+        print(f"   FAILED to copy the flow: {st} {resp}")
+        return 1
+    print(f"   copied 'browser' -> '{FLOW}' ({st})")
+
+    # This flow IS password-capable. Its protection is the client, not a
+    # condition — see SPIKE-5e-RESULTS.md §2 for why the condition was abandoned.
+    st, ex = api.call("GET", f"/{REALM}/authentication/flows/{urllib.parse.quote(FLOW_FORMS)}/executions")
+    for e in (ex or []):
+        if e.get("providerId") == "auth-username-password-form":
+            e = dict(e)
+            e["requirement"] = "REQUIRED"
+            api.call("PUT", f"/{REALM}/authentication/flows/{urllib.parse.quote(FLOW_FORMS)}/executions", e)
+    print("   password form set REQUIRED in the copy")
+
+    print("3. create the client bound to it, with direct grants OFF")
+    st, flows = api.call("GET", f"/{REALM}/authentication/flows")
+    fid = next((f["id"] for f in (flows or []) if f.get("alias") == FLOW), None)
+    if not fid:
+        print("   FAILED: the copied flow has no id")
+        return 1
+
+    st, resp = api.call("POST", f"/{REALM}/clients", {
+        "clientId": CLIENT,
+        "name": "First passkey enrolment",
+        "description": "Used only to enrol a first passkey. Bound to the enrolment flow. "
+                       "Disabled except during a bounded, audited window.",
+        "enabled": False,                      # closed by default
+        "publicClient": True,
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": False,    # the S5d lesson: never a password path here
+        "redirectUris": ["http://localhost:8099/callback"],
+        "webOrigins": ["+"],
+        "authenticationFlowBindingOverrides": {"browser": fid},
+    })
+    if st not in (200, 201, 204):
+        print(f"   FAILED to create the client: {st} {str(resp)[:120]}")
+        return 1
+    print(f"   created the client ({st})")
+
+    st, c = api.call("GET", f"/{REALM}/clients?clientId={CLIENT}")
+    bound = (c[0].get("authenticationFlowBindingOverrides") or {}).get("browser") == fid
+    print(f"   bound to the enrolment flow : {bound}")
+    print(f"   enabled                     : {c[0].get('enabled')}  (closed by default)")
+    return 0 if bound else 1
+
+
 def set_client_enabled(api: Api, enabled: bool) -> bool:
     c = dict(api.client())
     c["enabled"] = enabled
@@ -288,6 +375,8 @@ def audit(api: Api, limit: int = 20) -> int:
 def main() -> int:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     api = Api()
+    if cmd == "setup":
+        return setup(api)
     if cmd == "status":
         return status(api)
     if cmd == "open":

@@ -180,6 +180,17 @@ def main() -> int:
     # the realm has to be in that state for E3/E5 to mean anything. Apply it here
     # rather than assuming the caller did, or those controls would pass or fail
     # depending on leftovers from an earlier run.
+    # Create the enrolment flow and client if they are missing. Neither existed
+    # as code before this: they were built by hand while working out the design,
+    # so a fresh realm had no `enrolment` client and the window could not open.
+    print("\n[setup] ensure the enrolment flow and client exist")
+    r = subprocess.run([PY, WINDOW_TOOL, "setup"], capture_output=True, text=True, timeout=240)
+    print("  " + r.stdout.strip().replace("\n", "\n  "))
+    if r.returncode != 0:
+        print("  FAILED to set up the enrolment flow/client")
+        print(r.stderr[-400:])
+        return 1
+
     print("\n[setup] put the realm into the passkey-only state the controls depend on")
     r = subprocess.run([PY, PASSKEY_TOOL, "apply"], capture_output=True, text=True, timeout=180)
     ok = r.returncode == 0

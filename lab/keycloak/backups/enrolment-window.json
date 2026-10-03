@@ -108,6 +108,19 @@
       "at": "2026-10-03T18:47:29+00:00",
       "action": "sweep-expired",
       "username": "spike-attest-privileged"
+    },
+    {
+      "at": "2026-10-03T18:51:39+00:00",
+      "action": "open",
+      "username": "spike-attest-privileged",
+      "minutes": 1,
+      "opened_by": "admin",
+      "expires_at": "2026-10-03T18:52:39+00:00"
+    },
+    {
+      "at": "2026-10-03T18:52:41+00:00",
+      "action": "sweep-expired",
+      "username": "spike-attest-privileged"
     }
   ]
 }
