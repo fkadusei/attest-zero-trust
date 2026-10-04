@@ -83,6 +83,19 @@ when { resource is Evidence }
 when { principal has tenant && resource has tenant && principal.tenant == resource.tenant }
 when { principal has roles && principal.roles.contains("writer") };
 
+// Creating evidence in your own tenant.
+//
+// The resource here is the TENANT, not an Evidence, because the record does not
+// exist yet — there is nothing to name. Authorising against the tenant asks the
+// right question: "may this principal write evidence INTO this tenant?" The tenant
+// comes from the verified token, so there is no request parameter that could point
+// this at someone else.
+permit (principal, action == Action::"CreateEvidence", resource)
+when { principal is User || principal is ServiceAccount }
+when { resource is Tenant }
+when { principal has tenant && resource has tenant && principal.tenant == resource.tenant }
+when { principal has roles && principal.roles.contains("writer") };
+
 // Listing the evidence in your own tenant. The resource is the Tenant itself, and
 // its `tenant` attribute is its own id — so this reads the same way as every other
 // permit rather than inventing a second comparison.

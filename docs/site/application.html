@@ -179,6 +179,10 @@ end to end. It is not a complete product.</p>
 <td><strong>Authorized</strong> list, scoped to the caller&rsquo;s tenant</td>
 </tr>
 <tr>
+<td><code>POST /v1/evidence</code></td>
+<td><strong>Authorized</strong> create, requires the <code>writer</code> role</td>
+</tr>
+<tr>
 <td><code>GET /v1/evidence/:id</code></td>
 <td><strong>Authorized</strong> read, scoped to the caller&rsquo;s tenant</td>
 </tr>
@@ -445,7 +449,7 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>182 tests</strong> across nine files, all passing (4 skipped, with stated reasons).</p>
+<p><strong>189 tests</strong> across nine files, all passing (4 skipped, with stated reasons).</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -482,8 +486,8 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 </tr>
 <tr>
 <td><code>console.test.ts</code></td>
-<td>15</td>
-<td>The OIDC flow, session cookies, CSRF, and escaping — against a listening API</td>
+<td>22</td>
+<td>OIDC flow, sessions, CSRF, escaping, create + upload, empty-file handling</td>
 </tr>
 <tr>
 <td><code>pdp.test.ts</code></td>
@@ -749,16 +753,26 @@ this one. The ID token&rsquo;s <strong>signature</strong> is deliberately not th
 TLS directly from the token endpoint in response to a request this server made with its own secret.
 There is no untrusted hop for a signature to protect against. What a signature cannot catch is
 substitution, and that is what <code>nonce</code> catches.</p>
-<p><strong>CSRF is checked explicitly</strong> on sign-out. <code>SameSite=Lax</code> is not sufficient alone — it is a browser
+<p><strong>Creating evidence is authorised against the TENANT, not the record</strong> — because the record does not
+exist yet, so there is nothing to name. The tenant comes from the verified token, so there is no
+request parameter that could point the create at someone else&rsquo;s tenant. The record <strong>id</strong> is generated
+by the API too: a caller-supplied id could collide with, or be used to probe for, an existing record.</p>
+<p><strong>The digest is never accepted from the caller.</strong> The console forwards the bytes unchanged and does
+not hash them; the API computes the digest from what it actually stored. A console that computed the
+hash would be attesting to content on the user&rsquo;s behalf, which is not the same as storing it.</p>
+<p><strong>An empty file part does not become an artifact.</strong> A browser sends one when no file was chosen, and
+storing zero bytes would produce evidence that attests to nothing. There is a test.</p>
+<p><strong>Pagination is a cursor, not an offset.</strong> An offset over a changing set skips or repeats rows, which
+in an evidence product means a record that appears to be missing.</p>
+<p><strong>CSRF is checked explicitly</strong> on sign-out and on create. <code>SameSite=Lax</code> is not sufficient alone — it is a browser
 behaviour rather than a server-side check, and a browser that ignored it would silently lose the
 protection with nothing in the logs to say so. The comparison is constant-time.</p>
 </section>
 <section id="12-what-is-not-built"><h2>12. What is not built</h2>
 <p>Stated plainly, because this list is as useful as the rest of the page:</p>
 <ul>
-<li><strong>Evidence upload in the console.</strong> The API accepts artifacts; the console only lists and reads
-  them.</li>
-<li><strong>No way to create evidence from the console.</strong> Records must be seeded.</li>
+<li><strong>No editing or deleting.</strong> Evidence is append-only, which is arguably correct for an audit
+  artifact, but it is not yet a stated policy.</li>
 <li><strong>No pagination controls, no search, no audit view.</strong> It is a console, not yet a product.</li>
 <li><strong>No migrations tooling.</strong> The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.</li>

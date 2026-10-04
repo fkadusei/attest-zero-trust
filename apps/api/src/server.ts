@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import { randomUUID } from "node:crypto";
 import cookie from "@fastify/cookie";
 import formbody from "@fastify/formbody";
+import multipart from "@fastify/multipart";
 
 import type { AppConfig } from "./config.ts";
 import { TokenVerificationError } from "./errors.ts";
@@ -116,6 +118,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   // The console's sign-out is a form POST, so that a link or an image cannot end a
   // session as a side effect of being loaded.
   app.register(formbody);
+  // The console's create form carries a file, so it is multipart. Bounded here as
+  // well as in the handler: a limit enforced only in application code is one a
+  // framework-level default can quietly override.
+  app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 10 } });
 
   // Evidence artifacts are arbitrary bytes with arbitrary content types. Fastify has
   // no parser for text/plain or application/octet-stream by default, so a perfectly
@@ -421,6 +427,57 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         .send(Buffer.from(artifact.bytes));
     },
   );
+
+  /**
+   * Create an evidence record.
+   *
+   * Authorised against the TENANT, because the record does not exist yet. The
+   * tenant is the caller's own, taken from the verified token — there is no request
+   * parameter that names one, so a caller cannot create a record in someone else's
+   * tenant because there is nothing to point at.
+   *
+   * The digest is deliberately NOT accepted from the caller. It is set when the
+   * artifact is uploaded, from the bytes the storage actually received. A
+   * caller-supplied hash would be an attestation about content the caller need
+   * never have provided.
+   */
+  app.post("/v1/evidence", { preHandler: authenticate }, async (request, reply) => {
+    const auth = request.auth!;
+    const tenant: TenantScope = { tenantId: auth.tenantId };
+
+    const allowed = await authorize(request, reply, "CreateEvidence", {
+      type: "Tenant",
+      id: tenant.tenantId,
+      tenant,
+    });
+    if (!allowed) return reply;
+
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const control = typeof body["control"] === "string" ? body["control"].trim() : "";
+    if (control === "" || control.length > 200) {
+      return reply.code(400).send({ error: "invalid_control" });
+    }
+
+    // The id is generated HERE. A caller-supplied id could collide with, or be
+    // used to probe for, an existing record.
+    const id = `ev-${randomUUID()}`;
+    const collectedAt =
+      typeof body["collectedAt"] === "string" && !Number.isNaN(Date.parse(body["collectedAt"]))
+        ? new Date(body["collectedAt"]).toISOString()
+        : new Date().toISOString();
+
+    await deps.evidence.put(tenant, {
+      id,
+      tenantId: tenant.tenantId,
+      control,
+      // No artifact yet. The upload sets both of these from the bytes it stores.
+      artifactRef: "",
+      sha256: "",
+      collectedAt,
+    });
+
+    return reply.code(201).send({ id, control, collectedAt });
+  });
 
   // ---------------------------------------------------------------- evidence
   /**

@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 // and `reply.clearCookie` to Fastify's types. Without it those are type errors even
 // though the plugin registers them at runtime.
 import "@fastify/cookie";
+import "@fastify/multipart";
 
 import type { ConsoleSession, SessionStore } from "./session.ts";
 import { csrfTokenMatches } from "./session.ts";
@@ -322,12 +323,119 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     return reply.redirect(logoutUrl ?? "/console/login", 302);
   });
 
-  // ---------------------------------------------------------------- pages
-  app.get("/console", async (request, reply) => {
+  // ---------------------------------------------------------------- create
+  app.get("/console/evidence/new", async (request, reply) => {
+    const session = await currentSession(request);
+    if (!requireSession(session, reply)) return reply;
+    return reply.send(page("New evidence", newEvidenceForm(session.csrfToken), session.csrfToken));
+  });
+
+  /**
+   * Create an evidence record and upload its artifact.
+   *
+   * Two API calls, not one, because they are two different authorisations: creating
+   * a record is `CreateEvidence` against the tenant, and attaching bytes to it is
+   * `WriteEvidence` against the record. Doing them as one API operation would hide
+   * that distinction, and the distinction is the point.
+   *
+   * The console forwards the bytes UNCHANGED. It does not hash them, and it does not
+   * tell the API what the digest is — the API computes it from what it receives. A
+   * console that computed the hash would be attesting to content on the user's
+   * behalf, which is not the same as storing it.
+   */
+  app.post("/console/evidence", async (request, reply) => {
     const session = await currentSession(request);
     if (!requireSession(session, reply)) return reply;
 
-    const result = await api(deps, session, "/v1/evidence");
+    let parts;
+    try {
+      parts = request.parts();
+    } catch {
+      return reply.code(400).send(page("New evidence", "<p>Malformed upload.</p>", session.csrfToken));
+    }
+
+    let csrf: string | undefined;
+    let control = "";
+    let file: { bytes: Buffer; contentType: string } | undefined;
+
+    for await (const part of parts) {
+      if (part.type === "field") {
+        if (part.fieldname === "csrf") csrf = String(part.value);
+        if (part.fieldname === "control") control = String(part.value).trim();
+      } else if (part.type === "file") {
+        // Bounded. An unbounded read of a request body is a memory exhaustion
+        // primitive, and this one is reachable by any signed-in writer.
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of part.file) {
+          size += chunk.length;
+          if (size > 20 * 1024 * 1024) {
+            return reply.code(413).send(page("New evidence", "<p>That file is too large.</p>", session.csrfToken));
+          }
+          chunks.push(chunk as Buffer);
+        }
+        // An empty file part is what a browser sends when no file was chosen. It is
+        // not an artifact, and storing zero bytes would produce evidence that
+        // attests to nothing.
+        if (size > 0) {
+          file = { bytes: Buffer.concat(chunks), contentType: part.mimetype || "application/octet-stream" };
+        }
+      }
+    }
+
+    // CSRF AFTER parsing, because the token arrives as a field. Same check, later
+    // point — the request has already been fully received either way.
+    if (!csrfTokenMatches(session.csrfToken, csrf)) {
+      request.log.warn("console create rejected: csrf");
+      return reply.code(403).send(page("New evidence", "<p>That form could not be verified.</p>", session.csrfToken));
+    }
+    if (control === "") {
+      return reply.code(400).send(page("New evidence", `<p>${esc("A control name is required.")}</p>`, session.csrfToken));
+    }
+
+    const created = await api(deps, session, "/v1/evidence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ control }),
+    });
+    if (created.status !== 201) {
+      return reply
+        .code(created.status === 403 ? 403 : 502)
+        .send(page("New evidence", `<p>Could not create the record (${esc(created.status)}).</p>`, session.csrfToken));
+    }
+    const id = String((created.body as { id?: unknown })?.id ?? "");
+
+    if (file) {
+      const uploaded = await api(deps, session, `/v1/evidence/${encodeURIComponent(id)}/content`, {
+        method: "PUT",
+        headers: { "content-type": file.contentType },
+        body: file.bytes,
+      });
+      if (uploaded.status !== 201) {
+        // The record exists; the artifact does not. Reported rather than hidden: a
+        // record with no artifact is a real state an operator needs to see.
+        return reply
+          .code(502)
+          .send(page("New evidence", `<p>The record was created but the file was not stored (${esc(uploaded.status)}).</p>`, session.csrfToken));
+      }
+    }
+
+    return reply.redirect(`/console/evidence/${encodeURIComponent(id)}`, 302);
+  });
+
+  // ---------------------------------------------------------------- pages
+  app.get<{ Querystring: { cursor?: string } }>("/console", async (request, reply) => {
+    const session = await currentSession(request);
+    if (!requireSession(session, reply)) return reply;
+
+    // Pagination is a cursor, not an offset. An offset over a changing set skips or
+    // repeats rows, which in an evidence product means a record that appears to be
+    // missing.
+    const cursor = typeof (request.query as Record<string, unknown>)["cursor"] === "string"
+      ? String((request.query as Record<string, unknown>)["cursor"])
+      : undefined;
+    const listPath = cursor ? `/v1/evidence?cursor=${encodeURIComponent(cursor)}` : "/v1/evidence";
+    const result = await api(deps, session, listPath);
     if (result.status === 401) {
       await deps.sessions.destroy(session.id);
       reply.clearCookie(SESSION_COOKIE, { path: COOKIE_PATH });
@@ -346,10 +454,16 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
           `<tr><td><a href="/console/evidence/${encodeURIComponent(item.id)}"><code>${esc(item.id)}</code></a></td><td>${esc(item.control)}</td></tr>`,
       )
       .join("");
+    const nextCursor = (result.body as { nextCursor?: string })?.nextCursor;
+    const pagination = nextCursor
+      ? `<p><a href="/console?cursor=${encodeURIComponent(nextCursor)}">Next page &rarr;</a></p>`
+      : "";
     const body =
-      items.length === 0
+      (items.length === 0
         ? "<p class=\"muted\">No evidence yet.</p>"
-        : `<table><thead><tr><th>ID</th><th>Control</th></tr></thead><tbody>${rows}</tbody></table>`;
+        : `<table><thead><tr><th>ID</th><th>Control</th></tr></thead><tbody>${rows}</tbody></table>`) +
+      pagination +
+      '<p><a href="/console/evidence/new">Add evidence</a></p>';
     return reply.send(page("Evidence", body, session.csrfToken));
   });
 
@@ -378,6 +492,29 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
 <p><a href="/console">Back</a></p>`;
     return reply.send(page(String(record["id"]), body, session.csrfToken));
   });
+}
+
+/**
+ * The create form.
+ *
+ * `multipart/form-data` so a file can be attached, and `enctype` is stated
+ * explicitly because a browser defaults to urlencoded and the file would be
+ * silently dropped — the form would appear to work and store no artifact.
+ */
+function newEvidenceForm(csrf: string): string {
+  return `<h1>Add evidence</h1>
+<form method="post" action="/console/evidence" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="${esc(csrf)}">
+  <p>
+    <label for="control">Control</label><br>
+    <input id="control" name="control" required maxlength="200" placeholder="SOC2-CC6.1" style="width: 20rem">
+  </p>
+  <p>
+    <label for="file">Artifact</label><br>
+    <input id="file" name="file" type="file">
+  </p>
+  <p><button type="submit">Create</button> <a href="/console">Cancel</a></p>
+</form>`;
 }
 
 /** `exp` from a JWT payload, in ms. Undefined when absent or unreadable. */

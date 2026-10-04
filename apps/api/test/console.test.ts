@@ -11,7 +11,7 @@
  */
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { buildServer } from "../src/server.ts";
 import { loadConfig } from "../src/config.ts";
@@ -301,6 +301,163 @@ describe("the admin console", { skip: labUp ? false : "Keycloak is not running" 
     assert.ok(session, "the session should exist");
     const res = await app.inject({ method: "GET", url: "/console", cookies: { attest_session: cookie } });
     assert.ok(res.body.includes(session.csrfToken), "the sign-out form needs the token");
+  });
+
+  // ---------------------------------------------------------------- create (L8)
+  /** Build a multipart body by hand, so no extra dependency is needed. */
+  function multipartBody(fields: Record<string, string>, file?: { name: string; bytes: string }): {
+    payload: Buffer;
+    contentType: string;
+  } {
+    const boundary = `----attest${randomBytes(8).toString("hex")}`;
+    const parts: Buffer[] = [];
+    for (const [name, value] of Object.entries(fields)) {
+      parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+    }
+    if (file) {
+      parts.push(
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: text/plain\r\n\r\n`,
+        ),
+      );
+      parts.push(Buffer.from(file.bytes));
+      parts.push(Buffer.from("\r\n"));
+    }
+    parts.push(Buffer.from(`--${boundary}--\r\n`));
+    return { payload: Buffer.concat(parts), contentType: `multipart/form-data; boundary=${boundary}` };
+  }
+
+  async function sessionFor(): Promise<{ cookie: string; csrf: string }> {
+    const { cookie, sessionId } = await signIn();
+    const session = await sessions.get(sessionId);
+    assert.ok(session, "the session should exist");
+    return { cookie, csrf: session.csrfToken };
+  }
+
+  it("the create form renders with a CSRF token and multipart encoding", async () => {
+    const { cookie, csrf } = await sessionFor();
+    const res = await app.inject({ method: "GET", url: "/console/evidence/new", cookies: { attest_session: cookie } });
+    assert.equal(res.statusCode, 200);
+    assert.ok(res.body.includes(csrf), "the form needs the CSRF token");
+    assert.ok(
+      res.body.includes("multipart/form-data"),
+      "without enctype the browser drops the file silently and the form looks like it worked",
+    );
+  });
+
+  it("creating evidence WITH a file stores both, and the digest comes from the bytes", async () => {
+    const { cookie, csrf } = await sessionFor();
+    const content = "quarterly access review export";
+    const { payload, contentType } = multipartBody({ csrf, control: "SOC2-CC6.1" }, { name: "e.txt", bytes: content });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/evidence",
+      cookies: { attest_session: cookie },
+      payload,
+      headers: { "content-type": contentType },
+    });
+    assert.equal(res.statusCode, 302, res.body);
+    const location = String(res.headers["location"]);
+    assert.match(location, /^\/console\/evidence\/ev-/, `expected a redirect to the new record, got ${location}`);
+
+    // Read it back through the API with the same token: the record must carry the
+    // digest of the bytes that were actually stored.
+    const id = decodeURIComponent(location.split("/").pop() ?? "");
+    const detail = await app.inject({
+      method: "GET",
+      url: `/v1/evidence/${encodeURIComponent(id)}`,
+      headers: { authorization: `Bearer ${realToken}` },
+    });
+    assert.equal(detail.statusCode, 200, detail.body);
+    const expected = createHash("sha256").update(content).digest("hex");
+    assert.equal(detail.json().sha256, expected, "the digest must be of the STORED bytes");
+  });
+
+  it("the stored artifact round-trips through the API", async () => {
+    const { cookie, csrf } = await sessionFor();
+    const content = "content that must survive the round trip";
+    const { payload, contentType } = multipartBody({ csrf, control: "ISO-A.5.15" }, { name: "a.txt", bytes: content });
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/evidence",
+      cookies: { attest_session: cookie },
+      payload,
+      headers: { "content-type": contentType },
+    });
+    const id = decodeURIComponent(String(res.headers["location"]).split("/").pop() ?? "");
+
+    const download = await app.inject({
+      method: "GET",
+      url: `/v1/evidence/${encodeURIComponent(id)}/content`,
+      headers: { authorization: `Bearer ${realToken}` },
+    });
+    assert.equal(download.statusCode, 200, download.body);
+    assert.equal(download.body, content);
+  });
+
+  it("creating WITHOUT a file still creates the record", async () => {
+    // A record with no artifact yet is a legitimate state. Requiring a file would
+    // force operators to attach something meaningless to proceed.
+    const { cookie, csrf } = await sessionFor();
+    const { payload, contentType } = multipartBody({ csrf, control: "SOC2-CC7.2" });
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/evidence",
+      cookies: { attest_session: cookie },
+      payload,
+      headers: { "content-type": contentType },
+    });
+    assert.equal(res.statusCode, 302, res.body);
+  });
+
+  it("creating WITHOUT a valid CSRF token is refused", async () => {
+    const { cookie } = await sessionFor();
+    const { payload, contentType } = multipartBody({ csrf: "wrong", control: "SOC2-CC6.1" });
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/evidence",
+      cookies: { attest_session: cookie },
+      payload,
+      headers: { "content-type": contentType },
+    });
+    assert.equal(res.statusCode, 403, "a form post without a valid CSRF token must be refused");
+  });
+
+  it("creating with an EMPTY control is refused", async () => {
+    const { cookie, csrf } = await sessionFor();
+    const { payload, contentType } = multipartBody({ csrf, control: "   " });
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/evidence",
+      cookies: { attest_session: cookie },
+      payload,
+      headers: { "content-type": contentType },
+    });
+    assert.equal(res.statusCode, 400);
+  });
+
+  it("an empty file part does NOT create an empty artifact", async () => {
+    // A browser sends an empty file part when nothing was chosen. Storing zero bytes
+    // would produce evidence attesting to nothing.
+    const { cookie, csrf } = await sessionFor();
+    const { payload, contentType } = multipartBody({ csrf, control: "SOC2-CC6.1" }, { name: "empty.txt", bytes: "" });
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/evidence",
+      cookies: { attest_session: cookie },
+      payload,
+      headers: { "content-type": contentType },
+    });
+    assert.equal(res.statusCode, 302, res.body);
+    const id = decodeURIComponent(String(res.headers["location"]).split("/").pop() ?? "");
+    const content = await app.inject({
+      method: "GET",
+      url: `/v1/evidence/${encodeURIComponent(id)}/content`,
+      headers: { authorization: `Bearer ${realToken}` },
+    });
+    // No artifact was stored, so the zero-byte read must NOT succeed as evidence.
+    assert.notEqual(content.statusCode, 200, "an empty upload must not become an artifact");
   });
 
   // ---------------------------------------------------------------- escaping

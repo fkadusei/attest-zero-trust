@@ -34,6 +34,7 @@ end to end. It is not a complete product.
 | `GET /health` | Unauthenticated liveness |
 | `GET /v1/session` | Authentication only — reports what was verified |
 | `GET /v1/evidence` | **Authorized** list, scoped to the caller's tenant |
+| `POST /v1/evidence` | **Authorized** create, requires the `writer` role |
 | `GET /v1/evidence/:id` | **Authorized** read, scoped to the caller's tenant |
 | `GET /v1/evidence/:id/content` | **Authorized** artifact download, digest verified against the record |
 | `PUT /v1/evidence/:id/content` | **Authorized** artifact upload, requires the `writer` role |
@@ -190,7 +191,7 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**182 tests** across nine files, all passing (4 skipped, with stated reasons).
+**189 tests** across nine files, all passing (4 skipped, with stated reasons).
 
 | File | Tests | What it covers |
 |---|---|---|
@@ -199,7 +200,7 @@ npm test --workspace @attest/api
 | `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
 | `postgres.test.ts` | 10 | The RLS boundary, with a superuser negative control and a connection-reuse check |
 | `object-storage.test.ts` | 32 | **All three adapters** against one contract: tenancy, traversal, integrity |
-| `console.test.ts` | 15 | The OIDC flow, session cookies, CSRF, and escaping — against a listening API |
+| `console.test.ts` | 22 | OIDC flow, sessions, CSRF, escaping, create + upload, empty-file handling |
 | `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
 | `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
@@ -476,7 +477,22 @@ TLS directly from the token endpoint in response to a request this server made w
 There is no untrusted hop for a signature to protect against. What a signature cannot catch is
 substitution, and that is what `nonce` catches.
 
-**CSRF is checked explicitly** on sign-out. `SameSite=Lax` is not sufficient alone — it is a browser
+**Creating evidence is authorised against the TENANT, not the record** — because the record does not
+exist yet, so there is nothing to name. The tenant comes from the verified token, so there is no
+request parameter that could point the create at someone else's tenant. The record **id** is generated
+by the API too: a caller-supplied id could collide with, or be used to probe for, an existing record.
+
+**The digest is never accepted from the caller.** The console forwards the bytes unchanged and does
+not hash them; the API computes the digest from what it actually stored. A console that computed the
+hash would be attesting to content on the user's behalf, which is not the same as storing it.
+
+**An empty file part does not become an artifact.** A browser sends one when no file was chosen, and
+storing zero bytes would produce evidence that attests to nothing. There is a test.
+
+**Pagination is a cursor, not an offset.** An offset over a changing set skips or repeats rows, which
+in an evidence product means a record that appears to be missing.
+
+**CSRF is checked explicitly** on sign-out and on create. `SameSite=Lax` is not sufficient alone — it is a browser
 behaviour rather than a server-side check, and a browser that ignored it would silently lose the
 protection with nothing in the logs to say so. The comparison is constant-time.
 
@@ -484,9 +500,8 @@ protection with nothing in the logs to say so. The comparison is constant-time.
 
 Stated plainly, because this list is as useful as the rest of the page:
 
-- **Evidence upload in the console.** The API accepts artifacts; the console only lists and reads
-  them.
-- **No way to create evidence from the console.** Records must be seeded.
+- **No editing or deleting.** Evidence is append-only, which is arguably correct for an audit
+  artifact, but it is not yet a stated policy.
 - **No pagination controls, no search, no audit view.** It is a console, not yet a product.
 - **No migrations tooling.** The schema is a container init script, which is fine for a lab and is not
   how schema changes should be managed in production.

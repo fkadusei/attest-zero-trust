@@ -59,7 +59,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **L6** | Object storage for evidence artifacts | ✅ **done — 159/159, traversal double-mutant caught** |
 | **L7a** | S3-compatible object storage adapter | ✅ **done — three adapters, one contract** |
 | **L7b** | The admin console (server-rendered) | ✅ **done — 182/182** |
-| **L8** | Evidence upload in the console, pagination, audit view | ▶ **NEXT** |
+| **L8** | Create + upload + pagination in the console | ✅ **done — 189/189** |
+| **A1** | The option-A CDK stack, so this runs somewhere real with TLS | ▶ **NEXT** |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
