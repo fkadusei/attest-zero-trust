@@ -222,6 +222,22 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Fastify does NOT infer `text/html` for a string payload.** It sends `text/plain`, so a browser
+  renders the ESCAPED SOURCE of the page rather than the page. **A unit test that greps the body for a
+  word passes anyway**, because the escaped source still contains the word. Assert the
+  `Content-Type` HEADER, not the body. Found by a real browser, not by the suite.
+- **"Sign out" needs `post.logout.redirect.uris` registered on the OIDC client.** Without it Keycloak
+  refuses the end-session request with `HTTP 400`, the console's own session dies, and **the SSO
+  session survives** — the next visit signs the user straight back in silently. It LOOKS like it
+  worked. The console cannot detect this server-side; the error goes to the browser.
+- **A passkey credential with no `userHandle` can never sign anyone in.** Keycloak's passwordless flow
+  is a discoverable-credential flow: it identifies the user FROM the handle. The failure reads
+  `webauthn-error-user-not-found`, and the credential's `credentialData` will be missing
+  `userHandle`. Check that before suspecting the flow.
+- **A browser harness must refuse to run when its port is occupied.** A stale server from a failed
+  earlier run made the suite silently measure the WRONG configuration — the browser was sent to one
+  realm while the script believed it had configured another. Health checks cannot tell one process
+  from another; assert on something the process actually serves.
 - **A server-rendered console CANNOT use DPoP, and that is a consequence, not a preference.** DPoP
   binds a token to a key the CLIENT holds; for a server-rendered console to prove possession per
   request, the key would have to live in the browser — reintroducing the problem the server-side

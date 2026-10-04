@@ -60,7 +60,9 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **L7a** | S3-compatible object storage adapter | ✅ **done — three adapters, one contract** |
 | **L7b** | The admin console (server-rendered) | ✅ **done — 182/182** |
 | **L8** | Create + upload + pagination in the console | ✅ **done — 189/189** |
-| **A1** | The option-A CDK stack, so this runs somewhere real with TLS | ▶ **NEXT** |
+| **E2E** | The console in a real browser | ✅ **done — 17/17, found two real bugs** |
+| **E2E-2** | Why a passkey into the console has no user handle | ▶ **NEXT** |
+| **A1** | A real domain and TLS | ⏸ optional — see the results for what it would add |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |

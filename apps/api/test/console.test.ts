@@ -460,6 +460,41 @@ describe("the admin console", { skip: labUp ? false : "Keycloak is not running" 
     assert.notEqual(content.statusCode, 200, "an empty upload must not become an artifact");
   });
 
+  // ---------------------------------------------------------------- content type
+  it("REGRESSION: pages are served as text/html, not text/plain", async () => {
+    // Found by the browser end-to-end test, not by a unit test. Fastify does not
+    // infer text/html for a string payload, so every page was served as text/plain
+    // and a browser rendered the ESCAPED SOURCE inside a <pre> rather than the page.
+    //
+    // The assertion that was supposed to catch this checked the body for the word
+    // "Evidence" — and the escaped source still contains it, so it passed on a page
+    // no human could use. This asserts the HEADER, which is what a browser acts on.
+    const { cookie } = await signIn();
+    for (const url of ["/console", "/console/evidence/new"]) {
+      const res = await app.inject({ method: "GET", url, cookies: { attest_session: cookie } });
+      assert.equal(res.statusCode, 200, res.body);
+      assert.match(
+        String(res.headers["content-type"]),
+        /^text\/html/,
+        `${url} was served as ${res.headers["content-type"]} — a browser would show source, not a page`,
+      );
+      assert.ok(res.body.includes("<form") || res.body.includes("<h1"), `${url} should render markup`);
+    }
+  });
+
+  it("REGRESSION: HTML error pages keep the HTML content type too", async () => {
+    // The 400/403/404 paths also render pages. Fixing only the happy path would
+    // leave a user staring at escaped source exactly when something went wrong.
+    const { cookie } = await sessionFor();
+    const { payload, contentType } = multipartBody({ csrf: "wrong", control: "x" });
+    const res = await app.inject({
+      method: "POST", url: "/console/evidence",
+      cookies: { attest_session: cookie }, payload, headers: { "content-type": contentType },
+    });
+    assert.equal(res.statusCode, 403);
+    assert.match(String(res.headers["content-type"]), /^text\/html/);
+  });
+
   // ---------------------------------------------------------------- escaping
   it("HTML in API data is ESCAPED, not rendered", async () => {
     // The console renders strings that came from the database. An evidence control

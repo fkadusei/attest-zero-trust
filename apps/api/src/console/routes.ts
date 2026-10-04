@@ -116,6 +116,20 @@ function esc(value: unknown): string {
     .replaceAll("'", "&#39;");
 }
 
+/**
+ * Send an HTML page.
+ *
+ * The content type is set EXPLICITLY, and that is not ceremony. Fastify does not
+ * infer `text/html` from a string payload — it sends `text/plain` — so a browser
+ * renders the escaped SOURCE of the page rather than the page. It looks like a page
+ * in an assertion that greps for a word, because the escaped source still contains
+ * the word. It looks obviously broken to a human, and it took a real browser to
+ * notice, which is precisely what this test is for.
+ */
+function sendPage(reply: FastifyReply, html: string): FastifyReply {
+  return reply.header("content-type", "text/html; charset=utf-8").send(html);
+}
+
 function page(title: string, body: string, csrf?: string): string {
   return `<!doctype html>
 <html lang="en">
@@ -240,13 +254,13 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     reply.clearCookie(FLOW_COOKIE, { path: COOKIE_PATH });
 
     if (typeof raw !== "string") {
-      return reply.code(400).send(page("Sign-in failed", "<p>The sign-in attempt expired. Please try again.</p>"));
+      return sendPage(reply.code(400), page("Sign-in failed", "<p>The sign-in attempt expired. Please try again.</p>"));
     }
     let flow: { state?: string; nonce?: string };
     try {
       flow = JSON.parse(raw) as { state?: string; nonce?: string };
     } catch {
-      return reply.code(400).send(page("Sign-in failed", "<p>Malformed sign-in state.</p>"));
+      return sendPage(reply.code(400), page("Sign-in failed", "<p>Malformed sign-in state.</p>"));
     }
 
     // `state` protects the REDIRECT. Without it, an attacker can make a victim's
@@ -254,7 +268,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     // attacker, doing work inside the attacker's account.
     if (typeof flow.state !== "string" || query["state"] !== flow.state) {
       request.log.warn("console callback rejected: state mismatch");
-      return reply.code(400).send(page("Sign-in failed", "<p>This sign-in could not be verified.</p>"));
+      return sendPage(reply.code(400), page("Sign-in failed", "<p>This sign-in could not be verified.</p>"));
     }
 
     const error = query["error"];
@@ -268,7 +282,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
 
     const code = query["code"];
     if (typeof code !== "string" || code === "") {
-      return reply.code(400).send(page("Sign-in failed", "<p>No authorization code was returned.</p>"));
+      return sendPage(reply.code(400), page("Sign-in failed", "<p>No authorization code was returned.</p>"));
     }
 
     let tokens;
@@ -276,7 +290,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
       tokens = await deps.oidc.exchangeCode(code);
     } catch (exchangeError) {
       request.log.error({ err: String(exchangeError) }, "console token exchange failed");
-      return reply.code(502).send(page("Sign-in failed", "<p>Could not complete sign-in.</p>"));
+      return sendPage(reply.code(502), page("Sign-in failed", "<p>Could not complete sign-in.</p>"));
     }
 
     // `nonce` protects the ID TOKEN: a token issued for a different flow must not be
@@ -284,7 +298,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     // not a skipped check.
     if (typeof flow.nonce !== "string" || !deps.oidc.idTokenMatchesNonce(tokens.idToken, flow.nonce)) {
       request.log.warn("console callback rejected: id_token nonce mismatch");
-      return reply.code(400).send(page("Sign-in failed", "<p>This sign-in could not be verified.</p>"));
+      return sendPage(reply.code(400), page("Sign-in failed", "<p>This sign-in could not be verified.</p>"));
     }
 
     const session = await deps.sessions.create(
@@ -327,7 +341,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
   app.get("/console/evidence/new", async (request, reply) => {
     const session = await currentSession(request);
     if (!requireSession(session, reply)) return reply;
-    return reply.send(page("New evidence", newEvidenceForm(session.csrfToken), session.csrfToken));
+    return sendPage(reply, page("New evidence", newEvidenceForm(session.csrfToken), session.csrfToken));
   });
 
   /**
@@ -351,7 +365,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     try {
       parts = request.parts();
     } catch {
-      return reply.code(400).send(page("New evidence", "<p>Malformed upload.</p>", session.csrfToken));
+      return sendPage(reply.code(400), page("New evidence", "<p>Malformed upload.</p>", session.csrfToken));
     }
 
     let csrf: string | undefined;
@@ -370,7 +384,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
         for await (const chunk of part.file) {
           size += chunk.length;
           if (size > 20 * 1024 * 1024) {
-            return reply.code(413).send(page("New evidence", "<p>That file is too large.</p>", session.csrfToken));
+            return sendPage(reply.code(413), page("New evidence", "<p>That file is too large.</p>", session.csrfToken));
           }
           chunks.push(chunk as Buffer);
         }
@@ -387,10 +401,10 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     // point — the request has already been fully received either way.
     if (!csrfTokenMatches(session.csrfToken, csrf)) {
       request.log.warn("console create rejected: csrf");
-      return reply.code(403).send(page("New evidence", "<p>That form could not be verified.</p>", session.csrfToken));
+      return sendPage(reply.code(403), page("New evidence", "<p>That form could not be verified.</p>", session.csrfToken));
     }
     if (control === "") {
-      return reply.code(400).send(page("New evidence", `<p>${esc("A control name is required.")}</p>`, session.csrfToken));
+      return sendPage(reply.code(400), page("New evidence", `<p>${esc("A control name is required.")}</p>`, session.csrfToken));
     }
 
     const created = await api(deps, session, "/v1/evidence", {
@@ -464,7 +478,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
         : `<table><thead><tr><th>ID</th><th>Control</th></tr></thead><tbody>${rows}</tbody></table>`) +
       pagination +
       '<p><a href="/console/evidence/new">Add evidence</a></p>';
-    return reply.send(page("Evidence", body, session.csrfToken));
+    return sendPage(reply, page("Evidence", body, session.csrfToken));
   });
 
   app.get<{ Params: { id: string } }>("/console/evidence/:id", async (request, reply) => {
@@ -474,7 +488,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
     const id = request.params.id;
     const result = await api(deps, session, `/v1/evidence/${encodeURIComponent(id)}`);
     if (result.status === 404) {
-      return reply.code(404).send(page("Not found", "<p>No such evidence.</p>", session.csrfToken));
+      return sendPage(reply.code(404), page("Not found", "<p>No such evidence.</p>", session.csrfToken));
     }
     if (result.status !== 200) {
       return reply
@@ -490,7 +504,7 @@ export function registerConsole(app: FastifyInstance, deps: ConsoleDeps): void {
   <dt>SHA-256</dt><dd><code>${esc(record["sha256"])}</code></dd>
 </dl>
 <p><a href="/console">Back</a></p>`;
-    return reply.send(page(String(record["id"]), body, session.csrfToken));
+    return sendPage(reply, page(String(record["id"]), body, session.csrfToken));
   });
 }
 

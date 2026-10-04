@@ -63,6 +63,7 @@
 <li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 <li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
 <li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-console-e2e.html">Lab results: the console end to end</a></li>
 <li><a href="lab-results-broad-rpid.html">Lab results: when it breaks</a></li>
 </ul></div>
     </nav>
@@ -449,7 +450,10 @@ npm<span class="w"> </span>run<span class="w"> </span>typecheck<span class="w"> 
 npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>@attest/api
 </code></pre></div>
 
-<p><strong>189 tests</strong> across nine files, all passing (4 skipped, with stated reasons).</p>
+<p><strong>191 tests</strong> across nine files, all passing (4 skipped, with stated reasons).</p>
+<p><strong>Plus a browser end-to-end run</strong>: 17 checks driving a real browser through a real redirect and a
+real session. See <a href="lab-results-console-e2e.html">the console end-to-end results</a> — it found a bug no
+unit test could.</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -486,8 +490,8 @@ npm<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-
 </tr>
 <tr>
 <td><code>console.test.ts</code></td>
-<td>22</td>
-<td>OIDC flow, sessions, CSRF, escaping, create + upload, empty-file handling</td>
+<td>24</td>
+<td>OIDC flow, sessions, CSRF, escaping, create + upload, content type</td>
 </tr>
 <tr>
 <td><code>pdp.test.ts</code></td>
@@ -764,6 +768,15 @@ hash would be attesting to content on the user&rsquo;s behalf, which is not the 
 storing zero bytes would produce evidence that attests to nothing. There is a test.</p>
 <p><strong>Pagination is a cursor, not an offset.</strong> An offset over a changing set skips or repeats rows, which
 in an evidence product means a record that appears to be missing.</p>
+<p><strong>Pages set <code>text/html</code> explicitly.</strong> Fastify does not infer it for a string payload, so every page was
+being served as <code>text/plain</code> and a browser rendered the <strong>escaped source</strong> instead of the page. A unit
+test asserted the body contained the word &ldquo;Evidence&rdquo; — and the escaped source still contains it, so the
+check passed on a page no human could use. <strong>The browser end-to-end run found it</strong>, and a regression
+test now asserts the header.</p>
+<p><strong>Sign-out needs <code>post.logout.redirect.uris</code> registered on the client.</strong> Without it Keycloak refuses
+the end-session request with <code>HTTP 400</code>, the console&rsquo;s own session dies, and <strong>the SSO session
+survives</strong> — so the next visit signs the user straight back in. It looks like it worked. There is no
+way for the console to detect this server-side: Keycloak returns the error to the browser.</p>
 <p><strong>CSRF is checked explicitly</strong> on sign-out and on create. <code>SameSite=Lax</code> is not sufficient alone — it is a browser
 behaviour rather than a server-side check, and a browser that ignored it would silently lose the
 protection with nothing in the logs to say so. The comparison is constant-time.</p>

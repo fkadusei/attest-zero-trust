@@ -191,7 +191,11 @@ npm run typecheck --workspace @attest/api
 npm test --workspace @attest/api
 ```
 
-**189 tests** across nine files, all passing (4 skipped, with stated reasons).
+**191 tests** across nine files, all passing (4 skipped, with stated reasons).
+
+**Plus a browser end-to-end run**: 17 checks driving a real browser through a real redirect and a
+real session. See [the console end-to-end results](lab-results-console-e2e.html) — it found a bug no
+unit test could.
 
 | File | Tests | What it covers |
 |---|---|---|
@@ -200,7 +204,7 @@ npm test --workspace @attest/api
 | `server.test.ts` | 22 | End-to-end HTTP: request path, schemes, opacity, ADR-006, tenant isolation |
 | `postgres.test.ts` | 10 | The RLS boundary, with a superuser negative control and a connection-reuse check |
 | `object-storage.test.ts` | 32 | **All three adapters** against one contract: tenancy, traversal, integrity |
-| `console.test.ts` | 22 | OIDC flow, sessions, CSRF, escaping, create + upload, empty-file handling |
+| `console.test.ts` | 24 | OIDC flow, sessions, CSRF, escaping, create + upload, content type |
 | `pdp.test.ts` | 16 | The PDP adapter: decisions, fail-closed behaviour, allow-with-errors |
 | `policies.test.ts` | 12 | The policy file evaluated directly, against hand-built entities |
 | `config.test.ts` | 19 | Configuration, including its three security checks |
@@ -491,6 +495,17 @@ storing zero bytes would produce evidence that attests to nothing. There is a te
 
 **Pagination is a cursor, not an offset.** An offset over a changing set skips or repeats rows, which
 in an evidence product means a record that appears to be missing.
+
+**Pages set `text/html` explicitly.** Fastify does not infer it for a string payload, so every page was
+being served as `text/plain` and a browser rendered the **escaped source** instead of the page. A unit
+test asserted the body contained the word "Evidence" — and the escaped source still contains it, so the
+check passed on a page no human could use. **The browser end-to-end run found it**, and a regression
+test now asserts the header.
+
+**Sign-out needs `post.logout.redirect.uris` registered on the client.** Without it Keycloak refuses
+the end-session request with `HTTP 400`, the console's own session dies, and **the SSO session
+survives** — so the next visit signs the user straight back in. It looks like it worked. There is no
+way for the console to detect this server-side: Keycloak returns the error to the browser.
 
 **CSRF is checked explicitly** on sign-out and on create. `SameSite=Lax` is not sufficient alone — it is a browser
 behaviour rather than a server-side check, and a browser that ignored it would silently lose the

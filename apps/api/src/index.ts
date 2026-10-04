@@ -21,6 +21,8 @@ import { PostgresEvidenceRepository } from "./ports/postgres-repository.ts";
 import type { EvidenceRepository } from "./ports/repository.ts";
 import type { ObjectStorage } from "./ports/object-storage.ts";
 import { InMemoryObjectStorage } from "./ports/memory-object-storage.ts";
+import { InMemorySessionStore } from "./console/session.ts";
+import { OidcClient } from "./console/oidc.ts";
 import { FilesystemObjectStorage } from "./ports/filesystem-object-storage.ts";
 import { systemClock } from "./ports/clock.ts";
 import { CedarPolicyDecisionPoint, DEFAULT_POLICY_PATH } from "./pdp-cedar.ts";
@@ -68,6 +70,36 @@ async function main(): Promise<void> {
     ? new FilesystemObjectStorage({ root: artifactRoot })
     : new InMemoryObjectStorage();
 
+  // The console is optional. When its settings are absent the API runs alone, which
+  // is the right default: a deployment that only needs the API should not have to
+  // configure a sign-in flow it does not use.
+  const oidcIssuer = process.env["OIDC_ISSUER"]?.trim();
+  const consoleBaseUrl = process.env["CONSOLE_BASE_URL"]?.trim();
+  const consoleClientId = process.env["OIDC_CLIENT_ID"]?.trim();
+  const consoleClientSecret = process.env["OIDC_CLIENT_SECRET"]?.trim();
+  const consoleRedirectUri = process.env["OIDC_REDIRECT_URI"]?.trim();
+
+  const consoleConfigured = Boolean(
+    oidcIssuer && consoleBaseUrl && consoleClientId && consoleClientSecret && consoleRedirectUri,
+  );
+
+  const consoleDeps = consoleConfigured
+    ? {
+        sessions: new InMemorySessionStore(),
+        oidc: new OidcClient({
+          issuer: oidcIssuer as string,
+          clientId: consoleClientId as string,
+          clientSecret: consoleClientSecret as string,
+          redirectUri: consoleRedirectUri as string,
+        }),
+        // The console reaches the API over HTTP so it cannot bypass the policy. That
+        // means it needs to know where the API is — and for a single-process
+        // deployment that is itself, on the public base URL.
+        apiBaseUrl: config.publicBaseUrl,
+        consoleBaseUrl: consoleBaseUrl as string,
+      }
+    : undefined;
+
   const app = buildServer({
     config,
     jwks: new JwksSource(config.identity.jwksUri),
@@ -76,11 +108,19 @@ async function main(): Promise<void> {
     pdp,
     evidence,
     artifacts,
+    ...(consoleDeps ? { console: consoleDeps } : {}),
   });
 
   // Say one thing about the replay cache out loud, because it is the one component
   // whose correctness depends on how many processes are running. An operator who
   // sees this line in a multi-replica deployment has been warned.
+  if (consoleConfigured) {
+    app.log.info({ issuer: oidcIssuer }, "admin console enabled");
+    app.log.warn(
+      "console sessions are in-process: a restart signs everyone out, and in a fleet a " +
+        "session created on one replica is unknown to the next.",
+    );
+  }
   app.log.info(
     { storage: artifactRoot ?? "in-memory" },
     `artifact storage: ${artifactRoot ? "filesystem" : "in-memory"}`,
