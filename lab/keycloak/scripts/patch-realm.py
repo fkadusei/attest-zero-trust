@@ -9,6 +9,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
 
@@ -16,7 +17,7 @@ KC = "http://localhost:8080"
 def token():
     data = urllib.parse.urlencode({
         "grant_type": "password", "client_id": "admin-cli",
-        "username": "admin", "password": "lab-only-not-a-secret",
+        "username": "admin", "password": KEYCLOAK_ADMIN_PASSWORD,
     }).encode()
     req = urllib.request.Request(
         f"{KC}/realms/master/protocol/openid-connect/token", data=data)

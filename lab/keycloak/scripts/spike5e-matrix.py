@@ -42,6 +42,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from freshness_spike import Browser          # a working Keycloak HTTP session
@@ -172,7 +173,7 @@ def keycloak_events() -> int:
 def admin_token() -> str:
     data = urllib.parse.urlencode({
         "grant_type": "password", "client_id": "admin-cli",
-        "username": "admin", "password": "lab-only-not-a-secret"}).encode()
+        "username": "admin", "password": KEYCLOAK_ADMIN_PASSWORD}).encode()
     with urllib.request.urlopen(
             urllib.request.Request(f"{KC}/realms/master/protocol/openid-connect/token", data=data)) as r:
         return json.load(r)["access_token"]

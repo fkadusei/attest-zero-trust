@@ -21,9 +21,11 @@
  */
 import { randomUUID } from "node:crypto";
 
+import { KEYCLOAK_ADMIN_PASSWORD } from "../../../lab/lab-env.mjs";
+
 export const KC = process.env["KC_URL"] ?? "http://localhost:8080";
 export const ADMIN_USER = process.env["KC_ADMIN"] ?? "admin";
-export const ADMIN_PASS = process.env["KC_ADMIN_PASSWORD"] ?? "lab-only-not-a-secret";
+export const ADMIN_PASS = process.env["KC_ADMIN_PASSWORD"] ?? KEYCLOAK_ADMIN_PASSWORD;
 
 /** Dedicated realm so these tests never disturb the application realms. */
 export const TEST_REALM = "attest-api-test";

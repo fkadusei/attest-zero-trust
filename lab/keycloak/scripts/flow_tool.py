@@ -32,9 +32,10 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
-ADMIN_USER, ADMIN_PASS = "admin", "lab-only-not-a-secret"
+ADMIN_USER, ADMIN_PASS = "admin", KEYCLOAK_ADMIN_PASSWORD
 BACKUP_DIR = pathlib.Path(__file__).resolve().parent.parent / "backups"
 
 # Fields that identify a step across a backup/restore round trip. Deliberately

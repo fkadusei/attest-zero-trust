@@ -19,9 +19,18 @@
  */
 
 import puppeteer from 'puppeteer-core';
+import { readFileSync } from "node:fs";
+
+// Same lab/.env the Python scripts read — one file, one source of truth.
+const KEYCLOAK_ADMIN_PASSWORD = (() => {
+  const env = readFileSync(new URL("../../../lab/.env", import.meta.url), "utf8");
+  const line = env.split("\n").find((l) => l.startsWith("LAB_KEYCLOAK_ADMIN_PASSWORD="));
+  if (!line) throw new Error("lab/.env has no LAB_KEYCLOAK_ADMIN_PASSWORD");
+  return line.slice("LAB_KEYCLOAK_ADMIN_PASSWORD=".length).trim();
+})();
 
 const KC = 'http://localhost:8080';
-const ADMIN = { user: 'admin', pass: 'lab-only-not-a-secret' };
+const ADMIN = { user: 'admin', pass: KEYCLOAK_ADMIN_PASSWORD };
 const CDP = 'http://127.0.0.1:9222';
 const TEST_PASSWORD = 'Spike-Lab-Password-123!';
 

@@ -30,6 +30,15 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { readFileSync } from "node:fs";
+
+// Same lab/.env the Python scripts read — one file, one source of truth.
+const KEYCLOAK_ADMIN_PASSWORD = (() => {
+  const env = readFileSync(new URL("../../../lab/.env", import.meta.url), "utf8");
+  const line = env.split("\n").find((l) => l.startsWith("LAB_KEYCLOAK_ADMIN_PASSWORD="));
+  if (!line) throw new Error("lab/.env has no LAB_KEYCLOAK_ADMIN_PASSWORD");
+  return line.slice("LAB_KEYCLOAK_ADMIN_PASSWORD=".length).trim();
+})();
 
 // Resolve puppeteer-core from lab/keycloak, where it is installed.
 const require = createRequire(new URL('../package.json', import.meta.url));
@@ -39,7 +48,7 @@ const KC = 'http://localhost:8080';
 const REALM = 'attest-privileged';
 const OTHER_REALM = 'attest-users';   // hosts a user we deliberately leave without a passkey
 const CDP = 'http://127.0.0.1:9222';
-const ADMIN = { user: 'admin', pass: 'lab-only-not-a-secret' };
+const ADMIN = { user: 'admin', pass: KEYCLOAK_ADMIN_PASSWORD };
 const TEST_PASSWORD = 'Spike-Lab-Password-123!';
 // Use the workspace venv when there is one, otherwise the system interpreter.
 // CI has no .venv — it installs requirements with the setup-python action — and

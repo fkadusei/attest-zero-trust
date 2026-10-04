@@ -6,6 +6,15 @@
  */
 import puppeteer from 'puppeteer-core';
 import { writeFileSync } from 'node:fs';
+import { readFileSync } from "node:fs";
+
+// Same lab/.env the Python scripts read — one file, one source of truth.
+const KEYCLOAK_ADMIN_PASSWORD = (() => {
+  const env = readFileSync(new URL("../../../lab/.env", import.meta.url), "utf8");
+  const line = env.split("\n").find((l) => l.startsWith("LAB_KEYCLOAK_ADMIN_PASSWORD="));
+  if (!line) throw new Error("lab/.env has no LAB_KEYCLOAK_ADMIN_PASSWORD");
+  return line.slice("LAB_KEYCLOAK_ADMIN_PASSWORD=".length).trim();
+})();
 
 const KC = 'http://localhost:8080';
 const CDP = 'http://127.0.0.1:9222';
@@ -28,7 +37,7 @@ async function api(method, path, body) {
 async function main() {
   const tokRes = await fetch(`${KC}/realms/master/protocol/openid-connect/token`, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: 'admin', password: 'lab-only-not-a-secret' }),
+    body: new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: 'admin', password: KEYCLOAK_ADMIN_PASSWORD }),
   });
   adminToken = (await tokRes.json()).access_token;
   const users = await api('GET', `/${REALM}/users?username=spike-${REALM}&exact=true`);

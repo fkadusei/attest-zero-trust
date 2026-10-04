@@ -39,10 +39,11 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
 REALM = "attest-privileged"
-ADMIN_USER, ADMIN_PASS = "admin", "lab-only-not-a-secret"
+ADMIN_USER, ADMIN_PASS = "admin", KEYCLOAK_ADMIN_PASSWORD
 
 BASE_FLOW = "browser"                 # the untouched built-in flow: the fallback
 NEW_FLOW = "browser-passkey-only"     # the copy we configure

@@ -15,10 +15,11 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
 ADMIN_USER = "admin"
-ADMIN_PASS = "lab-only-not-a-secret"
+ADMIN_PASS = KEYCLOAK_ADMIN_PASSWORD
 
 # YubiKey 5 Series AAGUID, as published by Yubico.
 # VERIFY against Yubico's current AAGUID list before relying on it.

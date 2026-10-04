@@ -36,6 +36,7 @@
 import { createRequire } from "node:module";
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
+import { KEYCLOAK_ADMIN_PASSWORD } from "../lab-env.mjs";
 
 const require = createRequire("/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/lab/keycloak/package.json");
 const puppeteer = require("puppeteer-core");
@@ -69,7 +70,7 @@ async function adminToken() {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "password", client_id: "admin-cli",
-      username: "admin", password: "lab-only-not-a-secret",
+      username: "admin", password: KEYCLOAK_ADMIN_PASSWORD,
     }),
   });
   return (await res.json()).access_token;

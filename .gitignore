@@ -18,3 +18,6 @@ tools/bin/
 
 # Lab runtime state (containers are disposable; the config is committed)
 lab/keycloak/.npm-cache/
+
+# Generated lab credentials. Never committed: see lab/keycloak/scripts/lab_env.py
+lab/.env

@@ -44,6 +44,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
 REALM = "attest-stepup-lab"
@@ -61,7 +62,7 @@ LOW_ACR, HIGH_ACR = "low", "silver"
 def admin_token() -> str:
     data = urllib.parse.urlencode({
         "grant_type": "password", "client_id": "admin-cli",
-        "username": "admin", "password": "lab-only-not-a-secret"}).encode()
+        "username": "admin", "password": KEYCLOAK_ADMIN_PASSWORD}).encode()
     req = urllib.request.Request(
         f"{KC}/realms/master/protocol/openid-connect/token", data=data)
     with urllib.request.urlopen(req) as r:

@@ -42,10 +42,11 @@ import urllib.request
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
 REALM = "attest-users"
-ADMIN_USER, ADMIN_PASS = "admin", "lab-only-not-a-secret"
+ADMIN_USER, ADMIN_PASS = "admin", KEYCLOAK_ADMIN_PASSWORD
 CLIENT_ID = "dpop-spike"
 TEST_USER, TEST_PASS = "dpop-spike-user", "Spike-Lab-Password-123!"
 

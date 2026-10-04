@@ -17,6 +17,8 @@ import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
 
+import { APP_DB_APP_PASSWORD, POSTGRES_PASSWORD } from "../../../lab/lab-env.mjs";
+
 import { PostgresEvidenceRepository } from "../src/ports/postgres-repository.ts";
 import type { EvidenceRecord } from "../src/ports/repository.ts";
 
@@ -24,9 +26,9 @@ const HOST = process.env["APPDB_HOST"] ?? "127.0.0.1";
 const PORT = Number(process.env["APPDB_PORT"] ?? 55432);
 
 /** The application role: NOT a superuser, NOT the table owner. */
-const APP_URL = `postgresql://attest_app:lab-only-not-a-secret@${HOST}:${PORT}/attest`;
+const APP_URL = `postgresql://attest_app:${APP_DB_APP_PASSWORD}@${HOST}:${PORT}/attest`;
 /** The owner/superuser, kept deliberately as the negative control. */
-const OWNER_URL = `postgresql://attest_owner:lab-only-not-a-secret@${HOST}:${PORT}/attest`;
+const OWNER_URL = `postgresql://attest_owner:${POSTGRES_PASSWORD}@${HOST}:${PORT}/attest`;
 
 const ACME = { tenantId: "acme" } as const;
 const GLOBEX = { tenantId: "globex" } as const;

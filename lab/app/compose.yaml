@@ -23,7 +23,11 @@ services:
     environment:
       POSTGRES_DB: attest
       POSTGRES_USER: attest_owner
-      POSTGRES_PASSWORD: lab-only-not-a-secret
+      POSTGRES_PASSWORD: ${LAB_POSTGRES_PASSWORD:?run scripts/lab.sh env first}
+      # Read by the init script to create the application role. The container's own
+      # password is separate on purpose: the app role is NOT the owner, and that
+      # separation is what makes Row-Level Security apply to it.
+      LAB_APP_DB_APP_PASSWORD: ${LAB_APP_DB_APP_PASSWORD:?run scripts/lab.sh env first}
     ports:
       - "127.0.0.1:55432:5432"
     volumes:

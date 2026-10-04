@@ -46,11 +46,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from lab_env import KEYCLOAK_ADMIN_PASSWORD
 
 KC = "http://localhost:8080"
 REALM = "attest-freshness-lab"
 PRIVILEGED = "attest-privileged"
-ADMIN_USER, ADMIN_PASS = "admin", "lab-only-not-a-secret"
+ADMIN_USER, ADMIN_PASS = "admin", KEYCLOAK_ADMIN_PASSWORD
 USERNAME, PASSWORD = "fresh-user", "Spike-Lab-Password-123!"
 CLIENT = "freshness-lab-client"
 REDIRECT = "http://localhost:8099/callback"

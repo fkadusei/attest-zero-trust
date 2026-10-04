@@ -222,6 +222,20 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A credential literal in a public repository is a credential literal in a public repository.**
+  The lab had one placeholder password in twenty-odd files. It protected nothing — a throwaway
+  container on localhost — and GitHub's scanner flagged it anyway, correctly: its job is to find
+  `password: "..."`, and a scanner that excused a value because it contains "not-a-secret" would be a
+  worse scanner. Generating it into a gitignored `lab/.env` fixed the signal without pretending the
+  lab became secure. **The scanner now has nothing to say, so its output stays worth reading.**
+- **Two loaders for one file will disagree.** The Python and Node credential loaders resolved
+  *different paths* to the same `.env`, so one of them silently created a SECOND file with different
+  values. The symptom was `invalid_grant` from Keycloak — which looks like an identity-provider
+  problem and was a path bug. **Verify that two implementations of one thing agree**, rather than
+  assuming they do because both "read the same file".
+- **A compose file cannot find `.env` in a directory above it.** Every `docker compose` call needs
+  `--env-file`, and a rule that has to be remembered is a rule that gets forgotten — so it lives in
+  one wrapper (`scripts/lab.sh`) that nothing else has to know about.
 - **Fastify does NOT infer `text/html` for a string payload.** It sends `text/plain`, so a browser
   renders the ESCAPED SOURCE of the page rather than the page. **A unit test that greps the body for a
   word passes anyway**, because the escaped source still contains the word. Assert the

@@ -76,7 +76,15 @@ jobs:
         run: pip install -r requirements-lab.txt
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -88,7 +96,7 @@ jobs:
             sleep 3
           done
           echo "identity provider did not become ready"
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: S1 — token binding, and our own verifier
@@ -98,7 +106,7 @@ jobs:
 
       - name: Show the provider log on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
   # The freshness experiment (S5c). No browser needed: it builds its own
@@ -118,7 +126,15 @@ jobs:
         run: pip install -r requirements-lab.txt
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -126,7 +142,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: S5c — force a fresh check, and judge it by auth_time
@@ -142,7 +158,7 @@ jobs:
 
       - name: Show the provider log on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
   # Phishing resistance (S9). The headline claim. Needs a browser for the passkey
@@ -167,7 +183,15 @@ jobs:
           npm --prefix lab/keycloak install --no-audit --no-fund
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -175,7 +199,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Apply the WebAuthn policies
@@ -218,7 +242,7 @@ jobs:
       - name: Show logs on failure
         if: failure()
         run: |
-          docker compose -f lab/keycloak/compose.yaml logs --tail 80
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 80
           cat /tmp/proxy.log || true
 
   # ---------------------------------------------------------------------------
@@ -239,14 +263,22 @@ jobs:
           node-version: '24'
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Start the application backing services
         # Separate from the Keycloak database on purpose: different data, different
         # blast radius. Postgres runs an init script that creates a NON-superuser
         # application role and forces Row-Level Security (see lab/app/init); s3mock
         # provides an S3-compatible endpoint so the S3 adapter is tested for real.
-        run: docker compose -f lab/app/compose.yaml up -d
+        run: docker compose --env-file lab/.env -f lab/app/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -254,7 +286,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Wait for the application backing services
@@ -266,7 +298,7 @@ jobs:
             [ "$db" = "1" ] && [ "$s3" = "1" ] && exit 0
             sleep 3
           done
-          docker compose -f lab/app/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/app/compose.yaml logs --tail 50
           exit 1
 
       - name: Install dependencies
@@ -286,7 +318,7 @@ jobs:
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 80
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 80
 
   # ---------------------------------------------------------------------------
   # The counter-case for phishing resistance (S9b). Chrome is launched by the
@@ -311,7 +343,15 @@ jobs:
           npm --prefix lab/keycloak install --no-audit --no-fund
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -319,7 +359,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Apply the WebAuthn policies
@@ -336,7 +376,7 @@ jobs:
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 80
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 80
 
   # ---------------------------------------------------------------------------
   # Enrolment by link (S5f). Needs a browser for the one check that matters —
@@ -362,7 +402,15 @@ jobs:
           npm --prefix lab/keycloak install --no-audit --no-fund
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -370,7 +418,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Apply the WebAuthn policies
@@ -382,9 +430,9 @@ jobs:
         # the directory it writes into.
         run: |
           rm -rf /tmp/attest-mail && mkdir -p /tmp/attest-mail
-          docker compose -f lab/keycloak/compose.yaml up -d smtp-sink
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d smtp-sink
           sleep 2
-          docker compose -f lab/keycloak/compose.yaml logs smtp-sink --tail 5
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs smtp-sink --tail 5
 
       - name: Launch Chrome with remote debugging
         run: |
@@ -410,7 +458,7 @@ jobs:
       - name: Show logs on failure
         if: failure()
         run: |
-          docker compose -f lab/keycloak/compose.yaml logs --tail 80
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 80
           echo "--- mail sink ---"
           cat /tmp/smtp-sink.log || true
 
@@ -430,7 +478,15 @@ jobs:
         run: pip install -r requirements-lab.txt
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -438,7 +494,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Apply the WebAuthn policies
@@ -460,7 +516,7 @@ jobs:
 
       - name: Show the provider log on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
   # Passkey-only enforcement (S5d). Needs a browser for one check — the positive
@@ -486,7 +542,15 @@ jobs:
           npm --prefix lab/keycloak install --no-audit --no-fund
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -494,7 +558,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Apply the WebAuthn policies
@@ -543,7 +607,7 @@ jobs:
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 100
 
   # ---------------------------------------------------------------------------
   # The hardware-key experiment (S3). Needs a browser with a virtual
@@ -568,7 +632,15 @@ jobs:
           npm --prefix lab/keycloak install --no-audit --no-fund
 
       - name: Start the identity provider and its database
-        run: docker compose -f lab/keycloak/compose.yaml up -d
+      - name: Generate the lab credentials
+        # The lab no longer ships a hardcoded password: it generates one into
+        # lab/.env, which is gitignored. See lab/keycloak/scripts/lab_env.py.
+        run: |
+          python3 - <<'PYEOF'
+          import sys; sys.path.insert(0, 'lab/keycloak/scripts')
+          import lab_env; lab_env.ensure_env_file()
+          PYEOF
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml up -d
 
       - name: Wait for readiness
         run: |
@@ -576,7 +648,7 @@ jobs:
             curl -sf http://localhost:9000/health/ready >/dev/null 2>&1 && exit 0
             sleep 3
           done
-          docker compose -f lab/keycloak/compose.yaml logs --tail 50
+          docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 50
           exit 1
 
       - name: Apply the WebAuthn policies
@@ -603,4 +675,4 @@ jobs:
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose -f lab/keycloak/compose.yaml logs --tail 100
+        run: docker compose --env-file lab/.env -f lab/keycloak/compose.yaml logs --tail 100

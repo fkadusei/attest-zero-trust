@@ -136,9 +136,11 @@ Three environment quirks worth knowing before you start:
 
 ## The verification lab
 
-The credentials in the lab are **intentionally obvious and hardcoded** (`lab-only-not-a-secret`). It
-is a throwaway environment on `localhost` that is recreated from scratch by the scripts that use it,
-so managing them as real secrets would add setup friction and hide the fact that they are not real.
+The lab generates its own credentials into `lab/.env` on first use, which is gitignored. It is a
+throwaway environment on `localhost`, recreated from scratch by the scripts that use it, and the
+credentials protect nothing — they are generated so that no credential-shaped literal lives in this
+repository, not because they are worth keeping. Start it with `scripts/lab.sh up`.
+
 See [SECURITY.md](SECURITY.md) before reporting anything.
 
 ```bash
