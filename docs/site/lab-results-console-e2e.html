@@ -74,6 +74,12 @@
 <li><a href="#4-not-resolved-passkey-sign-in-into-the-console">4. NOT RESOLVED: passkey sign-in into the console</a></li>
 <li><a href="#5-what-is-still-not-proven">5. What is still not proven</a></li>
 <li><a href="#6-reproducing">6. Reproducing</a></li>
+<li><a href="#7-e2e-2-chasing-the-passkey-and-a-correction">7. E2E-2 — chasing the passkey, and a CORRECTION</a></li>
+<li class="lvl3"><a href="#what-was-actually-measured">What was actually measured</a></li>
+<li class="lvl3"><a href="#what-was-ruled-out">What was ruled out</a></li>
+<li class="lvl3"><a href="#what-remains">What remains</a></li>
+<li class="lvl3"><a href="#the-honest-summary-of-this-exercise">The honest summary of this exercise</a></li>
+<li class="lvl3"><a href="#a-note-on-the-harness">A note on the harness</a></li>
 </ul></div>
   </aside>
 
@@ -257,7 +263,74 @@ docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> 
 
 <p>The harness <strong>refuses to run if port 3000 is already occupied</strong>, and proves the server it started is
 its own by checking which realm the sign-in redirect points at. Both were added after a stale server
-from a previous run silently made the suite measure the wrong configuration.</p></section>
+from a previous run silently made the suite measure the wrong configuration.</p>
+<hr>
+</section>
+<section id="7-e2e-2-chasing-the-passkey-and-a-correction"><h2>7. E2E-2 — chasing the passkey, and a CORRECTION</h2>
+<p>The section above says the console&rsquo;s passkey sign-in fails because the credential has <strong>no
+<code>userHandle</code></strong>. <strong>That diagnosis was wrong</strong>, and the correction matters more than the original claim.</p>
+<h3 id="what-was-actually-measured">What was actually measured</h3>
+<p>A three-layer probe (<code>lab/browser/userhandle-probe.mjs</code>) asked each layer in turn rather than
+inferring from one:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Question</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 — the authenticator</td>
+<td>What does the authenticator actually hold?</td>
+<td><strong><code>userHandle="MDU3NTlkYzYt…"</code> (48 chars) — PRESENT</strong></td>
+</tr>
+<tr>
+<td>3 — Keycloak&rsquo;s admin API</td>
+<td>What does <code>credentialData</code> show?</td>
+<td><code>userHandle: ABSENT</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>The handle exists.</strong> Keycloak&rsquo;s admin API simply <strong>does not expose it</strong> in <code>credentialData</code> — that
+is a public representation of a credential, not the stored record. Reading an absent field as an
+absent value is what produced the wrong conclusion.</p>
+<p>Re-measured during the console&rsquo;s passkey sign-in, the handle is not merely present but <strong>correct</strong>:</p>
+<div class="codehilite"><pre><span></span><code>authenticator holds: userHandle="YTVjMzhlOTktYTM3Yy00NzdhLTg2YjctYmE1ZjdmYWI2MjY1"
+decodes to:          a5c38e99-a37c-477a-86b7-ba5f7fab6265
+console-e2e user id: a5c38e99-a37c-477a-86b7-ba5f7fab6265      → MATCHES
+</code></pre></div>
+
+<p>The user is enabled, has exactly one WebAuthn credential, and no duplicate handles exist anywhere in
+the realm. <strong>Keycloak still refuses with <code>webauthn-error-user-not-found</code>.</strong></p>
+<h3 id="what-was-ruled-out">What was ruled out</h3>
+<ul>
+<li><strong>Not the credential.</strong> The handle is present, well-formed, and decodes to the right user.</li>
+<li><strong>Not the realm&rsquo;s policy.</strong> <code>ResidentKey = "required"</code> and <code>RequireResidentKey = "Yes"</code> — it asks
+  for a discoverable credential, and it gets one (<code>resident=true</code>).</li>
+<li><strong>Not the relying-party ID.</strong> Aligning the realm&rsquo;s RP ID with the console&rsquo;s origin changed nothing.</li>
+<li><strong>Not a broken environment.</strong> <strong>S9&rsquo;s passkey flow was re-run and still works</strong> — T1 and T2 pass,
+  <code>OUTCOME-real: AUTHENTICATED</code>. The same realm, the same flow, the same virtual-authenticator
+  approach, through a different client and origin.</li>
+</ul>
+<h3 id="what-remains">What remains</h3>
+<p>The variables still differing between the working case (S9) and the failing one (the console) are the
+<strong>OIDC client</strong> and the <strong>origin</strong> — <code>phishing-lab</code> at <code>app.localhost:8080</code> works; <code>attest-console</code> at
+<code>localhost:8080</code> does not. <strong>Which of those two is responsible is not established</strong>, and it is
+recorded as an open question rather than a guess.</p>
+<h3 id="the-honest-summary-of-this-exercise">The honest summary of this exercise</h3>
+<p><strong>A wrong diagnosis was found and corrected, the problem was narrowed to two variables, and the
+passkey sign-in into the console still does not work.</strong> That is the result. The value here is the
+correction: the earlier claim was confident, plausible, built on a real measurement — and wrong,
+because the measurement was of a field that does not mean what it appears to mean.</p>
+<h3 id="a-note-on-the-harness">A note on the harness</h3>
+<p>The first attempt at this comparison reported that <strong>S9 had broken too</strong>, which looked like a
+regression in the Keycloak environment. It was not: S9 expects a browser already listening on port
+<strong>9222</strong>, and none was running. <code>connect ECONNREFUSED 127.0.0.1:9222</code> is not a passkey failure.</p>
+<p>That is the third time in this project a harness has silently measured the wrong thing — a stale
+server, a leftover browser, and now an absent one. <strong>Every harness here should assert that its
+preconditions exist before it asserts anything about the system.</strong></p></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a><a class="pn next" href="lab-results-broad-rpid.html"><span>Next</span><b>Lab results: when it breaks</b></a></nav>
     <footer>

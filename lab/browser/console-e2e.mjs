@@ -49,8 +49,8 @@ const CHROME = process.env["CHROME_BIN"] ??
 const PY = "/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/.venv/bin/python";
 const PASSKEY_TOOL = "/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/lab/keycloak/scripts/make_privileged_passkey_only.py";
 
-const USERNAME = "console-e2e";
-const PASSWORD = "Console-E2E-Password-123!";
+const USERNAME = process.env["E2E_USER"] ?? "console-e2e";
+const PASSWORD = process.env["E2E_PASSWORD"] ?? "Console-E2E-Password-123!";
 const results = [];
 const check = (label, got, want) => {
   const ok = got === want;
@@ -308,6 +308,14 @@ async function main() {
       buttons: [...document.querySelectorAll("input[type=submit], button")].map((e) => e.id || e.value || e.textContent?.trim().slice(0, 20)),
     })).catch((e) => ({ error: String(e).slice(0, 80) }));
     console.log("      page seen:", JSON.stringify(seen).slice(0, 320));
+
+    // Before clicking, show what the authenticator ACTUALLY holds. Keycloak's admin
+    // API omits `userHandle` from `credentialData`, so it is not a way to tell
+    // whether a handle exists — and reading it as one produced a wrong diagnosis.
+    const held = await cdp.send("WebAuthn.getCredentials", { authenticatorId }).catch(() => ({ credentials: [] }));
+    for (const c of held.credentials) {
+      console.log(`      authenticator holds: resident=${c.isResidentCredential} userHandle=${c.userHandle ? `"${c.userHandle}"` : "ABSENT"}`);
+    }
 
     // Whichever path this realm offers. A passkey-only realm shows the ceremony; a
     // realm with a password shows a form. Asserting on the wrong one would report a

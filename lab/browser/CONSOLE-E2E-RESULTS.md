@@ -163,3 +163,69 @@ E2E_REALM=attest-privileged E2E_PASSKEY_ONLY=1 node lab/browser/console-e2e.mjs
 The harness **refuses to run if port 3000 is already occupied**, and proves the server it started is
 its own by checking which realm the sign-in redirect points at. Both were added after a stale server
 from a previous run silently made the suite measure the wrong configuration.
+
+---
+
+## 7. E2E-2 — chasing the passkey, and a CORRECTION
+
+The section above says the console's passkey sign-in fails because the credential has **no
+`userHandle`**. **That diagnosis was wrong**, and the correction matters more than the original claim.
+
+### What was actually measured
+
+A three-layer probe (`lab/browser/userhandle-probe.mjs`) asked each layer in turn rather than
+inferring from one:
+
+| Layer | Question | Result |
+|---|---|---|
+| 2 — the authenticator | What does the authenticator actually hold? | **`userHandle="MDU3NTlkYzYt…"` (48 chars) — PRESENT** |
+| 3 — Keycloak's admin API | What does `credentialData` show? | `userHandle: ABSENT` |
+
+**The handle exists.** Keycloak's admin API simply **does not expose it** in `credentialData` — that
+is a public representation of a credential, not the stored record. Reading an absent field as an
+absent value is what produced the wrong conclusion.
+
+Re-measured during the console's passkey sign-in, the handle is not merely present but **correct**:
+
+```
+authenticator holds: userHandle="YTVjMzhlOTktYTM3Yy00NzdhLTg2YjctYmE1ZjdmYWI2MjY1"
+decodes to:          a5c38e99-a37c-477a-86b7-ba5f7fab6265
+console-e2e user id: a5c38e99-a37c-477a-86b7-ba5f7fab6265      → MATCHES
+```
+
+The user is enabled, has exactly one WebAuthn credential, and no duplicate handles exist anywhere in
+the realm. **Keycloak still refuses with `webauthn-error-user-not-found`.**
+
+### What was ruled out
+
+- **Not the credential.** The handle is present, well-formed, and decodes to the right user.
+- **Not the realm's policy.** `ResidentKey = "required"` and `RequireResidentKey = "Yes"` — it asks
+  for a discoverable credential, and it gets one (`resident=true`).
+- **Not the relying-party ID.** Aligning the realm's RP ID with the console's origin changed nothing.
+- **Not a broken environment.** **S9's passkey flow was re-run and still works** — T1 and T2 pass,
+  `OUTCOME-real: AUTHENTICATED`. The same realm, the same flow, the same virtual-authenticator
+  approach, through a different client and origin.
+
+### What remains
+
+The variables still differing between the working case (S9) and the failing one (the console) are the
+**OIDC client** and the **origin** — `phishing-lab` at `app.localhost:8080` works; `attest-console` at
+`localhost:8080` does not. **Which of those two is responsible is not established**, and it is
+recorded as an open question rather than a guess.
+
+### The honest summary of this exercise
+
+**A wrong diagnosis was found and corrected, the problem was narrowed to two variables, and the
+passkey sign-in into the console still does not work.** That is the result. The value here is the
+correction: the earlier claim was confident, plausible, built on a real measurement — and wrong,
+because the measurement was of a field that does not mean what it appears to mean.
+
+### A note on the harness
+
+The first attempt at this comparison reported that **S9 had broken too**, which looked like a
+regression in the Keycloak environment. It was not: S9 expects a browser already listening on port
+**9222**, and none was running. `connect ECONNREFUSED 127.0.0.1:9222` is not a passkey failure.
+
+That is the third time in this project a harness has silently measured the wrong thing — a stale
+server, a leftover browser, and now an absent one. **Every harness here should assert that its
+preconditions exist before it asserts anything about the system.**
