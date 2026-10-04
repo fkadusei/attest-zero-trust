@@ -117,12 +117,20 @@ def credential(name: str) -> str:
         return from_env
     if _CREDENTIALS is None:
         _CREDENTIALS = ensure_env_file()
-    return _CREDENTIALS[name]
+    try:
+        return _CREDENTIALS[name]
+    except KeyError:
+        # Removing a variable from VARIABLES but leaving an accessor behind is exactly
+        # how this failed: the import raised only when lab/.env did not already exist,
+        # so it worked on the machine where the file had been created and failed in CI
+        # where it had not. Name the problem instead of raising a bare KeyError.
+        raise KeyError(
+            f"{name} is not one of the lab variables ({', '.join(sorted(VARIABLES))})"
+        ) from None
 
 
 # Convenience accessors. Importing a name is clearer at the call site than calling
 # `credential("...")` and hoping the string is spelled right.
 KEYCLOAK_ADMIN_PASSWORD = credential("LAB_KEYCLOAK_ADMIN_PASSWORD")
 POSTGRES_PASSWORD = credential("LAB_POSTGRES_PASSWORD")
-APP_DB_OWNER_PASSWORD = credential("LAB_APP_DB_OWNER_PASSWORD")
 APP_DB_APP_PASSWORD = credential("LAB_APP_DB_APP_PASSWORD")

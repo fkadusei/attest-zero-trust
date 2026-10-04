@@ -86,5 +86,4 @@ export function labCredential(name) {
 
 export const KEYCLOAK_ADMIN_PASSWORD = labCredential("LAB_KEYCLOAK_ADMIN_PASSWORD");
 export const POSTGRES_PASSWORD = labCredential("LAB_POSTGRES_PASSWORD");
-export const APP_DB_OWNER_PASSWORD = labCredential("LAB_APP_DB_OWNER_PASSWORD");
 export const APP_DB_APP_PASSWORD = labCredential("LAB_APP_DB_APP_PASSWORD");

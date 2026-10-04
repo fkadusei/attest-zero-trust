@@ -55,6 +55,13 @@ jobs:
       - name: Install the docs toolchain
         run: pip install -r requirements-docs.txt
 
+      - name: Validate the workflows strictly
+        # A duplicate key is VALID to PyYAML and REJECTED by GitHub, which is how a step
+        # ended up with two `run:` keys and failed a run in zero seconds. This also
+        # asserts that every lab start generates credentials and every compose call is
+        # given --env-file.
+        run: python3 scripts/check_workflows.py
+
       - name: Check the documentation
         # Links resolve, anchors exist, nothing loads from the network, every
         # section has a heading, and the committed site matches its sources.

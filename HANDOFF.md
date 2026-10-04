@@ -222,6 +222,18 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Regenerating a credential file ORPHANS every running container.** They hold the credentials
+  they were created with; the scripts read the new ones. The symptoms are `invalid_grant` from
+  Keycloak and `password authentication failed` from Postgres — which look like an identity-provider
+  fault and a database fault, and are neither. Regenerating and rebuilding are one operation, so
+  `scripts/lab.sh reset` does both.
+- **Removing a variable from a module's registry but leaving an accessor behind fails only when the
+  file is ABSENT.** The `KeyError` surfaced in CI and not locally, because locally `lab/.env` already
+  existed and the accessor was never reached. **A clean-state run is the only way to test code whose
+  job is to create things.**
+- **A validator that accepts what the consumer rejects is not a validator.** `yaml.safe_load` was
+  perfectly happy with a step that had two `run:` keys; GitHub refused to run the file at all. The
+  check in `scripts/check_workflows.py` exists because the obvious one gave a confident wrong answer.
 - **A credential literal in a public repository is a credential literal in a public repository.**
   The lab had one placeholder password in twenty-odd files. It protected nothing — a throwaway
   container on localhost — and GitHub's scanner flagged it anyway, correctly: its job is to find

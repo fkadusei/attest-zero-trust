@@ -41,5 +41,18 @@ case "${1:-}" in
           done ;;
   logs)   shift; compose "${1:-keycloak}" logs --tail "${2:-50}" ;;
   env)    grep -v '^#' "$ENV_FILE" | grep . ;;
+  reset)  # Regenerate the credentials AND rebuild the containers.
+          #
+          # Regenerating lab/.env on its own ORPHANS every running container: they hold
+          # the credentials they were created with, the scripts read the new ones, and
+          # the result is `invalid_grant` and "password authentication failed" — which
+          # look like an identity-provider fault and a database fault respectively, and
+          # are neither. Discovered by regenerating the file and watching 106 tests
+          # fail. The two steps belong together, so they are one command.
+          rm -f "$ENV_FILE"
+          python3 "$ROOT/lab/keycloak/scripts/lab_env.py" >/dev/null
+          for t in keycloak app; do compose "$t" down -v; done
+          for t in keycloak app; do compose "$t" up -d; done
+          echo "credentials regenerated and containers rebuilt" >&2 ;;
   *)      sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ; exit 1 ;;
 esac
