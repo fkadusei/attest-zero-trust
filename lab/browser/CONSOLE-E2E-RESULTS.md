@@ -229,3 +229,59 @@ regression in the Keycloak environment. It was not: S9 expects a browser already
 That is the third time in this project a harness has silently measured the wrong thing — a stale
 server, a leftover browser, and now an absent one. **Every harness here should assert that its
 preconditions exist before it asserts anything about the system.**
+
+---
+
+## 8. E2E-3 — the client is NOT the cause
+
+Two variables differed between the working case (S9) and the failing one (the console): the **OIDC
+client** and the **origin**. This isolated the client by removing the console entirely — a browser
+signing in directly against the authorization endpoint, once per client, with a **fresh virtual
+authenticator per case** so the second run could not be helped or hindered by the first.
+
+| client | registered | user handles | outcome |
+|---|---|---|---|
+| `attest-console` (confidential) | 1 | **1** | **AUTHENTICATED** |
+| `phishing-lab` (public) | 1 | **1** | **AUTHENTICATED** |
+
+**Both clients complete a passkey sign-in against this realm.** The client is ruled out.
+
+### A confound that had to be removed first
+
+The first attempt reported `attest-console` as `chrome-error://chromewebdata/`, which looked like a
+failure and was not: its redirect target was `http://localhost:3000/console/callback` and **nothing
+was listening on 3000**. The browser failed to *navigate*, after the ceremony had already succeeded.
+Starting the console server changed the result to `AUTHENTICATED`.
+
+The console's own request log confirmed it independently: the failing-looking case produced
+
+```
+GET /console/callback?state=signin&session_session=...   → 400
+```
+
+— the ceremony completed, the browser was redirected, and the console rejected the callback because it
+had no matching flow cookie. That is the console behaving correctly for a callback it did not start.
+
+### What is ruled out, cumulatively
+
+| Suspect | Verdict | Evidence |
+|---|---|---|
+| the credential / user handle | **ruled out** | handle present, well-formed, decodes to the right user id |
+| the realm's WebAuthn policy | **ruled out** | `ResidentKey = "required"`, and the credential is resident |
+| the relying-party ID | **ruled out** | aligning it with the origin changed nothing |
+| the environment | **ruled out** | S9 re-run: T1/T2 pass, `AUTHENTICATED` |
+| **the OIDC client** | **RULED OUT** | both clients authenticate, fresh authenticator each |
+
+### What remains
+
+**The origin**, and **the console's own handling of the flow**. The console end-to-end run also
+**hangs** on the passkey path, which is a separate harness problem and has not been isolated.
+
+Note that a **real origin** would test the first of those directly. Everything here has run on
+`localhost`; WebAuthn on a real domain under real TLS has never been exercised.
+
+### A note on the harness, again
+
+The console's server log was what distinguished "the passkey failed" from "the redirect failed".
+Without it, a 400 from a callback the console never started would have looked like another passkey
+failure — a fourth way this harness could have silently measured the wrong thing.

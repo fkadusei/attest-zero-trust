@@ -252,6 +252,17 @@ async function main() {
     // assumed.
     console.log("\n[3] register a passkey for the test user");
     setFlow("revert");
+    // Clear any credential from an earlier run FIRST. `AvoidSameAuthenticatorRegister`
+    // is enabled on this realm and refuses a duplicate registration SILENTLY, so a
+    // leftover credential can make the count look right while nothing new was
+    // registered — and the harness then signs in with a credential the fresh
+    // authenticator does not hold. The standing rule: the harness creates its own
+    // fixtures and starts from a known state.
+    for (const c of (await admin("GET", `/${REALM}/users/${userId}/credentials`))?.body ?? []) {
+      if ((c.type ?? "").startsWith("webauthn")) {
+        await admin("DELETE", `/${REALM}/users/${userId}/credentials/${c.id}`);
+      }
+    }
     await admin("PUT", `/${REALM}/users/${userId}`, {
       ...(await admin("GET", `/${REALM}/users/${userId}`)).body,
       requiredActions: ["webauthn-register-passwordless"],

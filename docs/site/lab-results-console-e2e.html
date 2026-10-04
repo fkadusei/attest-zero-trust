@@ -80,6 +80,11 @@
 <li class="lvl3"><a href="#what-remains">What remains</a></li>
 <li class="lvl3"><a href="#the-honest-summary-of-this-exercise">The honest summary of this exercise</a></li>
 <li class="lvl3"><a href="#a-note-on-the-harness">A note on the harness</a></li>
+<li><a href="#8-e2e-3-the-client-is-not-the-cause">8. E2E-3 — the client is NOT the cause</a></li>
+<li class="lvl3"><a href="#a-confound-that-had-to-be-removed-first">A confound that had to be removed first</a></li>
+<li class="lvl3"><a href="#what-is-ruled-out-cumulatively">What is ruled out, cumulatively</a></li>
+<li class="lvl3"><a href="#what-remains_1">What remains</a></li>
+<li class="lvl3"><a href="#a-note-on-the-harness-again">A note on the harness, again</a></li>
 </ul></div>
   </aside>
 
@@ -330,7 +335,96 @@ regression in the Keycloak environment. It was not: S9 expects a browser already
 <strong>9222</strong>, and none was running. <code>connect ECONNREFUSED 127.0.0.1:9222</code> is not a passkey failure.</p>
 <p>That is the third time in this project a harness has silently measured the wrong thing — a stale
 server, a leftover browser, and now an absent one. <strong>Every harness here should assert that its
-preconditions exist before it asserts anything about the system.</strong></p></section>
+preconditions exist before it asserts anything about the system.</strong></p>
+<hr>
+</section>
+<section id="8-e2e-3-the-client-is-not-the-cause"><h2>8. E2E-3 — the client is NOT the cause</h2>
+<p>Two variables differed between the working case (S9) and the failing one (the console): the <strong>OIDC
+client</strong> and the <strong>origin</strong>. This isolated the client by removing the console entirely — a browser
+signing in directly against the authorization endpoint, once per client, with a <strong>fresh virtual
+authenticator per case</strong> so the second run could not be helped or hindered by the first.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>client</th>
+<th>registered</th>
+<th>user handles</th>
+<th>outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attest-console</code> (confidential)</td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+<tr>
+<td><code>phishing-lab</code> (public)</td>
+<td>1</td>
+<td><strong>1</strong></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Both clients complete a passkey sign-in against this realm.</strong> The client is ruled out.</p>
+<h3 id="a-confound-that-had-to-be-removed-first">A confound that had to be removed first</h3>
+<p>The first attempt reported <code>attest-console</code> as <code>chrome-error://chromewebdata/</code>, which looked like a
+failure and was not: its redirect target was <code>http://localhost:3000/console/callback</code> and <strong>nothing
+was listening on 3000</strong>. The browser failed to <em>navigate</em>, after the ceremony had already succeeded.
+Starting the console server changed the result to <code>AUTHENTICATED</code>.</p>
+<p>The console&rsquo;s own request log confirmed it independently: the failing-looking case produced</p>
+<div class="codehilite"><pre><span></span><code>GET /console/callback?state=signin&amp;session_session=...   → 400
+</code></pre></div>
+
+<p>— the ceremony completed, the browser was redirected, and the console rejected the callback because it
+had no matching flow cookie. That is the console behaving correctly for a callback it did not start.</p>
+<h3 id="what-is-ruled-out-cumulatively">What is ruled out, cumulatively</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Suspect</th>
+<th>Verdict</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the credential / user handle</td>
+<td><strong>ruled out</strong></td>
+<td>handle present, well-formed, decodes to the right user id</td>
+</tr>
+<tr>
+<td>the realm&rsquo;s WebAuthn policy</td>
+<td><strong>ruled out</strong></td>
+<td><code>ResidentKey = "required"</code>, and the credential is resident</td>
+</tr>
+<tr>
+<td>the relying-party ID</td>
+<td><strong>ruled out</strong></td>
+<td>aligning it with the origin changed nothing</td>
+</tr>
+<tr>
+<td>the environment</td>
+<td><strong>ruled out</strong></td>
+<td>S9 re-run: T1/T2 pass, <code>AUTHENTICATED</code></td>
+</tr>
+<tr>
+<td><strong>the OIDC client</strong></td>
+<td><strong>RULED OUT</strong></td>
+<td>both clients authenticate, fresh authenticator each</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="what-remains_1">What remains</h3>
+<p><strong>The origin</strong>, and <strong>the console&rsquo;s own handling of the flow</strong>. The console end-to-end run also
+<strong>hangs</strong> on the passkey path, which is a separate harness problem and has not been isolated.</p>
+<p>Note that a <strong>real origin</strong> would test the first of those directly. Everything here has run on
+<code>localhost</code>; WebAuthn on a real domain under real TLS has never been exercised.</p>
+<h3 id="a-note-on-the-harness-again">A note on the harness, again</h3>
+<p>The console&rsquo;s server log was what distinguished &ldquo;the passkey failed&rdquo; from &ldquo;the redirect failed&rdquo;.
+Without it, a 400 from a callback the console never started would have looked like another passkey
+failure — a fourth way this harness could have silently measured the wrong thing.</p></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a><a class="pn next" href="lab-results-broad-rpid.html"><span>Next</span><b>Lab results: when it breaks</b></a></nav>
     <footer>
