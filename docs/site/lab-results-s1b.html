@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Recovery, the weak link — Attest documentation</title>
+<title>Lab results: the DPoP header through a proxy — Attest documentation</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-<meta name="description" content="Where attackers go once the front door is locked." />
+<meta name="description" content="Cloudflare preserves it — and the control that stopped a confident wrong answer." />
 <link rel="stylesheet" href="docs.css" />
 <script src="search-index.js"></script>
 <script src="docs-search.js" defer></script>
@@ -33,7 +33,7 @@
 <li><a href="zero-trust.html">The big picture</a></li>
 <li><a href="passwordless.html">Sign-in, end to end</a></li>
 <li><a href="sessions.html">After sign-in</a></li>
-<li><a href="recovery.html" class="current">Recovery, the weak link</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
 <li><a href="operating.html">Running the identity provider</a></li>
 <li><a href="limits.html">Limits and non-goals</a></li>
 </ul></div>
@@ -63,7 +63,7 @@
 <li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 <li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
 <li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
-<li><a href="lab-results-s1b.html">Lab results: the DPoP header through a proxy</a></li>
+<li><a href="lab-results-s1b.html" class="current">Lab results: the DPoP header through a proxy</a></li>
 <li><a href="lab-results-session.html">Lab results: the redirect loop</a></li>
 <li><a href="lab-results-origin-diff.html">Lab results: the passkey works</a></li>
 <li><a href="lab-results-real-origin.html">Lab results: a real origin</a></li>
@@ -72,121 +72,94 @@
 </ul></div>
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
-<li><a href="#the-shape-of-the-problem">The shape of the problem</a></li>
-<li><a href="#what-we-do-instead">What we do instead</a></li>
-<li><a href="#scenarios-and-what-happens">Scenarios, and what happens</a></li>
-<li><a href="#for-privileged-accounts-no-self-service-at-all">For privileged accounts: no self-service at all</a></li>
-<li><a href="#detection-matters-as-much-as-prevention">Detection matters as much as prevention</a></li>
-<li><a href="#the-uncomfortable-summary">The uncomfortable summary</a></li>
+<li><a href="#the-control-is-the-whole-story-here">The control is the whole story here</a></li>
+<li><a href="#what-the-failure-actually-was-and-why-it-took-three-attempts">What the failure actually was, and why it took three attempts</a></li>
+<li class="lvl3"><a href="#fixed-permanently">Fixed, permanently</a></li>
 </ul></div>
   </aside>
 
   <main>
-    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Guide</span><span>/</span><b>Recovery, the weak link</b></div>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: the DPoP header through a proxy</b></div>
     <article>
       <header class="pagehead">
-        <h1>Recovery, the weak link</h1>
-        <p class="blurb">Where attackers go once the front door is locked.</p>
+        <h1>Lab results: the DPoP header through a proxy</h1>
+        <p class="blurb">Cloudflare preserves it — and the control that stopped a confident wrong answer.</p>
       </header>
-      <section id="overview"><p>Every strong authentication system is eventually attacked through its reset path. This page is short
-because the principle is simple, and uncomfortable.</p></section>
-<section id="the-shape-of-the-problem"><h2>The shape of the problem</h2>
-<p>An attacker who cannot phish a passkey does not give up. They request an account recovery, take over
-the mailbox, and enrol a fresh credential. If that works, the passkey protected nothing at all.</p>
-<div class="admonition danger">
-<p class="admonition-title">Stated plainly</p>
-<p>A phishing-resistant sign-in combined with an emailed-code reset is a phishing-vulnerable system.
-The strength of the front door is irrelevant if there is an unlocked side door with a sign on it.</p>
-</div>
-<p>This is not a hypothetical weakness. It is the most likely way this system is actually compromised in
-practice, because it requires no flaw in the cryptography and no clever exploit — only a support
-process that was designed for convenience under pressure.</p>
-</section>
-<section id="what-we-do-instead"><h2>What we do instead</h2>
-<p>The rule is that <strong>a recovery email never produces a logged-in session.</strong> It produces permission to
-<em>begin</em> enrolling a new passkey, and the person still has to complete a real ceremony on a real
-device.</p>
-<ol>
-<li>The request sends a link that opens a fresh enrolment, not a session.</li>
-<li>A <strong>brand-new passkey</strong> must be created. A reset that sets a password would defeat the entire
-   point, and the identity provider will happily do exactly that if asked — so the flow must use an
-   enrolment action, not a credential reset.</li>
-<li>Signals about the device and the network are gathered and scored.</li>
-<li>If those signals look wrong, the request is <strong>held for a human</strong> rather than approved
-   automatically.</li>
-<li>The account owner is told. An attacker who already controls the mailbox therefore cannot act
-   unnoticed, which is the specific case this step exists for.</li>
-</ol>
-</section>
-<section id="scenarios-and-what-happens"><h2>Scenarios, and what happens</h2>
+      <section id="overview"><p><strong>Answered for Cloudflare: yes. Both cases return <code>200</code>.</strong></p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
-<th>Scenario</th>
-<th>What happens</th>
-<th>Why</th>
+<th>Case</th>
+<th>Path</th>
+<th>Result</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>A second passkey is registered</td>
-<td>Self-service using the remaining passkey</td>
-<td>No support involvement, and no downgrade in assurance</td>
+<td>Control</td>
+<td>direct to <code>localhost:3000</code>, no proxy</td>
+<td><strong><code>200</code></strong> — proof arrived, request authorised</td>
 </tr>
 <tr>
-<td>All passkeys lost, email still works</td>
-<td>Enrolment link with identity proofing, and a hold for review if signals are weak</td>
-<td>Must not silently become an email-only login</td>
-</tr>
-<tr>
-<td>The request looks suspicious</td>
-<td>Support-assisted, with out-of-band verification</td>
-<td>Deliberately manual</td>
-</tr>
-<tr>
-<td>A privileged account needs recovery</td>
-<td>Second admin approval, out-of-band verification, in-person key enrolment</td>
-<td>See below</td>
+<td>Test</td>
+<td><code>https://attest.210security.com</code> through Cloudflare&rsquo;s edge</td>
+<td><strong><code>200</code></strong> — proof arrived, request authorised</td>
 </tr>
 </tbody>
 </table></div>
+<p>The Cloudflare run carried <code>cf-ray</code> and <code>cf-cache-status</code>, so it genuinely traversed the edge rather than
+being served locally.</p>
+<p><strong>What this does and does not settle.</strong> S1b was written as <em>&ldquo;does the <code>DPoP</code> header survive
+CloudFront → ALB → API Gateway&rdquo;</em>. That chain needs AWS and <strong>this does not answer it.</strong> What it answers
+is the question underneath: whether a real CDN/WAF in the path forwards an unfamiliar request header
+and an unusual authorization scheme. Cloudflare is exactly that class of hop, and it does.</p>
+<hr></section>
+<section id="the-control-is-the-whole-story-here"><h2>The control is the whole story here</h2>
+<p><strong>The first run failed, and it would have produced a completely wrong conclusion.</strong></p>
+<div class="codehilite"><pre><span></span><code>through Cloudflare → 401, reason: "malformed"
+</code></pre></div>
+
+<p>The obvious reading — and the one I was about to write down — is <em>&ldquo;Cloudflare mangles the <code>DPoP</code>
+header.&rdquo;</em> It is wrong.</p>
+<p><strong>The control failed identically:</strong></p>
+<div class="codehilite"><pre><span></span><code>direct, no proxy   → 401, reason: "malformed"
+</code></pre></div>
+
+<p>Same token, same proof, <strong>no proxy in the path</strong>, same failure. The proxy was never involved.</p>
+<p><strong>Without the control, this slice would have ended with a confident, plausible, false finding about
+Cloudflare</strong> — and it would have gone into the register as verified.</p>
 </section>
-<section id="for-privileged-accounts-no-self-service-at-all"><h2>For privileged accounts: no self-service at all</h2>
-<p>Recovery for a platform admin requires:</p>
-<ul>
-<li>Out-of-band verification with the security team, not a support ticket.</li>
-<li>A <strong>second</strong> privileged admin approving the request. No single person can recover an account.</li>
-<li>A new hardware security key enrolled through a verified channel.</li>
-<li>The whole episode recorded in the tamper-evident audit log.</li>
-</ul>
-<p>The asymmetry is deliberate. For staff, recovery being slow and awkward is a cost measured in
-minutes. For the system, a compromised platform admin is a cost measured in the company.</p>
-<div class="admonition note">
-<p class="admonition-title">Why the asymmetry is worth the friction</p>
-<p>A common objection is that this is too much process for a small team. The counter is that
-privileged recovery is rare, and the cost of getting it wrong once is unbounded, while the cost of
-getting it right is a few hours of two people&rsquo;s time. The two are not comparable.</p>
-</div>
-</section>
-<section id="detection-matters-as-much-as-prevention"><h2>Detection matters as much as prevention</h2>
-<p>Recovery is the path most likely to be abused, so it needs telemetry from the first day rather than
-as a later hardening step. Two signals in particular are worth alerting on:</p>
-<ul>
-<li><strong>A passkey enrolled shortly after a recovery.</strong> This is what an account takeover in progress looks
-  like, and it is far more informative than a failed sign-in.</li>
-<li><strong>A recovery request followed by a device that has never been seen on that account</strong>, especially
-  from a new network.</li>
-</ul>
-<p>Neither prevents anything on its own. Both turn a silent takeover into a detected one, which is the
-difference between an incident and a mystery.</p>
-</section>
-<section id="the-uncomfortable-summary"><h2>The uncomfortable summary</h2>
-<p>Passkeys remove an entire class of attack, and they are worth the effort. But they move the attacker
-rather than eliminating them, and this is where they move to. A project that implements passkeys
-beautifully and then ships a one-click reset link has done the hard part and skipped the important
-part.</p></section>
+<section id="what-the-failure-actually-was-and-why-it-took-three-attempts"><h2>What the failure actually was, and why it took three attempts</h2>
+<p>The log said <code>{"reason":"malformed"}</code> and nothing else. <code>malformed</code> in this verifier covers an
+undecodable header, a missing <code>sub</code>, a missing <code>exp</code>, an unclassifiable JOSE error, and an unexpected
+claim. <strong>The category is not actionable.</strong></p>
+<p>Three attempts to find out:</p>
+<ol>
+<li><strong>Read the verifier&rsquo;s source and guessed.</strong> First guess wrong.</li>
+<li><strong>Call <code>jwtVerify</code> directly</strong> — got <code>unexpected "typ" JWT header value</code>. That was <strong>my test
+   script&rsquo;s fault</strong>: it passed <code>typ: 'Bearer'</code>, and Keycloak sets the <em>header</em> <code>typ</code> to <code>"JWT"</code> for
+   access and ID tokens alike. The API does not pass <code>typ</code> at all.</li>
+<li><strong>Improved the API&rsquo;s logging</strong> to record the verifier&rsquo;s message alongside the reason. One run then
+   said exactly what was wrong:</li>
+</ol>
+<div class="codehilite"><pre><span></span><code>detail: malformed: DPoP proof is missing the ath claim required for a resource request
+</code></pre></div>
+
+<p><strong>The probe was not binding the proof to the token.</strong> RFC 9449 requires <code>ath</code> on a resource request,
+the API correctly demanded it, and every failure above was that — a bug in the probe being read as a
+bug in the infrastructure.</p>
+<h3 id="fixed-permanently">Fixed, permanently</h3>
+<p><code>reject()</code> now takes a <code>detail</code> and the two verifier call sites pass the error&rsquo;s message. The
+<strong>response body is unchanged</strong> — still opaque, still <code>{"error":"unauthorized"}</code> — because
+distinguishing reasons <em>for an attacker</em> is an oracle telling them which part of a forgery to fix
+next. The detail goes to the log, which is where an operator can act on it.</p>
+<p>Three rounds were spent because a log recorded a category and not a cause. The same rule this project
+keeps relearning, from a different angle:</p>
+<blockquote>
+<p><strong>Assert — and log — the CAUSE of a refusal, never just its category.</strong></p>
+</blockquote></section>
     </article>
-    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="sessions.html"><span>Previous</span><b>After sign-in</b></a><a class="pn next" href="operating.html"><span>Next</span><b>Running the identity provider</b></a></nav>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a><a class="pn next" href="lab-results-session.html"><span>Next</span><b>Lab results: the redirect loop</b></a></nav>
     <footer>
       <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
       verification spike done; no production deployment yet.</p>

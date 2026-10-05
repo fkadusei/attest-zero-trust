@@ -63,6 +63,7 @@
 <li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 <li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
 <li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-s1b.html">Lab results: the DPoP header through a proxy</a></li>
 <li><a href="lab-results-session.html">Lab results: the redirect loop</a></li>
 <li><a href="lab-results-origin-diff.html">Lab results: the passkey works</a></li>
 <li><a href="lab-results-real-origin.html">Lab results: a real origin</a></li>
@@ -458,6 +459,11 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong><code>DPoP</code> survives a real CDN/WAF in the path</strong> — Cloudflare&rsquo;s edge forwards both the <code>DPoP</code> proof header and the <code>DPoP</code> authorization scheme, and a bound request is <strong>authorised</strong> through the tunnel (<code>200</code>), with the identical request sent direct as the control</td>
+<td>S1b — <code>cf-ray</code> present on the proxied run, so it traversed the edge. <strong>Answers Cloudflare; does NOT answer CloudFront → ALB → API Gateway</strong></td>
+<td><strong>Verified (Cloudflare only)</strong></td>
+</tr>
+<tr>
 <td><strong>The lab&rsquo;s master-realm password grant was reachable from the internet and accepted password attempts</strong></td>
 <td><code>POST /realms/master/protocol/openid-connect/token</code> returned <code>invalid_grant "Invalid user credentials"</code> from outside. Closed by refusing <code>/admin</code> and <code>/realms/master</code> at the tunnel edge — verified <code>404</code> thereafter, with the OIDC surface still <code>200</code></td>
 <td><strong>Verified</strong></td>
@@ -634,7 +640,7 @@ the check failing. The check was validated by breaking the <em>enforcement</em>,
 </tr>
 <tr>
 <td>The <strong><code>DPoP</code> header survives</strong> CloudFront → ALB → API Gateway</td>
-<td>A hop that strips it breaks binding <strong>silently</strong></td>
+<td>A hop that strips it breaks binding <strong>silently</strong>. <strong>Partly answered:</strong> Cloudflare&rsquo;s edge provably preserves it (§1), so the mechanism is not inherently fragile — but CloudFront and API Gateway are different products and remain untested</td>
 <td>AWS</td>
 </tr>
 <tr>

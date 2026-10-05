@@ -222,6 +222,18 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Log the CAUSE of a refusal, not its category.** `{"reason":"malformed"}` cost three rounds:
+  `malformed` covers an undecodable header, a missing `sub`, a missing `exp`, an unclassifiable JOSE
+  error and an unexpected claim. The answer was `DPoP proof is missing the ath claim` — a bug in the
+  PROBE being read as a bug in the infrastructure. The API now logs the verifier's message alongside
+  the reason, while the RESPONSE body stays opaque, because distinguishing reasons for an attacker is
+  an oracle telling them which part of a forgery to fix next.
+- **Log the CAUSE of a refusal, not its category.** `{"reason":"malformed"}` cost three rounds:
+  `malformed` covers an undecodable header, a missing `sub`, a missing `exp`, an unclassifiable JOSE
+  error and an unexpected claim. The answer was `DPoP proof is missing the ath claim` — a bug in the
+  PROBE being read as a bug in the infrastructure. The API now logs the verifier's message alongside
+  the reason, while the RESPONSE body stays opaque, because distinguishing reasons for an attacker is
+  an oracle telling them which part of a forgery to fix next.
 - **A silent misconfiguration produces a symptom that describes the WRONG SUBSYSTEM.** Keycloak's
   `oidc-audience-mapper` resolves its value through the client registry: if the target client does not
   exist, the mapper adds **nothing** — no warning, no error, no log line. The result was a browser

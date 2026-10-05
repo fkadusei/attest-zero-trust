@@ -87,6 +87,7 @@ here, **this file is right and the other one is a bug.** Please report it.
 | **A WebAuthn RP ID that is not a suffix of the origin fails with `SecurityError`**, and the message says *"ensure you are on the correct site"* | The first real-origin run, with the realm still pinned to `localhost`. The message names the site; the fault is the realm's RP ID | **Verified** |
 | **`KC_PROXY_HEADERS` cannot be an empty string** — Keycloak refuses to start | `Invalid value for option 'KC_PROXY_HEADERS': . Expected values are: forwarded, xforwarded`. It cannot be a `${VAR:-}` default; it needs an overlay | **Verified** |
 | **Keycloak separates multiple `post.logout.redirect.uris` with `##`** | Space and newline are both rejected with *"A post-logout redirect URI is not a valid URI"* — an error about the URI, never about the separator | **Verified** |
+| **`DPoP` survives a real CDN/WAF in the path** — Cloudflare's edge forwards both the `DPoP` proof header and the `DPoP` authorization scheme, and a bound request is **authorised** through the tunnel (`200`), with the identical request sent direct as the control | S1b — `cf-ray` present on the proxied run, so it traversed the edge. **Answers Cloudflare; does NOT answer CloudFront → ALB → API Gateway** | **Verified (Cloudflare only)** |
 | **The lab's master-realm password grant was reachable from the internet and accepted password attempts** | `POST /realms/master/protocol/openid-connect/token` returned `invalid_grant "Invalid user credentials"` from outside. Closed by refusing `/admin` and `/realms/master` at the tunnel edge — verified `404` thereafter, with the OIDC surface still `200` | **Verified** |
 
 ## 2. Corroborated — external sources, checked
@@ -164,7 +165,7 @@ the check failing. The check was validated by breaking the *enforcement*, not th
 |---|---|---|
 | A **real TLS** environment | ~~Blocked on a deployed environment~~ — **NO LONGER BLOCKED.** The console's sign-in now runs on `https://attest.210security.com` through a Cloudflare Tunnel, with a real certificate, and passes **17/17**. What remains untested on a real origin is the *rest* of the register, not this | **Resolved for the console** |
 | Phishing over **real TLS, DNS and a real certificate** | S9 runs over HTTP on loopback. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement. **Now cheap to settle:** the real domain exists, so S9's relay can be pointed at it | **A run, not a deployment** |
-| The **`DPoP` header survives** CloudFront → ALB → API Gateway | A hop that strips it breaks binding **silently** | AWS |
+| The **`DPoP` header survives** CloudFront → ALB → API Gateway | A hop that strips it breaks binding **silently**. **Partly answered:** Cloudflare's edge provably preserves it (§1), so the mechanism is not inherently fragile — but CloudFront and API Gateway are different products and remain untested | AWS |
 | **Firefox and Safari** keep the session key | The two non-Chromium engines; Safari is the likeliest to evict | A manual minute each |
 | A **physical hardware key** is accepted | Only refusal has been tested; the known failure is lockout, not bypass | A physical key |
 | Our **permissions engine accepts our tokens** | It was built for a different issuer | AWS |

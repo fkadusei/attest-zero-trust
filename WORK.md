@@ -65,6 +65,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **origin-diff** | What about the origin breaks the passkey | ✅ done — nothing does; the passkey works |
 | **SESSION** | The console's session does not survive the callback | ✅ done — missing `attest-api` client, 18/18 |
 | **SESSION-2** | The end-to-end suite against the REAL origin | ✅ done — **17/17 on https://attest.210security.com** |
+| **S1b** | Does the DPoP header survive a real proxy | ✅ done — **Cloudflare preserves it, 200 both cases** |
+| **S1b-AWS** | The same question for CloudFront → ALB → API Gateway | ⏸ needs AWS; Cloudflare does NOT answer it |
 | **ACCESS** | Cloudflare Access in front of the admin surface | ▶ **NEXT** (parked by the user) |
 | **ACCESS** | Cloudflare Access in front of the admin surface — DEFERRED by the user, to revisit | ⏸ parked |
 | **A1** | A real domain and TLS | ⏸ optional — see the results for what it would add |

@@ -85,8 +85,19 @@ declare module "fastify" {
  * attacker which part of a forgery to fix next. The reason is logged; the caller
  * learns only that it failed.
  */
-function reject(reply: FastifyReply, reason: string): FastifyReply {
-  reply.log.warn({ reason }, "request rejected");
+function reject(reply: FastifyReply, reason: string, detail?: string): FastifyReply {
+  // Log the DETAIL, not just the category.
+  //
+  // `{"reason":"malformed"}` is not enough to act on. `malformed` covers an undecodable
+  // header, a missing `sub`, a missing `exp`, an unclassifiable JOSE error, and an
+  // unexpected claim — and diagnosing which of those happened from the category alone
+  // meant reading the verifier's source and guessing. The first guess was wrong.
+  //
+  // The detail is safe to log. It is composed from our own messages and JOSE's, never
+  // from the token's contents, and it is logged rather than returned — the caller still
+  // learns only that verification failed, because distinguishing reasons for an ATTACKER
+  // is an oracle telling them which part of a forgery to fix next.
+  reply.log.warn({ reason, detail: detail ?? reason }, "request rejected");
   return reply.code(401).send({ error: "unauthorized" });
 }
 
@@ -173,7 +184,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         clockToleranceSec: deps.config.clockToleranceSec,
       });
     } catch (error) {
-      reject(reply, error instanceof TokenVerificationError ? error.reason : "verification error");
+      reject(reply, error instanceof TokenVerificationError ? error.reason : "verification error",
+        error instanceof Error ? error.message : undefined);
       return;
     }
 
@@ -212,7 +224,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
           replayCache: deps.replayCache,
         });
       } catch (error) {
-        reject(reply, error instanceof TokenVerificationError ? error.reason : "proof verification error");
+        reject(reply, error instanceof TokenVerificationError ? error.reason : "proof verification error",
+          error instanceof Error ? error.message : undefined);
         return;
       }
     } else if (parsed.scheme === "DPoP") {
