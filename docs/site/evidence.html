@@ -417,6 +417,51 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td>Cookies stored as <code>localhost.local</code> + <code>Secure</code>, so never sent over http; error is &ldquo;Restart login cookie not found&rdquo;</td>
 <td><strong>Verified</strong></td>
 </tr>
+<tr>
+<td><strong>The console completes a real OIDC sign-in with a passkey</strong>, driven by a browser — redirect, ceremony, callback, code exchange, session</td>
+<td>Browser end-to-end, <strong>18/18 on localhost and 17/17 on a real origin under real TLS</strong>. Every earlier console test stubbed the provider; this one does not</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The console&rsquo;s session is <strong>a cookie the browser holds</strong>, not a token in the page</td>
+<td>Same run — asserts on the browser&rsquo;s own cookie jar: present, <code>HttpOnly</code>, <code>Path=/console</code>, and <strong>not a JWT</strong></td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td>The session <strong>survives a fresh navigation</strong>, and <strong>sign-out ends both the console session and the SSO session</strong></td>
+<td>Same run, including a check that the revisit does <strong>not</strong> leave the user signed in with the same session</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>Fastify does not infer <code>text/html</code> for a string payload.</strong> It sends <code>text/plain</code>, so a browser renders the escaped SOURCE of the page</td>
+<td>Found by the browser run, <strong>not</strong> by a unit test: the assertion checked the body for a word, and the escaped source still contains it, so it passed on a page no human could use</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>An <code>oidc-audience-mapper</code> whose target client does not exist adds NOTHING, silently</strong> — no warning, no error, no log line</td>
+<td>The console looped with <code>ERR_TOO_MANY_REDIRECTS</code>; the API&rsquo;s log said <code>wrong_audience</code> from the first failing run. A missing <code>attest-api</code> client in the realm, not a WebAuthn fault</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>A WebAuthn RP ID that is not a suffix of the origin fails with <code>SecurityError</code></strong>, and the message says <em>&ldquo;ensure you are on the correct site&rdquo;</em></td>
+<td>The first real-origin run, with the realm still pinned to <code>localhost</code>. The message names the site; the fault is the realm&rsquo;s RP ID</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong><code>KC_PROXY_HEADERS</code> cannot be an empty string</strong> — Keycloak refuses to start</td>
+<td><code>Invalid value for option 'KC_PROXY_HEADERS': . Expected values are: forwarded, xforwarded</code>. It cannot be a <code>${VAR:-}</code> default; it needs an overlay</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>Keycloak separates multiple <code>post.logout.redirect.uris</code> with <code>##</code></strong></td>
+<td>Space and newline are both rejected with <em>&ldquo;A post-logout redirect URI is not a valid URI&rdquo;</em> — an error about the URI, never about the separator</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>The lab&rsquo;s master-realm password grant was reachable from the internet and accepted password attempts</strong></td>
+<td><code>POST /realms/master/protocol/openid-connect/token</code> returned <code>invalid_grant "Invalid user credentials"</code> from outside. Closed by refusing <code>/admin</code> and <code>/realms/master</code> at the tunnel edge — verified <code>404</code> thereafter, with the OIDC surface still <code>200</code></td>
+<td><strong>Verified</strong></td>
+</tr>
 </tbody>
 </table></div>
 </section>
@@ -579,13 +624,13 @@ the check failing. The check was validated by breaking the <em>enforcement</em>,
 <tbody>
 <tr>
 <td>A <strong>real TLS</strong> environment</td>
-<td>S9b satisfies the secure-context requirement with a Chrome flag standing in for the certificate a real deployment has. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning</td>
-<td>A deployed environment</td>
+<td>~~Blocked on a deployed environment~~ — <strong>NO LONGER BLOCKED.</strong> The console&rsquo;s sign-in now runs on <code>https://attest.210security.com</code> through a Cloudflare Tunnel, with a real certificate, and passes <strong>17/17</strong>. What remains untested on a real origin is the <em>rest</em> of the register, not this</td>
+<td><strong>Resolved for the console</strong></td>
 </tr>
 <tr>
 <td>Phishing over <strong>real TLS, DNS and a real certificate</strong></td>
-<td>S9 runs over HTTP on loopback. WebAuthn&rsquo;s origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement</td>
-<td>A deployed environment</td>
+<td>S9 runs over HTTP on loopback. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement. <strong>Now cheap to settle:</strong> the real domain exists, so S9&rsquo;s relay can be pointed at it</td>
+<td><strong>A run, not a deployment</strong></td>
 </tr>
 <tr>
 <td>The <strong><code>DPoP</code> header survives</strong> CloudFront → ALB → API Gateway</td>

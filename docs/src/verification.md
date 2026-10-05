@@ -245,6 +245,73 @@ That leads directly to a rule the software must enforce and test:
 and a full laptop restart. Both are manual jobs; a page is provided that makes the Safari one a
 one-minute task.
 
+## The fourth: does the whole thing work in a real browser, on a real domain?
+
+The first three experiments each tested one mechanism in isolation. **None of them had ever driven the
+actual product end to end** — every test of the console stubbed the identity provider, so the flow
+*logic* was covered and whether a browser could complete the round trip was not.
+
+**The question:** can a person open the console, be sent to the identity provider, sign in with a
+passkey, come back, and land on a page that works — on a **real domain, under real TLS**, the way a
+deployment would be?
+
+**How it was tested.** A scripted browser with a virtual authenticator, a real Keycloak, and a real
+redirect. Then the same run against `https://attest.210security.com`, reached through a Cloudflare
+Tunnel with a genuine certificate. Nothing was deployed to a cloud, and the cost was **$0**.
+
+**The result: yes.** 18 out of 18 checks on localhost, 17 out of 17 on the real domain — the counts
+differ only because the external run replaces two startup checks with one reachability check. The
+checks that matter assert on the **browser's own behaviour** rather than on a response header: a
+cookie it stored and sent back, a form it submitted, a redirect it followed.
+
+### What it caught that no unit test could
+
+**The console was serving its pages as `text/plain`.** Fastify does not infer `text/html` for a string
+payload, so every page arrived as plain text and the browser rendered the **escaped source** instead of
+the page.
+
+A unit test did not catch this and **could not have**: the assertion checked that the response body
+contained the word "Evidence", and the escaped source still contains it. The check passed on a page no
+human could use. A browser found it, because a browser does not care what the body *says* — it cares
+what the content type is.
+
+**And "Sign out" did not sign anyone out.** The console destroyed its own session, but Keycloak's
+end-session endpoint returned `400` because `post.logout.redirect.uris` was not registered — so the
+single sign-on session survived and the next visit signed the user straight back in. It looked like it
+worked. Closing it required discovering that Keycloak separates those URIs with `##`, and rejects both
+spaces and newlines with a message that blames the URI rather than the separator.
+
+### The part worth reading twice
+
+For several rounds this project recorded that **"the console's passkey sign-in does not work"**, and
+built three successive explanations for it: a missing user handle, then the localhost origin, then the
+session code. **All three were wrong.**
+
+The actual cause was **a client that did not exist in the realm.** The console's token carried no
+audience because the mapper that adds it resolves its value through the client registry, and a mapper
+pointing at a client that is absent adds **nothing** — silently, with no warning and no log line. The
+API then correctly rejected the token, the console correctly treated the rejection as a dead session,
+and the browser looped. Every component behaved as designed, around a hole.
+
+The rejection reason — `wrong_audience` — was in the log **from the first failing run**.
+
+!!! warning "The lesson, and it is not about Keycloak"
+
+    **A silent misconfiguration produces a symptom that describes the wrong subsystem.** Nothing in the
+    browser's message, the console's log, or the API's response says "a client is missing from a
+    realm". Each component reported its own correct behaviour and the fault was an **absence**.
+
+    The rule that would have ended this in one round was already written down in this project:
+    **assert the cause of a refusal, never just its absence.** It was violated anyway.
+
+### What it settled
+
+The console's sign-in works, with a passkey, on a real origin. It had never completed anywhere before.
+And on a real domain the relying-party ID is the **narrow** one — `id.210security.com`, not
+`210security.com` — because the identity provider has its own hostname and does not need to cover the
+console's. That is the safer of the two, and §"A BROAD relying-party ID IS exploitable" is why it
+matters.
+
 ## The one that failed: requiring a stronger check
 
 Not every experiment succeeds, and this page would be misleading if it only listed the ones that did.

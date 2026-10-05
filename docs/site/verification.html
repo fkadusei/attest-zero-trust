@@ -89,6 +89,10 @@
 <li class="lvl3"><a href="#how-it-was-tested_2">How it was tested</a></li>
 <li class="lvl3"><a href="#the-results_2">The results</a></li>
 <li class="lvl3"><a href="#what-it-settled-and-the-surprise">What it settled, and the surprise</a></li>
+<li><a href="#the-fourth-does-the-whole-thing-work-in-a-real-browser-on-a-real-domain">The fourth: does the whole thing work in a real browser, on a real domain?</a></li>
+<li class="lvl3"><a href="#what-it-caught-that-no-unit-test-could">What it caught that no unit test could</a></li>
+<li class="lvl3"><a href="#the-part-worth-reading-twice">The part worth reading twice</a></li>
+<li class="lvl3"><a href="#what-it-settled">What it settled</a></li>
 <li><a href="#the-one-that-failed-requiring-a-stronger-check">The one that failed: requiring a stronger check</a></li>
 <li class="lvl3"><a href="#a-follow-up-found-something-worse">A follow-up found something worse</a></li>
 <li><a href="#what-is-not-yet-proven">What is NOT yet proven</a></li>
@@ -410,6 +414,58 @@ prevent. Sessions are short by design, so the cost is a sign-in rather than a su
 <p><strong>Not yet done:</strong> the same test in <strong>Safari</strong>, which is the browser most likely to evict stored data,
 and a full laptop restart. Both are manual jobs; a page is provided that makes the Safari one a
 one-minute task.</p>
+</section>
+<section id="the-fourth-does-the-whole-thing-work-in-a-real-browser-on-a-real-domain"><h2>The fourth: does the whole thing work in a real browser, on a real domain?</h2>
+<p>The first three experiments each tested one mechanism in isolation. <strong>None of them had ever driven the
+actual product end to end</strong> — every test of the console stubbed the identity provider, so the flow
+<em>logic</em> was covered and whether a browser could complete the round trip was not.</p>
+<p><strong>The question:</strong> can a person open the console, be sent to the identity provider, sign in with a
+passkey, come back, and land on a page that works — on a <strong>real domain, under real TLS</strong>, the way a
+deployment would be?</p>
+<p><strong>How it was tested.</strong> A scripted browser with a virtual authenticator, a real Keycloak, and a real
+redirect. Then the same run against <code>https://attest.210security.com</code>, reached through a Cloudflare
+Tunnel with a genuine certificate. Nothing was deployed to a cloud, and the cost was <strong>$0</strong>.</p>
+<p><strong>The result: yes.</strong> 18 out of 18 checks on localhost, 17 out of 17 on the real domain — the counts
+differ only because the external run replaces two startup checks with one reachability check. The
+checks that matter assert on the <strong>browser&rsquo;s own behaviour</strong> rather than on a response header: a
+cookie it stored and sent back, a form it submitted, a redirect it followed.</p>
+<h3 id="what-it-caught-that-no-unit-test-could">What it caught that no unit test could</h3>
+<p><strong>The console was serving its pages as <code>text/plain</code>.</strong> Fastify does not infer <code>text/html</code> for a string
+payload, so every page arrived as plain text and the browser rendered the <strong>escaped source</strong> instead of
+the page.</p>
+<p>A unit test did not catch this and <strong>could not have</strong>: the assertion checked that the response body
+contained the word &ldquo;Evidence&rdquo;, and the escaped source still contains it. The check passed on a page no
+human could use. A browser found it, because a browser does not care what the body <em>says</em> — it cares
+what the content type is.</p>
+<p><strong>And &ldquo;Sign out&rdquo; did not sign anyone out.</strong> The console destroyed its own session, but Keycloak&rsquo;s
+end-session endpoint returned <code>400</code> because <code>post.logout.redirect.uris</code> was not registered — so the
+single sign-on session survived and the next visit signed the user straight back in. It looked like it
+worked. Closing it required discovering that Keycloak separates those URIs with <code>##</code>, and rejects both
+spaces and newlines with a message that blames the URI rather than the separator.</p>
+<h3 id="the-part-worth-reading-twice">The part worth reading twice</h3>
+<p>For several rounds this project recorded that <strong>&ldquo;the console&rsquo;s passkey sign-in does not work&rdquo;</strong>, and
+built three successive explanations for it: a missing user handle, then the localhost origin, then the
+session code. <strong>All three were wrong.</strong></p>
+<p>The actual cause was <strong>a client that did not exist in the realm.</strong> The console&rsquo;s token carried no
+audience because the mapper that adds it resolves its value through the client registry, and a mapper
+pointing at a client that is absent adds <strong>nothing</strong> — silently, with no warning and no log line. The
+API then correctly rejected the token, the console correctly treated the rejection as a dead session,
+and the browser looped. Every component behaved as designed, around a hole.</p>
+<p>The rejection reason — <code>wrong_audience</code> — was in the log <strong>from the first failing run</strong>.</p>
+<div class="admonition warning">
+<p class="admonition-title">The lesson, and it is not about Keycloak</p>
+<p><strong>A silent misconfiguration produces a symptom that describes the wrong subsystem.</strong> Nothing in the
+browser&rsquo;s message, the console&rsquo;s log, or the API&rsquo;s response says &ldquo;a client is missing from a
+realm&rdquo;. Each component reported its own correct behaviour and the fault was an <strong>absence</strong>.</p>
+<p>The rule that would have ended this in one round was already written down in this project:
+<strong>assert the cause of a refusal, never just its absence.</strong> It was violated anyway.</p>
+</div>
+<h3 id="what-it-settled">What it settled</h3>
+<p>The console&rsquo;s sign-in works, with a passkey, on a real origin. It had never completed anywhere before.
+And on a real domain the relying-party ID is the <strong>narrow</strong> one — <code>id.210security.com</code>, not
+<code>210security.com</code> — because the identity provider has its own hostname and does not need to cover the
+console&rsquo;s. That is the safer of the two, and §&rdquo;A BROAD relying-party ID IS exploitable&rdquo; is why it
+matters.</p>
 </section>
 <section id="the-one-that-failed-requiring-a-stronger-check"><h2>The one that failed: requiring a stronger check</h2>
 <p>Not every experiment succeeds, and this page would be misleading if it only listed the ones that did.</p>

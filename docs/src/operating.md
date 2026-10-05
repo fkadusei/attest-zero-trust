@@ -180,6 +180,60 @@ The pieces, and the reasoning behind each:
   service believes it lives at is written into every token it issues. Configure it wrongly and
   everything appears healthy while every token is rejected with an error that points nowhere useful.
 
+## What the deployment looks like when it is real, if only for a day
+
+The design above is a plan. **It has now been partly exercised**, not by deploying to a cloud but by
+putting the lab on a real domain through a **Cloudflare Tunnel**: `attest.210security.com` for the
+console and `id.210security.com` for the identity provider, with a real certificate and no cloud
+compute at all. It cost **nothing**, and it settled things that reasoning had only guessed at.
+
+**Two hostnames, deliberately.** The identity provider gets its own because the passkey ceremony
+happens on *its* page, so the relying-party ID is *its* hostname. That keeps the ID **narrow** —
+`id.210security.com` rather than `210security.com` — and a broad one is usable from every subdomain,
+which has been measured as exploitable and is recorded in the evidence register. Putting the identity
+provider on its own hostname is a security decision, not tidiness.
+
+**The paragraph above about reverse-proxy settings is not theoretical, and here is the measurement.**
+With the hostname forwarded but no proxy configuration, the identity provider issued:
+
+```text
+issuer: http://id.210security.com/realms/master      ← http, not https
+```
+
+It had learned the *hostname* and not the *scheme*, because TLS terminates at Cloudflare's edge and
+plain HTTP arrives at the origin. **Everything looked healthy while every redirect failed** — and the
+failure reads as a misconfigured *client*, not a misconfigured *proxy*, which is exactly the trap the
+paragraph warns about.
+
+The fix is one setting, and it cannot be applied the obvious way:
+
+```text
+Invalid value for option 'KC_PROXY_HEADERS': .
+Expected values are: forwarded, xforwarded
+```
+
+**An empty value is invalid**, so it cannot sit in a base configuration with a `${VAR:-}` default, and
+the obvious alternatives have no way to express "not set". It belongs in a separate overlay file
+applied only when the tunnel is in use — which has the useful side effect of making *"local runs are
+local-only"* true by construction rather than by convention.
+
+!!! danger "Exposing an identity provider is not the same as exposing a web app"
+
+    **This is the part to take seriously.** The tunnel put the identity provider on the public
+    internet, and a measurement — not a review — found that the master realm's **password grant was
+    reachable and accepting password attempts**, on a server running in a development mode with no
+    rate limiting and no lockout.
+
+    That is an unlimited guessing surface against an administrative account. It was closed by refusing
+    `/admin` and `/realms/master` **at the tunnel edge**, before traffic reaches the provider at all,
+    and verified: those paths now return `404` while the sign-in paths still return `200`. Both halves
+    were asserted, because closing the admin path without breaking the sign-in path is the whole
+    difficulty.
+
+    **If you expose an identity provider for testing: put an identity-aware proxy in front of it, or
+    refuse the administrative paths at the edge, and verify both that the admin surface is closed and
+    that sign-in still works.** A lab that is reachable is not a lab any more.
+
 ## Patching, and the promise that decides this
 
 The single question that determines whether self-hosting is sustainable is not technical:

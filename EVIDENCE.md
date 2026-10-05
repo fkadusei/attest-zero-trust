@@ -79,6 +79,15 @@ here, **this file is right and the other one is a bug.** Please report it.
 | **Keycloak's access-token marker is the PAYLOAD `typ` ("Bearer"), not the header's.** The header `typ` is `"JWT"` for access tokens and ID tokens alike, so a header check cannot distinguish them | L1 — decoded from live tokens: access `{header: JWT, payload: Bearer}`, ID `{header: JWT, payload: ID}` | **Verified** |
 | **WebAuthn requires a secure context**; `*.localhost` is one over plain HTTP and a real domain is not | S9b — Keycloak reported `WebAuthnUnsupportedBrowser` until Chrome was told to treat the origins as secure. **Not a DNS problem** | **Verified** |
 | `http.cookiejar` **cannot drive a Keycloak login** | Cookies stored as `localhost.local` + `Secure`, so never sent over http; error is "Restart login cookie not found" | **Verified** |
+| **The console completes a real OIDC sign-in with a passkey**, driven by a browser — redirect, ceremony, callback, code exchange, session | Browser end-to-end, **18/18 on localhost and 17/17 on a real origin under real TLS**. Every earlier console test stubbed the provider; this one does not | **Verified** |
+| The console's session is **a cookie the browser holds**, not a token in the page | Same run — asserts on the browser's own cookie jar: present, `HttpOnly`, `Path=/console`, and **not a JWT** | **Verified** |
+| The session **survives a fresh navigation**, and **sign-out ends both the console session and the SSO session** | Same run, including a check that the revisit does **not** leave the user signed in with the same session | **Verified** |
+| **Fastify does not infer `text/html` for a string payload.** It sends `text/plain`, so a browser renders the escaped SOURCE of the page | Found by the browser run, **not** by a unit test: the assertion checked the body for a word, and the escaped source still contains it, so it passed on a page no human could use | **Verified** |
+| **An `oidc-audience-mapper` whose target client does not exist adds NOTHING, silently** — no warning, no error, no log line | The console looped with `ERR_TOO_MANY_REDIRECTS`; the API's log said `wrong_audience` from the first failing run. A missing `attest-api` client in the realm, not a WebAuthn fault | **Verified** |
+| **A WebAuthn RP ID that is not a suffix of the origin fails with `SecurityError`**, and the message says *"ensure you are on the correct site"* | The first real-origin run, with the realm still pinned to `localhost`. The message names the site; the fault is the realm's RP ID | **Verified** |
+| **`KC_PROXY_HEADERS` cannot be an empty string** — Keycloak refuses to start | `Invalid value for option 'KC_PROXY_HEADERS': . Expected values are: forwarded, xforwarded`. It cannot be a `${VAR:-}` default; it needs an overlay | **Verified** |
+| **Keycloak separates multiple `post.logout.redirect.uris` with `##`** | Space and newline are both rejected with *"A post-logout redirect URI is not a valid URI"* — an error about the URI, never about the separator | **Verified** |
+| **The lab's master-realm password grant was reachable from the internet and accepted password attempts** | `POST /realms/master/protocol/openid-connect/token` returned `invalid_grant "Invalid user credentials"` from outside. Closed by refusing `/admin` and `/realms/master` at the tunnel edge — verified `404` thereafter, with the OIDC surface still `200` | **Verified** |
 
 ## 2. Corroborated — external sources, checked
 
@@ -153,8 +162,8 @@ the check failing. The check was validated by breaking the *enforcement*, not th
 
 | Not tested | Why it matters | Blocked on |
 |---|---|---|
-| A **real TLS** environment | S9b satisfies the secure-context requirement with a Chrome flag standing in for the certificate a real deployment has. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning | A deployed environment |
-| Phishing over **real TLS, DNS and a real certificate** | S9 runs over HTTP on loopback. WebAuthn's origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement | A deployed environment |
+| A **real TLS** environment | ~~Blocked on a deployed environment~~ — **NO LONGER BLOCKED.** The console's sign-in now runs on `https://attest.210security.com` through a Cloudflare Tunnel, with a real certificate, and passes **17/17**. What remains untested on a real origin is the *rest* of the register, not this | **Resolved for the console** |
+| Phishing over **real TLS, DNS and a real certificate** | S9 runs over HTTP on loopback. The origin check does not depend on the certificate, so the conclusion should hold — but that is reasoning, not measurement. **Now cheap to settle:** the real domain exists, so S9's relay can be pointed at it | **A run, not a deployment** |
 | The **`DPoP` header survives** CloudFront → ALB → API Gateway | A hop that strips it breaks binding **silently** | AWS |
 | **Firefox and Safari** keep the session key | The two non-Chromium engines; Safari is the likeliest to evict | A manual minute each |
 | A **physical hardware key** is accepted | Only refusal has been tested; the known failure is lockout, not bypass | A physical key |

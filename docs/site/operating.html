@@ -77,6 +77,7 @@
 <li><a href="#the-capability-we-lost">The capability we lost</a></li>
 <li><a href="#configuration-is-code-never-console-clicks">Configuration is code, never console clicks</a></li>
 <li><a href="#the-shape-of-the-deployment">The shape of the deployment</a></li>
+<li><a href="#what-the-deployment-looks-like-when-it-is-real-if-only-for-a-day">What the deployment looks like when it is real, if only for a day</a></li>
 <li><a href="#patching-and-the-promise-that-decides-this">Patching, and the promise that decides this</a></li>
 <li><a href="#the-escape-hatch">The escape hatch</a></li>
 <li><a href="#the-honest-summary">The honest summary</a></li>
@@ -261,6 +262,50 @@ process.</p>
   service believes it lives at is written into every token it issues. Configure it wrongly and
   everything appears healthy while every token is rejected with an error that points nowhere useful.</li>
 </ul>
+</section>
+<section id="what-the-deployment-looks-like-when-it-is-real-if-only-for-a-day"><h2>What the deployment looks like when it is real, if only for a day</h2>
+<p>The design above is a plan. <strong>It has now been partly exercised</strong>, not by deploying to a cloud but by
+putting the lab on a real domain through a <strong>Cloudflare Tunnel</strong>: <code>attest.210security.com</code> for the
+console and <code>id.210security.com</code> for the identity provider, with a real certificate and no cloud
+compute at all. It cost <strong>nothing</strong>, and it settled things that reasoning had only guessed at.</p>
+<p><strong>Two hostnames, deliberately.</strong> The identity provider gets its own because the passkey ceremony
+happens on <em>its</em> page, so the relying-party ID is <em>its</em> hostname. That keeps the ID <strong>narrow</strong> —
+<code>id.210security.com</code> rather than <code>210security.com</code> — and a broad one is usable from every subdomain,
+which has been measured as exploitable and is recorded in the evidence register. Putting the identity
+provider on its own hostname is a security decision, not tidiness.</p>
+<p><strong>The paragraph above about reverse-proxy settings is not theoretical, and here is the measurement.</strong>
+With the hostname forwarded but no proxy configuration, the identity provider issued:</p>
+<div class="codehilite"><pre><span></span><code>issuer: http://id.210security.com/realms/master      ← http, not https
+</code></pre></div>
+
+<p>It had learned the <em>hostname</em> and not the <em>scheme</em>, because TLS terminates at Cloudflare&rsquo;s edge and
+plain HTTP arrives at the origin. <strong>Everything looked healthy while every redirect failed</strong> — and the
+failure reads as a misconfigured <em>client</em>, not a misconfigured <em>proxy</em>, which is exactly the trap the
+paragraph warns about.</p>
+<p>The fix is one setting, and it cannot be applied the obvious way:</p>
+<div class="codehilite"><pre><span></span><code>Invalid value for option 'KC_PROXY_HEADERS': .
+Expected values are: forwarded, xforwarded
+</code></pre></div>
+
+<p><strong>An empty value is invalid</strong>, so it cannot sit in a base configuration with a <code>${VAR:-}</code> default, and
+the obvious alternatives have no way to express &ldquo;not set&rdquo;. It belongs in a separate overlay file
+applied only when the tunnel is in use — which has the useful side effect of making <em>&ldquo;local runs are
+local-only&rdquo;</em> true by construction rather than by convention.</p>
+<div class="admonition danger">
+<p class="admonition-title">Exposing an identity provider is not the same as exposing a web app</p>
+<p><strong>This is the part to take seriously.</strong> The tunnel put the identity provider on the public
+internet, and a measurement — not a review — found that the master realm&rsquo;s <strong>password grant was
+reachable and accepting password attempts</strong>, on a server running in a development mode with no
+rate limiting and no lockout.</p>
+<p>That is an unlimited guessing surface against an administrative account. It was closed by refusing
+<code>/admin</code> and <code>/realms/master</code> <strong>at the tunnel edge</strong>, before traffic reaches the provider at all,
+and verified: those paths now return <code>404</code> while the sign-in paths still return <code>200</code>. Both halves
+were asserted, because closing the admin path without breaking the sign-in path is the whole
+difficulty.</p>
+<p><strong>If you expose an identity provider for testing: put an identity-aware proxy in front of it, or
+refuse the administrative paths at the edge, and verify both that the admin surface is closed and
+that sign-in still works.</strong> A lab that is reachable is not a lab any more.</p>
+</div>
 </section>
 <section id="patching-and-the-promise-that-decides-this"><h2>Patching, and the promise that decides this</h2>
 <p>The single question that determines whether self-hosting is sustainable is not technical:</p>
