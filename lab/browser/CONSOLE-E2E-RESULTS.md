@@ -285,3 +285,52 @@ Note that a **real origin** would test the first of those directly. Everything h
 The console's server log was what distinguished "the passkey failed" from "the redirect failed".
 Without it, a 400 from a callback the console never started would have looked like another passkey
 failure — a fourth way this harness could have silently measured the wrong thing.
+
+---
+
+## 9. SESSION-2 — the suite, against the real origin
+
+**17/17 on `https://attest.210security.com`, through Cloudflare, under real TLS, with a
+passkey.** The count differs from the local run (18) only because the external-console path
+replaces two server-startup checks with one reachability check.
+
+```
+[1] using the EXTERNAL console at https://attest.210security.com   PASS
+[2] Chrome exposes its debugging port / authenticator attached     PASS
+[3] realm WebAuthn RP ID = id.210security.com                      PASS
+[4] passkey ceremony, redirect, callback, console rendered         PASS
+[5] session cookie: exists, HttpOnly, /console, not a JWT          PASS
+[6] the session survives a fresh navigation                        PASS
+[7] sign-out ends the session, and does not leave the user signed in PASS
+```
+
+**This is the first time the console's sign-in has ever completed anywhere, and it completed
+on a real origin.** Everything before it — the passkey theory, the user-handle theory, the
+origin theory — was chasing a missing client in a realm.
+
+The relying-party ID is the **narrow** one by design:
+
+```
+realm WebAuthn RP ID = id.210security.com   (origin https://id.210security.com)
+```
+
+Keycloak has its own hostname, so the RP ID need not cover `attest.210security.com` or any
+other subdomain. A broad RP ID would be usable from every subdomain of `210security.com`,
+which S9b measured as exploitable.
+
+### A harness bug the hardening exposed
+
+The first attempt failed instantly with `Unexpected end of JSON input`.
+
+The harness was fetching its **admin token from `KC/realms/master/...`** — and `/realms/master`
+had just been blocked at the tunnel edge. So it got a 404 with an empty body and surfaced
+`JSON.parse`'s complaint about the parser rather than the actual fault.
+
+**The harness was wrong, not the hardening.** Realm configuration, fixture creation and
+credential cleanup are operator actions and belong on localhost; only the browser's sign-in
+flow needs the public origin. The harness now has two bases — `KC` for the browser flow and
+`KC_ADMIN` for administration — and an empty admin response now raises a message naming the
+status and the likely cause instead of a JSON parse error.
+
+Hardening a system will find every assumption that depended on the hole being open. This was
+one, and it was correct that it broke.

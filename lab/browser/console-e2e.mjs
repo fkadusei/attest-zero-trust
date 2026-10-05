@@ -46,6 +46,18 @@ const puppeteer = require("puppeteer-core");
 // is a secure context by convention and the origin is not a variable — so the harness
 // could not previously test the one thing most likely to differ in a deployment.
 const KC = process.env["E2E_KEYCLOAK_URL"] ?? "http://localhost:8080";
+
+// ADMINISTRATION GOES OVER THE LOCAL CHANNEL, NOT THE PUBLIC HOSTNAME.
+//
+// The harness used to run its admin calls against KC. That works only while the public
+// hostname serves the master realm — and the whole point of hardening the tunnel was to
+// STOP it doing that. The result was `Unexpected end of JSON input`: a 404 with an empty
+// body, from a request that should never have gone through Cloudflare at all.
+//
+// This is the harness being wrong, not the hardening. Realm configuration, fixture
+// creation and credential cleanup are operator actions; they belong on localhost. Only
+// the browser's sign-in flow needs the public origin, and only that uses KC.
+const KC_ADMIN = process.env["E2E_KEYCLOAK_ADMIN_URL"] ?? "http://localhost:8080";
 const REALM = process.env["E2E_REALM"] ?? "attest-privileged";
 const CONSOLE_URL = (process.env["E2E_CONSOLE_URL"] ?? "http://localhost:3000").replace(/\/+$/, "");
 // When the console is already running elsewhere (a tunnel), do NOT start a second one:
@@ -74,7 +86,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Keycloak admin helpers
 // ---------------------------------------------------------------------------
 async function adminToken() {
-  const res = await fetch(`${KC}/realms/master/protocol/openid-connect/token`, {
+  const res = await fetch(`${KC_ADMIN}/realms/master/protocol/openid-connect/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -87,12 +99,19 @@ async function adminToken() {
 
 async function admin(method, path, body) {
   const token = await adminToken();
-  const res = await fetch(`${KC}/admin/realms${path}`, {
+  const res = await fetch(`${KC_ADMIN}/admin/realms${path}`, {
     method,
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const text = await res.text();
+  if (!res.ok && text === "") {
+    // An empty body here means the request never reached Keycloak — a 404 from the
+    // tunnel edge, a wrong base URL, or the admin path being blocked. Say that, rather
+    // than letting JSON.parse report "Unexpected end of JSON input", which describes
+    // the parser and not the fault.
+    throw new Error(`admin ${method} ${path} -> HTTP ${res.status} with an EMPTY body (never reached Keycloak?)`);
+  }
   return { status: res.status, body: text ? JSON.parse(text) : undefined };
 }
 

@@ -250,8 +250,11 @@ produced it is not reproducible, and an unreproducible symptom is a bad thing to
   characterised — a successful callback whose cookie does not stick — and is a much smaller question
   than &ldquo;passkeys do not work&rdquo;.</li>
 <li><strong>Whether <code>origin-diff</code> case E proves scope is irrelevant in general</strong>, or only for this realm.</li>
-<li><strong>The console end-to-end harness still has to be run to completion</strong> against both origins once the
-  redirect loop is fixed. It has never passed on the passkey path.</li>
+<li>~~The console end-to-end harness still has to be run to completion against both origins.~~
+  <strong>RESOLVED.</strong> The loop was a missing <code>attest-api</code> client, and the suite now passes <strong>18/18 on
+  localhost and 17/17 on the real origin</strong> — see <a href="lab-results-session.html">SESSION-RESULTS</a> and
+  §9 of <a href="lab-results-console-e2e.html">CONSOLE-E2E-RESULTS</a>. It passes on the passkey path for the
+  first time.</li>
 </ul>
 <hr>
 </section>

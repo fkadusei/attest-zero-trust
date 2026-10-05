@@ -88,6 +88,8 @@
 <li class="lvl3"><a href="#what-is-ruled-out-cumulatively">What is ruled out, cumulatively</a></li>
 <li class="lvl3"><a href="#what-remains_1">What remains</a></li>
 <li class="lvl3"><a href="#a-note-on-the-harness-again">A note on the harness, again</a></li>
+<li><a href="#9-session-2-the-suite-against-the-real-origin">9. SESSION-2 — the suite, against the real origin</a></li>
+<li class="lvl3"><a href="#a-harness-bug-the-hardening-exposed">A harness bug the hardening exposed</a></li>
 </ul></div>
   </aside>
 
@@ -427,7 +429,44 @@ had no matching flow cookie. That is the console behaving correctly for a callba
 <h3 id="a-note-on-the-harness-again">A note on the harness, again</h3>
 <p>The console&rsquo;s server log was what distinguished &ldquo;the passkey failed&rdquo; from &ldquo;the redirect failed&rdquo;.
 Without it, a 400 from a callback the console never started would have looked like another passkey
-failure — a fourth way this harness could have silently measured the wrong thing.</p></section>
+failure — a fourth way this harness could have silently measured the wrong thing.</p>
+<hr>
+</section>
+<section id="9-session-2-the-suite-against-the-real-origin"><h2>9. SESSION-2 — the suite, against the real origin</h2>
+<p><strong>17/17 on <code>https://attest.210security.com</code>, through Cloudflare, under real TLS, with a
+passkey.</strong> The count differs from the local run (18) only because the external-console path
+replaces two server-startup checks with one reachability check.</p>
+<div class="codehilite"><pre><span></span><code>[1] using the EXTERNAL console at https://attest.210security.com   PASS
+[2] Chrome exposes its debugging port / authenticator attached     PASS
+[3] realm WebAuthn RP ID = id.210security.com                      PASS
+[4] passkey ceremony, redirect, callback, console rendered         PASS
+[5] session cookie: exists, HttpOnly, /console, not a JWT          PASS
+[6] the session survives a fresh navigation                        PASS
+[7] sign-out ends the session, and does not leave the user signed in PASS
+</code></pre></div>
+
+<p><strong>This is the first time the console&rsquo;s sign-in has ever completed anywhere, and it completed
+on a real origin.</strong> Everything before it — the passkey theory, the user-handle theory, the
+origin theory — was chasing a missing client in a realm.</p>
+<p>The relying-party ID is the <strong>narrow</strong> one by design:</p>
+<div class="codehilite"><pre><span></span><code>realm WebAuthn RP ID = id.210security.com   (origin https://id.210security.com)
+</code></pre></div>
+
+<p>Keycloak has its own hostname, so the RP ID need not cover <code>attest.210security.com</code> or any
+other subdomain. A broad RP ID would be usable from every subdomain of <code>210security.com</code>,
+which S9b measured as exploitable.</p>
+<h3 id="a-harness-bug-the-hardening-exposed">A harness bug the hardening exposed</h3>
+<p>The first attempt failed instantly with <code>Unexpected end of JSON input</code>.</p>
+<p>The harness was fetching its <strong>admin token from <code>KC/realms/master/...</code></strong> — and <code>/realms/master</code>
+had just been blocked at the tunnel edge. So it got a 404 with an empty body and surfaced
+<code>JSON.parse</code>&rsquo;s complaint about the parser rather than the actual fault.</p>
+<p><strong>The harness was wrong, not the hardening.</strong> Realm configuration, fixture creation and
+credential cleanup are operator actions and belong on localhost; only the browser&rsquo;s sign-in
+flow needs the public origin. The harness now has two bases — <code>KC</code> for the browser flow and
+<code>KC_ADMIN</code> for administration — and an empty admin response now raises a message naming the
+status and the likely cause instead of a JSON parse error.</p>
+<p>Hardening a system will find every assumption that depended on the hole being open. This was
+one, and it was correct that it broke.</p></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-real-origin.html"><span>Previous</span><b>Lab results: a real origin</b></a><a class="pn next" href="lab-results-broad-rpid.html"><span>Next</span><b>Lab results: when it breaks</b></a></nav>
     <footer>
