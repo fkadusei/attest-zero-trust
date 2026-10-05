@@ -30,5 +30,19 @@
 services:
   keycloak:
     environment:
-      KC_HOSTNAME: https://id.210security.com
+      # ONLY the proxy headers — deliberately NOT KC_HOSTNAME.
+      #
+      # Pinning KC_HOSTNAME to the public URL works for the tunnel and BREAKS localhost:
+      # every request then reports the public issuer, including `http://localhost:8080`,
+      # so the two origins cannot be compared and local tests fail against a Keycloak
+      # that insists it is somewhere else.
+      #
+      # With proxy headers alone, Keycloak derives the issuer per request:
+      #
+      #   direct on localhost  -> no forwarded headers -> http://localhost:8080/...
+      #   through the tunnel   -> X-Forwarded-Proto: https, X-Forwarded-Host: id.210... 
+      #                        -> https://id.210security.com/...
+      #
+      # Both are correct at the same time, which is what makes a like-for-like comparison
+      # between the two origins possible at all.
       KC_PROXY_HEADERS: xforwarded

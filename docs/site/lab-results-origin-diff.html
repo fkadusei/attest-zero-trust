@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: the passkey works — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="Five configurations, all authenticated — and the real bug, which was somewhere else." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="evidence.html">Evidence register</a></li>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="application.html">The application</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
+<li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
+<li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
+<li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-origin-diff.html" class="current">Lab results: the passkey works</a></li>
+<li><a href="lab-results-real-origin.html">Lab results: a real origin</a></li>
+<li><a href="lab-results-console-e2e.html">Lab results: the console end to end</a></li>
+<li><a href="lab-results-broad-rpid.html">Lab results: when it breaks</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-the-passkey-works-everywhere-it-was-tried">1. The passkey works everywhere it was tried</a></li>
+<li class="lvl3"><a href="#every-candidate-and-its-verdict">Every candidate, and its verdict</a></li>
+<li><a href="#2-what-the-console-actually-does">2. What the console actually does</a></li>
+<li class="lvl3"><a href="#what-has-already-been-checked-and-is-not-the-cause">What has already been checked and is NOT the cause</a></li>
+<li><a href="#3-an-honest-note-on-the-original-diagnosis">3. An honest note on the original diagnosis</a></li>
+<li><a href="#4-what-is-still-open">4. What is still open</a></li>
+<li><a href="#5-reproducing">5. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: the passkey works</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: the passkey works</h1>
+        <p class="blurb">Five configurations, all authenticated — and the real bug, which was somewhere else.</p>
+      </header>
+      <section id="overview"><p><strong>The passkey was never the problem.</strong></p>
+<p>This slice set out to find what about the <code>localhost</code> origin caused the passkey sign-in to fail.
+It did not find that, because <strong>there is no such thing</strong>. The passkey works on localhost. It works
+on a real hostname. It worked in every configuration tested.</p>
+<p><strong>The console has a different bug</strong>, and it was hiding behind a misdiagnosis.</p>
+<hr></section>
+<section id="1-the-passkey-works-everywhere-it-was-tried"><h2>1. The passkey works everywhere it was tried</h2>
+<p>Measured with a fresh virtual authenticator per case, so no case could be helped by another&rsquo;s
+credential. The user handle is shown because it was once misread as absent:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Origin</th>
+<th>RP ID</th>
+<th>extraOrigins</th>
+<th>scope</th>
+<th>Outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td><code>http://localhost:8080</code></td>
+<td><code>localhost</code></td>
+<td><code>[]</code></td>
+<td><code>openid</code></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+<tr>
+<td>B</td>
+<td><code>http://localhost:8080</code></td>
+<td><code>localhost</code></td>
+<td><code>["http://localhost:3000"]</code></td>
+<td><code>openid</code></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>https://id.210security.com</code></td>
+<td><code>id.210security.com</code></td>
+<td><code>[]</code></td>
+<td><code>openid</code></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+<tr>
+<td>D</td>
+<td><code>http://localhost:8080</code></td>
+<td><code>localhost</code></td>
+<td><code>[]</code></td>
+<td><code>openid</code></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+<tr>
+<td>E</td>
+<td><code>http://localhost:8080</code></td>
+<td><code>localhost</code></td>
+<td><code>[]</code></td>
+<td><code>openid profile email</code></td>
+<td><strong>AUTHENTICATED</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>Every case registered a resident credential and produced a correct user handle.</p>
+<p><strong>And with the very user the console end-to-end harness uses</strong> — <code>console-e2e</code> — localhost still
+authenticated. So it is not the user either.</p>
+<h3 id="every-candidate-and-its-verdict">Every candidate, and its verdict</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th>Verdict</th>
+<th>How it was tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the origin / scheme</td>
+<td><strong>ruled out</strong></td>
+<td>http and https both authenticate</td>
+</tr>
+<tr>
+<td>the relying-party ID width</td>
+<td><strong>ruled out</strong></td>
+<td>one label (<code>localhost</code>) and three (<code>id.…</code>) both work</td>
+</tr>
+<tr>
+<td><code>extraOrigins</code></td>
+<td><strong>ruled out</strong></td>
+<td>empty and populated both work (A vs B)</td>
+</tr>
+<tr>
+<td>the OAuth <code>scope</code></td>
+<td><strong>ruled out</strong></td>
+<td><code>openid</code> and <code>openid profile email</code> both work (D vs E)</td>
+</tr>
+<tr>
+<td>the OIDC client</td>
+<td><strong>ruled out</strong></td>
+<td>both clients authenticate (E2E-3)</td>
+</tr>
+<tr>
+<td>the user</td>
+<td><strong>ruled out</strong></td>
+<td>the failing harness&rsquo;s own user authenticates here</td>
+</tr>
+<tr>
+<td>the credential / user handle</td>
+<td><strong>ruled out</strong></td>
+<td>present, resident, and correctly encoded in every case</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+</section>
+<section id="2-what-the-console-actually-does"><h2>2. What the console actually does</h2>
+<p>Re-run unchanged, the console end-to-end harness now fails with:</p>
+<div class="codehilite"><pre><span></span><code>ERR_TOO_MANY_REDIRECTS
+This page isn't working — localhost redirected you too many times.
+</code></pre></div>
+
+<p>and the passkey ceremony <strong>succeeds</strong> on the way:</p>
+<div class="codehilite"><pre><span></span><code>authenticator holds: resident=true userHandle="Y2E1NTg2ZDgtN2NmMy00YTQxLTg5MWMtZWU5OTZkMzdlNDM4"
+the provider offers the passkey ceremony    PASS
+</code></pre></div>
+
+<p>The browser is redirected to <code>/console/callback</code> and then <strong>bounces between <code>/console</code> and the
+provider</strong>. The console&rsquo;s session cookie is not surviving the round trip, so every visit to
+<code>/console</code> looks unauthenticated and starts a new sign-in.</p>
+<p><strong>So the real defect is in the console&rsquo;s session handling, not in WebAuthn at all.</strong></p>
+<h3 id="what-has-already-been-checked-and-is-not-the-cause">What has already been checked and is NOT the cause</h3>
+<ul>
+<li><strong>The flow cookie is correct.</strong> <code>attest_flow</code> is set with <code>Max-Age=600; Path=/console; HttpOnly;
+  SameSite=Lax</code> and <strong>no <code>Secure</code></strong>, so a browser on <code>http://localhost</code> will keep it.</li>
+<li><strong>The callback does not redirect on failure.</strong> Every rejection path in <code>/console/callback</code>
+  returns a 400 page, so a <em>failing</em> callback cannot produce a loop. The loop must therefore be a
+  <em>successful</em> callback whose session does not stick.</li>
+<li><strong>The redirect chain is otherwise clean:</strong> <code>/console</code> → 302 → <code>/console/login</code> → 302 → Keycloak,
+  with the flow cookie set correctly on the way.</li>
+</ul>
+<hr>
+</section>
+<section id="3-an-honest-note-on-the-original-diagnosis"><h2>3. An honest note on the original diagnosis</h2>
+<p>For several rounds this project recorded that <strong>&ldquo;the console&rsquo;s passkey sign-in does not work&rdquo;</strong>, with
+<code>webauthn-error-user-not-found</code> as the symptom. <strong>That symptom no longer reproduces.</strong></p>
+<p>What changed in between is not one thing: Keycloak was recreated several times, the credential store
+was cleared repeatedly, the realm policy was rewritten many times, and the harness gained a fix that
+clears credentials before registering. <strong>The most likely reading is that the original error was an
+artefact of stale realm or credential state, and the enduring bug is this redirect loop.</strong></p>
+<p><strong>That is stated as the most likely reading, not as a finding</strong>, because it was not isolated. What
+is a finding is that the passkey ceremony itself works, measured five ways, and that the console&rsquo;s
+failure has a different shape.</p>
+<p>The lesson is the one this project keeps relearning: <strong>a symptom recorded without the state that
+produced it is not reproducible, and an unreproducible symptom is a bad thing to build a theory on.</strong></p>
+<hr>
+</section>
+<section id="4-what-is-still-open"><h2>4. What is still open</h2>
+<ul>
+<li><strong>Why the console&rsquo;s session does not survive.</strong> This is the actual defect. It is now precisely
+  characterised — a successful callback whose cookie does not stick — and is a much smaller question
+  than &ldquo;passkeys do not work&rdquo;.</li>
+<li><strong>Whether <code>origin-diff</code> case E proves scope is irrelevant in general</strong>, or only for this realm.</li>
+<li><strong>The console end-to-end harness still has to be run to completion</strong> against both origins once the
+  redirect loop is fixed. It has never passed on the passkey path.</li>
+</ul>
+<hr>
+</section>
+<section id="5-reproducing"><h2>5. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Both origins must resolve correctly at once. The overlay sets ONLY proxy headers —</span>
+<span class="c1"># pinning KC_HOSTNAME makes localhost report the public issuer and breaks the comparison.</span>
+docker<span class="w"> </span>compose<span class="w"> </span>--env-file<span class="w"> </span>lab/.env<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>lab/keycloak/compose.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>lab/keycloak/compose.tunnel.yaml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>keycloak
+
+<span class="c1"># the differential probe: five cases, fresh authenticator each</span>
+node<span class="w"> </span>lab/browser/origin-diff.mjs
+
+<span class="c1"># and with the console harness's own user</span>
+<span class="nv">E2E_USER</span><span class="o">=</span>console-e2e<span class="w"> </span><span class="nv">E2E_PASSWORD</span><span class="o">=</span><span class="s1">'...'</span><span class="w"> </span>node<span class="w"> </span>lab/browser/origin-diff.mjs
+
+<span class="c1"># the console end-to-end, which now fails on the redirect loop rather than the passkey</span>
+<span class="nv">E2E_REALM</span><span class="o">=</span>attest-privileged<span class="w"> </span><span class="nv">E2E_PASSKEY_ONLY</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>node<span class="w"> </span>lab/browser/console-e2e.mjs
+</code></pre></div></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a><a class="pn next" href="lab-results-real-origin.html"><span>Next</span><b>Lab results: a real origin</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

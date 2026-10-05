@@ -222,6 +222,16 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A symptom recorded without the state that produced it is not reproducible, and an
+  unreproducible symptom is a bad thing to build a theory on.** For several rounds this project
+  recorded "the console's passkey sign-in does not work" with `webauthn-error-user-not-found` as the
+  symptom. When finally measured properly, the passkey authenticated in FIVE different
+  configurations and the symptom did not reproduce at all. The enduring bug — a redirect loop —
+  looked nothing like it. **Record the state alongside the symptom, or expect to chase a ghost.**
+- **Ask what a failing path CAN produce before theorising about it.** The console's callback returns
+  a 400 page on every rejection path, so a *failing* callback cannot cause a redirect loop. That one
+  observation eliminated the whole callback as the cause and pointed at a *successful* callback whose
+  session does not stick.
 - **A reverse proxy makes Keycloak believe it is serving plain HTTP.** Cloudflare terminates
   TLS at its edge and forwards http to the origin, so Keycloak issued
   `http://id.210security.com/...` in its discovery document while the browser was on https://.

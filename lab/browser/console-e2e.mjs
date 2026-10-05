@@ -60,6 +60,7 @@ const PASSKEY_TOOL = "/Users/felixadusei/Development/AI_Engineering/DeepSeek/pas
 
 const USERNAME = process.env["E2E_USER"] ?? "console-e2e";
 const PASSWORD = process.env["E2E_PASSWORD"] ?? "Console-E2E-Password-123!";
+let server = null;   // null when the console is external
 const results = [];
 const check = (label, got, want) => {
   const ok = got === want;
@@ -200,7 +201,7 @@ async function main() {
     await sleep(2000);
   }
 
-  const server = spawn("node", ["--experimental-strip-types", "src/index.ts"], {
+  server = spawn("node", ["--experimental-strip-types", "src/index.ts"], {
     cwd: "/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/apps/api",
     env: {
       ...process.env,
