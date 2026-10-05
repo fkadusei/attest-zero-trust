@@ -41,9 +41,17 @@ import { KEYCLOAK_ADMIN_PASSWORD } from "../lab-env.mjs";
 const require = createRequire("/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/lab/keycloak/package.json");
 const puppeteer = require("puppeteer-core");
 
-const KC = "http://localhost:8080";
+// Both are overridable so this can point at a REAL origin through a tunnel, not just
+// at localhost. Everything here has only ever run on http://localhost, where WebAuthn
+// is a secure context by convention and the origin is not a variable — so the harness
+// could not previously test the one thing most likely to differ in a deployment.
+const KC = process.env["E2E_KEYCLOAK_URL"] ?? "http://localhost:8080";
 const REALM = process.env["E2E_REALM"] ?? "attest-privileged";
-const CONSOLE_URL = "http://localhost:3000";
+const CONSOLE_URL = (process.env["E2E_CONSOLE_URL"] ?? "http://localhost:3000").replace(/\/+$/, "");
+// When the console is already running elsewhere (a tunnel), do NOT start a second one:
+// it would bind :3000 and the harness would silently test the local instance while
+// believing it was testing the deployed one.
+const EXTERNAL_CONSOLE = Boolean(process.env["E2E_CONSOLE_URL"]);
 const CDP_PORT = 9333;
 const CHROME = process.env["CHROME_BIN"] ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -126,6 +134,40 @@ function setFlow(mode) {
 // ---------------------------------------------------------------------------
 const PASSKEY_ONLY = (process.env["E2E_PASSKEY_ONLY"] ?? "1") === "1";
 
+
+/**
+ * Point the realm's WebAuthn policy at whatever origin we are actually testing.
+ *
+ * THIS WAS MISSING, AND ITS ABSENCE COST A RUN. The harness never configured the RP ID
+ * at all, so it stayed `localhost` from earlier local work. On http://localhost that
+ * happens to be correct and everything passes. On a real host the RP ID is no longer a
+ * suffix of the origin, WebAuthn refuses with a SecurityError, and the failure reads as
+ * "ensure you are on the correct site" — a message about the SITE, which is about the
+ * RP ID, which was the thing nobody had set.
+ *
+ * Derived from the Keycloak URL rather than hardcoded, so one harness tests both.
+ */
+async function setRealmWebAuthn() {
+  const rpId = new URL(KC).hostname;
+  const realm = (await admin("GET", `/${REALM}`)).body;
+  const extraOrigins = [...new Set([CONSOLE_URL, KC])];
+  await admin("PUT", `/${REALM}`, {
+    ...realm,
+    webAuthnPolicyPasswordlessRpId: rpId,
+    webAuthnPolicyPasswordlessExtraOrigins: extraOrigins,
+    webAuthnPolicyPasswordlessAcceptableAaguids: [],
+    webAuthnPolicyPasswordlessAttestationConveyancePreference: "none",
+  });
+  const after = (await admin("GET", `/${REALM}`)).body;
+  // ASSERT IT LANDED. A scripted edit that silently does nothing is how the RP ID came
+  // to be missing in the first place, and a realm policy that did not apply produces a
+  // confusing browser error rather than a configuration error.
+  if (after.webAuthnPolicyPasswordlessRpId !== rpId) {
+    throw new Error(`RP ID did not apply: wanted ${rpId}, realm has ${after.webAuthnPolicyPasswordlessRpId}`);
+  }
+  console.log(`      realm WebAuthn RP ID = ${rpId}  (origin ${new URL(KC).origin})`);
+}
+
 async function main() {
   console.log("=".repeat(84));
   console.log("The console, end to end, in a real browser");
@@ -138,7 +180,14 @@ async function main() {
   console.log(`  realm: ${REALM}   passkey-only: ${PASSKEY_ONLY}   user: ${USERNAME}`);
 
   // ------------------------------------------------------------------ server
-  console.log("\n[1] start the API and console on :3000");
+  if (EXTERNAL_CONSOLE) {
+    console.log(`\n[1] using the EXTERNAL console at ${CONSOLE_URL}`);
+    const up = (await fetch(`${CONSOLE_URL}/health`, { signal: AbortSignal.timeout(8000) })
+      .then((r) => r.ok).catch(() => false));
+    check("the external console is reachable", up, true);
+    if (!up) return finish();
+  } else {
+    console.log("\n[1] start the API and console on :3000");
   // Refuse to run if something already owns the port. A previous run whose cleanup
   // failed leaves a server behind, the health check below then passes against THAT
   // server, and the whole test silently measures the wrong configuration — which is
@@ -189,16 +238,18 @@ async function main() {
   check("the running server points at the realm under test", probeLocation.includes(REALM), true);
   if (!probeLocation.includes(REALM)) {
     console.log(`      redirect was: ${probeLocation.slice(0, 120)}`);
-    server.kill();
+    if (!EXTERNAL_CONSOLE) server.kill();
     return finish();
   }
   if (!up) {
     console.log("\n  server output:\n" + serverLog.slice(-1500));
-    server.kill();
+    if (!EXTERNAL_CONSOLE) server.kill();
     return finish();
   }
 
   // ------------------------------------------------------------------ chrome
+  }
+
   console.log("\n[2] launch Chrome with a virtual authenticator");
   // Clear any leftover instance first. A previous run that failed before its
   // cleanup leaves Chrome holding the debug port, and the next run then connects to
@@ -252,6 +303,7 @@ async function main() {
     // has none. The S9 work established this cycle; it is repeated here rather than
     // assumed.
     console.log("\n[3] register a passkey for the test user");
+    await setRealmWebAuthn();
     setFlow("revert");
     // Clear any credential from an earlier run FIRST. `AvoidSameAuthenticatorRegister`
     // is enabled on this realm and refuses a duplicate registration SILENTLY, so a
@@ -432,7 +484,7 @@ async function main() {
     await page.close().catch(() => {});
     browser.disconnect();
     chrome.kill();
-    server.kill();
+    if (!EXTERNAL_CONSOLE) server.kill();
     setFlow("revert");
     spawnSync("pkill", ["-f", "user-data-dir=/tmp/console-e2e-chrome"]);
   }

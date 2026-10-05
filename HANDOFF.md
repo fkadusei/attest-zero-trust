@@ -222,6 +222,19 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A reverse proxy makes Keycloak believe it is serving plain HTTP.** Cloudflare terminates
+  TLS at its edge and forwards http to the origin, so Keycloak issued
+  `http://id.210security.com/...` in its discovery document while the browser was on https://.
+  `KC_PROXY_HEADERS: xforwarded` is the fix, and it CANNOT be an empty-string default —
+  Keycloak refuses to start: `Invalid value for option 'KC_PROXY_HEADERS': .`. Use an overlay
+  file. The failure looks like a misconfigured CLIENT, not a misconfigured proxy.
+- **Keycloak separates multiple `post.logout.redirect.uris` with `##`.** Space and newline are
+  both rejected with "A post-logout redirect URI is not a valid URI" — an error about the URI,
+  never about the separator. Guessing wrong means sign-out appears to work while the SSO
+  session survives.
+- **A WebAuthn `SecurityError` is an RP ID problem, not a Keycloak or browser problem.** The
+  message is "ensure you are on the correct site", which is true and tells you nothing. Check
+  the realm's `webAuthnPolicyPasswordlessRpId` is a suffix of the ORIGIN first.
 - **Regenerating a credential file ORPHANS every running container.** They hold the credentials
   they were created with; the scripts read the new ones. The symptoms are `invalid_grant` from
   Keycloak and `password authentication failed` from Postgres — which look like an identity-provider

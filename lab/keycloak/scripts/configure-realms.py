@@ -11,6 +11,7 @@ Stdlib only, so it runs anywhere Python 3 does.
 """
 
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -121,9 +122,110 @@ def verify(tok, realm, policy):
     return ok
 
 
+def ensure_console_client(tok, realm, public_base):
+    """Create or update the console's OIDC client.
+
+    THIS BELONGS IN A SCRIPT. It was originally created ad-hoc with a one-off snippet,
+    so when the Keycloak volumes were destroyed during the credential work the client
+    vanished with them — and the failure surfaced much later as "attest-console client
+    missing" while wiring up a tunnel. Setup that exists only in a shell history is
+    setup that will be lost.
+
+    `public_base` is where the console is reachable. Local runs use http://localhost:3000;
+    a tunnel run uses the real hostname. BOTH redirect URIs are registered rather than
+    replaced, so switching between them does not require re-running anything.
+
+    The post-logout URI is not optional. Without it Keycloak's end-session endpoint
+    returns HTTP 400, the console's own session is destroyed, and the SSO session at the
+    provider SURVIVES — so the next visit signs the user straight back in. It looks like
+    sign-out worked. The browser end-to-end test is what found that.
+    """
+    redirects = [f"{public_base}/console/callback"]
+    post_logout = f"{public_base}/console/login"
+
+    clients = api(tok, "GET", f"/{realm}/clients?clientId=attest-console")[1]
+    if clients:
+        client = clients[0]
+        merged = sorted(set(client.get("redirectUris", []) + redirects))
+        # MERGE the post-logout URIs, do not replace them.
+        #
+        # THE SEPARATOR IS `##`, AND THAT WAS MEASURED RATHER THAN GUESSED. Keycloak
+        # stores this attribute as a single string, so more than one URI needs a
+        # separator — and the obvious candidates are all wrong:
+        #
+        #     space-separated   -> HTTP 400 "A post-logout redirect URI is not a valid URI"
+        #     newline-separated -> HTTP 400, same
+        #     `##`-separated    -> ACCEPTED
+        #
+        # Every rejection reads as a malformed URI rather than as a bad separator, which
+        # is why the wrong guess is easy to make and hard to read back.
+        #
+        # The consequence of getting it wrong is not cosmetic: with no post-logout URI
+        # registered, Keycloak's end-session endpoint returns 400, the console's own
+        # session is destroyed, and the SSO session SURVIVES — so the next visit signs
+        # the user straight back in and it looks like sign-out worked.
+        existing_post = (client.get("attributes", {})
+                         .get("post.logout.redirect.uris", "").split("##"))
+        existing_post = [u for u in (u.strip() for u in existing_post) if u]
+        attributes = {**client.get("attributes", {}),
+                      "post.logout.redirect.uris":
+                          "##".join(sorted(set(existing_post + [post_logout])))}
+        status, err = api(tok, "PUT", f"/{realm}/clients/{client['id']}",
+                          {**client, "redirectUris": merged, "attributes": attributes})
+        if status not in (204, 200):
+            print(f"  console client update FAILED: {status} {err}")
+            return False
+        print(f"  console client updated")
+        print(f"    redirectUris : {merged}")
+        print(f"    post-logout  : {attributes['post.logout.redirect.uris']}")
+        return True
+
+    spec = {
+        "clientId": "attest-console",
+        "enabled": True,
+        # Confidential: a server-rendered console holds a secret. It CANNOT use DPoP —
+        # its tokens are not sender-constrained. The user's SIGN-IN is still a passkey;
+        # what the console holds afterwards is an ordinary confidential-client session.
+        "publicClient": False,
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": False,
+        "serviceAccountsEnabled": False,
+        "redirectUris": redirects,
+        "webOrigins": [public_base],
+        "attributes": {"post.logout.redirect.uris": post_logout},
+        "protocolMappers": [
+            {"name": "audience-attest-api", "protocol": "openid-connect",
+             "protocolMapper": "oidc-audience-mapper", "consentRequired": False,
+             "config": {"included.client.audience": "attest-api",
+                        "id.token.claim": "false", "access.token.claim": "true"}},
+            {"name": "tenant_id", "protocol": "openid-connect",
+             "protocolMapper": "oidc-hardcoded-claim-mapper", "consentRequired": False,
+             "config": {"claim.name": "tenant_id", "claim.value": "acme",
+                        "jsonType.label": "String",
+                        "id.token.claim": "false", "access.token.claim": "true"}},
+            {"name": "realm-roles", "protocol": "openid-connect",
+             "protocolMapper": "oidc-hardcoded-claim-mapper", "consentRequired": False,
+             "config": {"claim.name": "realm_access.roles",
+                        "claim.value": '["writer"]', "jsonType.label": "JSON",
+                        "id.token.claim": "false", "access.token.claim": "true"}},
+        ],
+    }
+    status, err = api(tok, "POST", f"/{realm}/clients", spec)
+    if status not in (201, 204):
+        print(f"  console client creation FAILED: {status} {err}")
+        return False
+    print(f"  console client created (redirectUris={redirects})")
+    return True
+
+
 def main():
     tok = token()
     print("Authenticated to Keycloak Admin API.\n")
+
+    # Where the console is reachable. Local by default; set CONSOLE_PUBLIC_URL when the
+    # lab is exposed through a tunnel, so the redirect URIs match what the browser uses.
+    public_base = os.environ.get("CONSOLE_PUBLIC_URL", "http://localhost:3000").rstrip("/")
+    print(f"Console public URL: {public_base}\n")
 
     all_ok = True
     for realm, policy in (("attest-privileged", PRIVILEGED_POLICY),
@@ -134,6 +236,8 @@ def main():
             continue
         print("  verifying persistence:")
         if not verify(tok, realm, policy):
+            all_ok = False
+        if not ensure_console_client(tok, realm, public_base):
             all_ok = False
         print()
 

@@ -28,8 +28,8 @@ import { KEYCLOAK_ADMIN_PASSWORD } from "../lab-env.mjs";
 const require = createRequire("/Users/felixadusei/Development/AI_Engineering/DeepSeek/passwordless/lab/keycloak/package.json");
 const puppeteer = require("puppeteer-core");
 
-const KC = "http://localhost:8080";
-const REALM = "attest-privileged";
+const KC = process.env["E2E_KEYCLOAK_URL"] ?? "http://localhost:8080";
+const REALM = process.env["E2E_REALM"] ?? "attest-privileged";
 const USERNAME = process.env["E2E_USER"] ?? "client-probe-user";
 const PASSWORD = "Client-Probe-Password-123!";
 const CDP_PORT = 9355;
@@ -178,8 +178,8 @@ async function main() {
   // ruled out.
   const realm = await admin("GET", `/${REALM}`);
   await admin("PUT", `/${REALM}`, { ...realm,
-    webAuthnPolicyPasswordlessRpId: "localhost",
-    webAuthnPolicyPasswordlessExtraOrigins: ["http://localhost:3000", "http://app.localhost:8080"],
+    webAuthnPolicyPasswordlessRpId: new URL(KC).hostname,
+    webAuthnPolicyPasswordlessExtraOrigins: [...new Set([new URL(KC).origin, "http://localhost:3000", "http://app.localhost:8080"])],
     webAuthnPolicyPasswordlessAcceptableAaguids: [],
     webAuthnPolicyPasswordlessAttestationConveyancePreference: "none" });
 

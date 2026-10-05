@@ -1,0 +1,50 @@
+# Cloudflare Tunnel for the Attest lab.
+#
+# ONE tunnel, TWO hostnames, and the split is deliberate:
+#
+#   attest.210security.com -> the console and API on :3000
+#   id.210security.com     -> Keycloak on :8080
+#
+# Keycloak gets its own hostname because the WebAuthn ceremony happens on ITS page, so
+# the relying-party ID is ITS hostname. That makes the RP ID `id.210security.com` — a
+# full subdomain rather than the registrable domain. A broad RP ID covering every
+# subdomain of 210security.com would be usable from ANY of them, which S9b measured as
+# exploitable. Keeping Keycloak on a narrow hostname is a security decision, not tidiness.
+#
+# WHAT IS AND IS NOT SECRET HERE
+#
+# The tunnel UUID is not a secret. It is published in public DNS as the CNAME target
+# (`<uuid>.cfargotunnel.com`) for both hostnames — anyone can read it with `dig`. The
+# credentials file it points at IS secret, and stays in `~/.cloudflared/` with 0600
+# permissions. This file is committed; that one is not.
+#
+# RUN IT WITH AN EXPLICIT CONFIG PATH
+#
+# Rather than the default `~/.cloudflared/config.yml`, so the routing rules live with the
+# project and can be reviewed in a diff:
+#
+#   cloudflared tunnel --config lab/cloudflare/config.yml run
+
+tunnel: 719e899e-9dcf-432c-a8b7-f6059aee6f17
+credentials-file: /Users/felixadusei/.cloudflared/719e899e-9dcf-432c-a8b7-f6059aee6f17.json
+
+loglevel: info
+metrics: 127.0.0.1:49312
+
+ingress:
+  - hostname: attest.210security.com
+    service: http://localhost:3000
+    originRequest:
+      # The console sets Secure cookies and builds absolute URLs from the forwarded
+      # host. Without this it would see `localhost:3000` and emit http:// links — and
+      # `PUBLIC_BASE_URL` would disagree with what the browser actually requested,
+      # which breaks the OIDC redirect in a way that looks like a client misconfiguration.
+      httpHostHeader: attest.210security.com
+
+  - hostname: id.210security.com
+    service: http://localhost:8080
+    originRequest:
+      httpHostHeader: id.210security.com
+
+  # Required: cloudflared refuses to start without a catch-all rule.
+  - service: http_status:404

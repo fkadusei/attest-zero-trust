@@ -3,12 +3,33 @@ name: attest-idp-lab
 # Spike #3 lab: does Keycloak actually ENFORCE the AAGUID allowlist and
 # authenticator-attachment restriction at enrolment?
 #
-# Deliberately local-only and throwaway. Passwords below are hardcoded and
-# intentionally obvious -- this stack must never be exposed beyond localhost
-# and must never be reused for anything real.
+# Deliberately local-only and throwaway. The credentials are GENERATED, not committed
+# (see lab/keycloak/scripts/lab_env.py), and this stack must never be reused for
+# anything real.
+#
+# ---------------------------------------------------------------------------
+# THIS STACK IS NOW EXPOSED BEYOND LOCALHOST, AND THAT IS A REAL CHANGE
+#
+# This file used to say "must never be exposed beyond localhost". It now is, on
+# purpose, through a Cloudflare Tunnel, so that WebAuthn could be tested on a real
+# origin under real TLS rather than on http://localhost.
+#
+# Exposure was a deliberate decision and it carries risk that localhost did not:
+#
+#   * `start-dev` is NOT a production mode. Keycloak warns about this itself.
+#   * There is no rate limiting, no lockout tuning, no brute-force protection.
+#   * The admin console is reachable at /admin on the public hostname.
+#   * The hostnames are discoverable, and `id.210security.com` says what it is.
+#
+# It is a lab. If it is left running, put Cloudflare Access in front of it — that is
+# a few clicks and removes the whole class of problem. Do not treat this as a
+# deployment, and do not put real accounts in it.
+# ---------------------------------------------------------------------------
 #
 # WebAuthn note: browsers treat http://localhost as a SECURE CONTEXT, so real
-# WebAuthn ceremonies work here without TLS. RP ID is therefore "localhost".
+# WebAuthn ceremonies work locally without TLS. Behind the tunnel the RP ID is
+# id.210security.com instead, which is a narrower relying-party ID and therefore the
+# safer of the two.
 
 services:
   postgres:
@@ -43,6 +64,22 @@ services:
       KC_METRICS_ENABLED: "true"
       # start-dev is intentional: no hostname strictness, HTTP allowed.
       KC_LOG_LEVEL: INFO
+
+      # NOTE: the public-hostname settings are NOT here. They live in
+      # `compose.tunnel.yaml`, applied as an overlay:
+      #
+      #   docker compose -f lab/keycloak/compose.yaml \
+      #                  -f lab/keycloak/compose.tunnel.yaml up -d
+      #
+      # They cannot live here as `${VAR:-}` defaults. An EMPTY VALUE IS INVALID for
+      # KC_PROXY_HEADERS — Keycloak refuses to start:
+      #
+      #   Invalid value for option 'KC_PROXY_HEADERS': .
+      #   Expected values are: forwarded, xforwarded
+      #
+      # and the option has no "unset" spelling that survives an empty expansion. An
+      # overlay is the only way to add it conditionally, and it keeps the base file
+      # local-only by construction rather than by convention.
     ports:
       - "8080:8080"   # HTTP / admin console
       - "9000:9000"   # management: /health, /metrics

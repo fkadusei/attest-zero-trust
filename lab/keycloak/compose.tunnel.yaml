@@ -1,0 +1,34 @@
+# Overlay: expose Keycloak on a public hostname through the Cloudflare Tunnel.
+#
+# Applied ON TOP of compose.yaml:
+#
+#   docker compose -f lab/keycloak/compose.yaml \
+#                  -f lab/keycloak/compose.tunnel.yaml up -d
+#
+# WHY AN OVERLAY RATHER THAN `${VAR:-}` DEFAULTS
+#
+# KC_PROXY_HEADERS cannot be empty. Keycloak refuses to start:
+#
+#   Invalid value for option 'KC_PROXY_HEADERS': .
+#   Expected values are: forwarded, xforwarded
+#
+# so it cannot sit in the base file with an empty default, and compose has no way to
+# omit a key conditionally. An overlay adds it only when the tunnel is in use, which
+# also makes "local runs are local-only" true by construction instead of by convention.
+#
+# WHY KC_PROXY_HEADERS IS THE LOAD-BEARING ONE
+#
+# Cloudflare terminates TLS at its edge and forwards PLAIN HTTP to localhost:8080.
+# Without this setting Keycloak sees `http` and issues `http://id.210security.com/...`
+# in its discovery document while the browser is on https://. The OIDC redirect then
+# fails in a way that looks like a misconfigured CLIENT rather than a misconfigured
+# proxy.
+#
+# Measured, not assumed: with only the forwarded hostname and no proxy headers, the
+# issuer came back as `http://id.210security.com/realms/master`. With this overlay it
+# is `https://id.210security.com/realms/master`.
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://id.210security.com
+      KC_PROXY_HEADERS: xforwarded
