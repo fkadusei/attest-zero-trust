@@ -222,6 +222,16 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A silent misconfiguration produces a symptom that describes the WRONG SUBSYSTEM.** Keycloak's
+  `oidc-audience-mapper` resolves its value through the client registry: if the target client does not
+  exist, the mapper adds **nothing** — no warning, no error, no log line. The result was a browser
+  `ERR_TOO_MANY_REDIRECTS` caused by a missing CLIENT. The API correctly said `wrong_audience` from
+  the very first failing run; reading that reason immediately would have ended it in one round. **Check
+  the first rejection reason before theorising about any subsystem.**
+- **Correct components around a hole still look like a broken system.** The API was right to reject a
+  token with no audience; the console was right to treat a 401 as a dead session; Keycloak was right to
+  re-authenticate from its live SSO session. Every part behaved as designed, and the loop came from an
+  absence rather than a fault.
 - **A symptom recorded without the state that produced it is not reproducible, and an
   unreproducible symptom is a bad thing to build a theory on.** For several rounds this project
   recorded "the console's passkey sign-in does not work" with `webauthn-error-user-not-found` as the

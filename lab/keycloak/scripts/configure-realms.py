@@ -178,7 +178,7 @@ def ensure_console_client(tok, realm, public_base):
         print(f"  console client updated")
         print(f"    redirectUris : {merged}")
         print(f"    post-logout  : {attributes['post.logout.redirect.uris']}")
-        return True
+        return verify_audience_resolves(tok, realm)
 
     spec = {
         "clientId": "attest-console",
@@ -215,6 +215,91 @@ def ensure_console_client(tok, realm, public_base):
         print(f"  console client creation FAILED: {status} {err}")
         return False
     print(f"  console client created (redirectUris={redirects})")
+    return verify_audience_resolves(tok, realm)
+
+
+def verify_audience_resolves(tok, realm):
+    """Assert the audience the API will require actually gets issued.
+
+    THE MAPPER ALONE IS NOT EVIDENCE. `oidc-audience-mapper` resolves its value through
+    the CLIENT REGISTRY, so a mapper pointing at a client that does not exist adds
+    nothing — silently, with no warning and no log line. Checking that the mapper is
+    configured would therefore pass while every token is still unauthenticated.
+
+    What actually has to hold is both halves: the mapper exists AND its target client
+    exists. This asserts the pair, and names which half is missing, because the failure
+    it guards against presented as a browser redirect loop and took several rounds to
+    trace back to a missing client.
+    """
+    client = api(tok, "GET", f"/{realm}/clients?clientId=attest-console")[1]
+    if not client:
+        print("    audience check FAILED: attest-console missing")
+        return False
+    mappers = [m for m in client[0].get("protocolMappers", [])
+               if m.get("protocolMapper") == "oidc-audience-mapper"
+               and m.get("config", {}).get("included.client.audience") == "attest-api"]
+    if not mappers:
+        print("    audience check FAILED: no attest-api audience mapper on attest-console")
+        return False
+    if not api(tok, "GET", f"/{realm}/clients?clientId=attest-api")[1]:
+        # This is the silent one. The mapper is configured and will resolve to nothing.
+        print("    audience check FAILED: attest-api client does not exist in this "
+              "realm, so the mapper adds NOTHING and every token is rejected as "
+              "wrong_audience")
+        return False
+    print("    audience check: attest-api mapper AND its target client both present")
+    return True
+
+
+def ensure_api_client(tok, realm):
+    """Create the API's own client, if it is missing.
+
+    THIS IS NOT COSMETIC, AND ITS ABSENCE CAUSED A MULTI-ROUND WILD GOOSE CHASE.
+
+    The console carries an `oidc-audience-mapper` that adds `attest-api` to the audience
+    of its access tokens. That mapper resolves the audience **through the client
+    registry**: if no client with that id exists in the realm, the mapper adds NOTHING.
+    Silently. No warning, no error, no log line.
+
+    The consequence is a chain that looks nothing like its cause:
+
+        token has no `aud: attest-api`
+          -> the API correctly rejects it with `wrong_audience` (401)
+          -> the console treats a 401 as "the session is dead", destroys it, and
+             redirects to /console/login
+          -> Keycloak still has an SSO session, so it re-authenticates INSTANTLY
+          -> the callback issues a fresh token, with the same missing audience
+          -> ERR_TOO_MANY_REDIRECTS
+
+    That is a redirect loop in the browser, caused by a **missing client** in a realm.
+    It was mistaken for a WebAuthn failure for several rounds because the loop happens
+    after a passkey sign-in, and the passkey is genuinely fine.
+
+    The realm where it worked (`attest-api-test`) happened to have this client. The
+    realms where it failed did not. That difference was the whole bug.
+
+    `bearerOnly` is the correct shape: this client exists to be an AUDIENCE, not to
+    perform logins. It must not be usable to start an OAuth flow.
+    """
+    existing = api(tok, "GET", f"/{realm}/clients?clientId=attest-api")[1]
+    if existing:
+        print("  API client present")
+        return True
+
+    status, err = api(tok, "POST", f"/{realm}/clients", {
+        "clientId": "attest-api",
+        "enabled": True,
+        "bearerOnly": True,
+        "publicClient": False,
+        "standardFlowEnabled": False,
+        "implicitFlowEnabled": False,
+        "directAccessGrantsEnabled": False,
+        "serviceAccountsEnabled": False,
+    })
+    if status not in (201, 204):
+        print(f"  API client creation FAILED: {status} {err}")
+        return False
+    print("  API client created (bearer-only; exists so the audience mapper resolves)")
     return True
 
 
@@ -236,6 +321,10 @@ def main():
             continue
         print("  verifying persistence:")
         if not verify(tok, realm, policy):
+            all_ok = False
+        # The API client must exist BEFORE the console's audience mapper can resolve
+        # it. Order matters, and getting it wrong fails silently.
+        if not ensure_api_client(tok, realm):
             all_ok = False
         if not ensure_console_client(tok, realm, public_base):
             all_ok = False

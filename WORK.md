@@ -63,7 +63,9 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **E2E** | The console in a real browser | ✅ **done — 17/17, found two real bugs** |
 | **E2E-2** | Why a passkey into the console has no user handle | ✅ done — the premise was WRONG, see below |
 | **origin-diff** | What about the origin breaks the passkey | ✅ done — nothing does; the passkey works |
-| **SESSION** | The console's session does not survive the callback | ▶ **NEXT** |
+| **SESSION** | The console's session does not survive the callback | ✅ done — missing `attest-api` client, 18/18 |
+| **SESSION-2** | The end-to-end suite against the REAL origin | ▶ **NEXT** |
+| **ACCESS** | Cloudflare Access in front of the admin surface — DEFERRED by the user, to revisit | ⏸ parked |
 | **A1** | A real domain and TLS | ⏸ optional — see the results for what it would add |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
