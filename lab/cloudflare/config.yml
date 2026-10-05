@@ -32,6 +32,42 @@ loglevel: info
 metrics: 127.0.0.1:49312
 
 ingress:
+  # ---------------------------------------------------------------------------
+  # THE ADMIN SURFACE IS NOT PUBLISHED, AND THE ORDER OF THESE RULES IS THE POINT.
+  #
+  # Measured, not assumed: before these rules, this worked from anywhere on the
+  # internet —
+  #
+  #   POST https://id.210security.com/realms/master/protocol/openid-connect/token
+  #        -> {"error":"invalid_grant","error_description":"Invalid user credentials"}
+  #
+  # That is the master realm's PASSWORD GRANT, reachable and answering. Keycloak runs
+  # in start-dev here, which has no rate limiting and no lockout, so it is an unlimited
+  # guessing surface against the admin account.
+  #
+  # These paths are refused at the EDGE, before they reach Keycloak at all. Nothing
+  # legitimate uses them through Cloudflare: every script in this repository talks to
+  # Keycloak on localhost:8080, which the tunnel does not touch.
+  #
+  # Specific rules MUST come before the general one — cloudflared takes the first
+  # match, so a catch-all placed first would shadow everything below it.
+  # ---------------------------------------------------------------------------
+  - hostname: id.210security.com
+    path: ^/admin(/.*)?$
+    service: http_status:404
+
+  - hostname: id.210security.com
+    path: ^/realms/master(/.*)?$
+    service: http_status:404
+
+  # The application realm stays reachable: the browser must reach the authorization
+  # endpoint and the console must reach the token endpoint. This is the OIDC surface,
+  # and it is the whole point of publishing this hostname.
+  - hostname: id.210security.com
+    service: http://localhost:8080
+    originRequest:
+      httpHostHeader: id.210security.com
+
   - hostname: attest.210security.com
     service: http://localhost:3000
     originRequest:
@@ -40,11 +76,6 @@ ingress:
       # `PUBLIC_BASE_URL` would disagree with what the browser actually requested,
       # which breaks the OIDC redirect in a way that looks like a client misconfiguration.
       httpHostHeader: attest.210security.com
-
-  - hostname: id.210security.com
-    service: http://localhost:8080
-    originRequest:
-      httpHostHeader: id.210security.com
 
   # Required: cloudflared refuses to start without a catch-all rule.
   - service: http_status:404
