@@ -1,6 +1,6 @@
 # S4b Results — other browsers
 
-**Status: PARTLY RESOLVED — Chromium only (3 browsers, 6/6); Firefox and Safari need a manual minute.**
+**Status: 2 of 3 engines resolved. Chromium (3 browsers, 6/6) and Gecko (manual, PASS). Safari remains.**
 
 This slice exists because S4 was reported as "resolved" when **only Chrome** had been tested. That
 deserved correcting: Chrome, Edge and Brave share one engine, so one engine had been tested and the
@@ -15,12 +15,39 @@ result was being described as browser behaviour.
 | **Chrome** 154.0.8037.95 | Chromium | automated | **6/6** |
 | **Edge** 154.0.4258.53 | Chromium | automated | **6/6** |
 | **Brave** 154.0.8037.58 | Chromium | automated | **6/6** |
-| **Firefox** 156.0.1 | **Gecko** | — | ⚪ **not automated — manual** |
+| **Firefox** 157.0.1 | **Gecko** | **manual** (`manual.html`) | ✅ **PASS — key survived, same key, control passed** |
 | **Safari** 26.6.2 | **WebKit** | — | ⚪ **not automated — manual** |
 
 Every check in each run: the key survives a full quit and relaunch, still works, is provably the
 **same** key rather than a fresh one, and the **control** — a newly generated key — is correctly
 rejected.
+
+### Gecko behaves the same way, and that is the point
+
+Firefox was tested manually through `manual.html` — automating it is a project, not a step, and the
+tooling gap is real: **`geckodriver 0.37.1` is the latest release and cannot drive Firefox 157.** It
+fails to parse the version string (`Failed to get binary version`, `Invalid symbol 45, offset 11`).
+Puppeteer was abandoned earlier for the same task with `session.subscribe timed out`.
+
+The manual run, at `http://localhost:8099/manual.html`, reported:
+
+```
+The session key survived.
+It still works: produced a 64-byte signature.
+It is the SAME key, not a fresh one — so it genuinely came off disk.
+Control passed: a fresh key is correctly rejected.
+```
+
+**Firefox 157.0, Gecko.** The key survived a full quit and relaunch, it is provably the *same* key
+rather than a freshly generated one, and the control held.
+
+**This is the finding that matters, and it is not "Firefox also passes".** Chrome, Edge and Brave all
+run Chromium, so testing three of them says very little. **Gecko is a genuinely different engine with
+its own storage and eviction behaviour** — and it behaves the same way. That is the first evidence
+this behaviour is a property of browser storage generally rather than of one implementation.
+
+The manual page is the record: it reports the browser's own `User-Agent`, so the claim is tied to a
+version rather than to whatever happened to be installed.
 
 Across all three Chromium browsers, `persist()` was refused (`false`) and the key survived anyway,
 which is the same finding as S4: **that API guards against eviction, not against restarts.**

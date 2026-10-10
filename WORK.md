@@ -40,7 +40,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S3** | Can we stop staff accounts using a "soft" passkey and allow only a real hardware key? | ✅ **done** — refusal proven |
 | **S3b** | Is a real hardware key actually *accepted*? | 🔑 needs a key |
 | **S4** | Can a browser keep its session key across a restart? | ⚠ **partly done** — **Chrome only** |
-| **S4b** | Do the other browsers behave the same way? | ⚠ **Chromium done** — Firefox/Safari manual |
+| **S4b** | Do the other browsers behave the same way? | ⚠ **2 of 3 engines done** — Chromium 6/6, **Gecko PASS**; Safari left |
 | **S5** | Does asking for a stronger check actually force one? | ❌ **UNRESOLVED** — the condition never gated |
 | **S5b** | Can step-up be made to work at all? | ✅ **answered — rejected (ADR-013)** |
 | **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
@@ -49,7 +49,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5f** | Can enrolment be made per-user with impersonation? | ✅ **done — impersonation ruled out; a link works** |
 | **S9** | Does a phishing proxy actually fail? | ✅ **done — YES, proven; counter-case needs approval** |
 | **S9b** | Is a BROAD relying-party ID actually exploitable? | ✅ **done — YES, measured. No `/etc/hosts` needed** |
-| **S4b** | Firefox and Safari — the last two engines | ⏸ needs ~1 minute at the keyboard |
+| **S4b** | Firefox and Safari — the last two engines | ⚠ **Firefox DONE (PASS)**; **Safari left** — 1 minute, or enable Allow Remote Automation and I automate it |
 | **L1** | The API as a policy enforcement point: token verification | ✅ **done — 28/28, 7/7 mutants caught** |
 | **L1b** | Cloud-agnostic boundaries: config + ports | ✅ **done — ADR-015, 47/47, 6/6 mutants** |
 | **L2** | DPoP proof verification at the API | ✅ **done — 75/75, 13/13 mutants** |
@@ -67,8 +67,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **SESSION-2** | The end-to-end suite against the REAL origin | ✅ done — **17/17 on https://attest.210security.com** |
 | **S1b** | Does the DPoP header survive a real proxy | ✅ done — **Cloudflare preserves it, 200 both cases** |
 | **S1b-AWS** | The same question for CloudFront → ALB → API Gateway | ⏸ needs AWS; Cloudflare does NOT answer it |
-| **ACCESS** | Cloudflare Access in front of the admin surface | ▶ **NEXT** (parked by the user) |
-| **ACCESS** | Cloudflare Access in front of the admin surface — DEFERRED by the user, to revisit | ⏸ parked |
+| **ACCESS** | Cloudflare Access in front of the admin surface | ✅ **DECIDED — keep the tunnel rules. No admin access from the internet.** Refusing `/admin` and `/realms/master` at the edge is stricter than putting a login in front of them, and nothing legitimate needs them through Cloudflare |
 | **A1** | A real domain and TLS | ⏸ optional — see the results for what it would add |
 | **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |

@@ -73,6 +73,7 @@
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
 <li><a href="#1-the-results">1. The results</a></li>
+<li class="lvl3"><a href="#gecko-behaves-the-same-way-and-that-is-the-point">Gecko behaves the same way, and that is the point</a></li>
 <li class="lvl3"><a href="#the-two-engines-that-actually-matter-are-still-untested">The two engines that actually matter are still untested</a></li>
 <li><a href="#2-why-firefox-could-not-be-automated">2. Why Firefox could not be automated</a></li>
 <li class="lvl3"><a href="#why-a-fixed-profile-was-needed-at-all">Why a fixed profile was needed at all</a></li>
@@ -90,7 +91,7 @@
         <h1>Lab results: other browsers</h1>
         <p class="blurb">The S4b experiment: three Chromium browsers pass; Firefox and Safari remain manual.</p>
       </header>
-      <section id="overview"><p><strong>Status: PARTLY RESOLVED — Chromium only (3 browsers, 6/6); Firefox and Safari need a manual minute.</strong></p>
+      <section id="overview"><p><strong>Status: 2 of 3 engines resolved. Chromium (3 browsers, 6/6) and Gecko (manual, PASS). Safari remains.</strong></p>
 <p>This slice exists because S4 was reported as &ldquo;resolved&rdquo; when <strong>only Chrome</strong> had been tested. That
 deserved correcting: Chrome, Edge and Brave share one engine, so one engine had been tested and the
 result was being described as browser behaviour.</p>
@@ -125,10 +126,10 @@ result was being described as browser behaviour.</p>
 <td><strong>6/6</strong></td>
 </tr>
 <tr>
-<td><strong>Firefox</strong> 156.0.1</td>
+<td><strong>Firefox</strong> 157.0.1</td>
 <td><strong>Gecko</strong></td>
-<td>—</td>
-<td>⚪ <strong>not automated — manual</strong></td>
+<td><strong>manual</strong> (<code>manual.html</code>)</td>
+<td>✅ <strong>PASS — key survived, same key, control passed</strong></td>
 </tr>
 <tr>
 <td><strong>Safari</strong> 26.6.2</td>
@@ -141,6 +142,26 @@ result was being described as browser behaviour.</p>
 <p>Every check in each run: the key survives a full quit and relaunch, still works, is provably the
 <strong>same</strong> key rather than a fresh one, and the <strong>control</strong> — a newly generated key — is correctly
 rejected.</p>
+<h3 id="gecko-behaves-the-same-way-and-that-is-the-point">Gecko behaves the same way, and that is the point</h3>
+<p>Firefox was tested manually through <code>manual.html</code> — automating it is a project, not a step, and the
+tooling gap is real: <strong><code>geckodriver 0.37.1</code> is the latest release and cannot drive Firefox 157.</strong> It
+fails to parse the version string (<code>Failed to get binary version</code>, <code>Invalid symbol 45, offset 11</code>).
+Puppeteer was abandoned earlier for the same task with <code>session.subscribe timed out</code>.</p>
+<p>The manual run, at <code>http://localhost:8099/manual.html</code>, reported:</p>
+<div class="codehilite"><pre><span></span><code>The session key survived.
+It still works: produced a 64-byte signature.
+It is the SAME key, not a fresh one — so it genuinely came off disk.
+Control passed: a fresh key is correctly rejected.
+</code></pre></div>
+
+<p><strong>Firefox 157.0, Gecko.</strong> The key survived a full quit and relaunch, it is provably the <em>same</em> key
+rather than a freshly generated one, and the control held.</p>
+<p><strong>This is the finding that matters, and it is not &ldquo;Firefox also passes&rdquo;.</strong> Chrome, Edge and Brave all
+run Chromium, so testing three of them says very little. <strong>Gecko is a genuinely different engine with
+its own storage and eviction behaviour</strong> — and it behaves the same way. That is the first evidence
+this behaviour is a property of browser storage generally rather than of one implementation.</p>
+<p>The manual page is the record: it reports the browser&rsquo;s own <code>User-Agent</code>, so the claim is tied to a
+version rather than to whatever happened to be installed.</p>
 <p>Across all three Chromium browsers, <code>persist()</code> was refused (<code>false</code>) and the key survived anyway,
 which is the same finding as S4: <strong>that API guards against eviction, not against restarts.</strong></p>
 <h3 id="the-two-engines-that-actually-matter-are-still-untested">The two engines that actually matter are still untested</h3>
