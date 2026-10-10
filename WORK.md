@@ -39,8 +39,8 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S2** | Does our permissions engine accept passes from our own login server? | ⚠ needs AWS |
 | **S3** | Can we stop staff accounts using a "soft" passkey and allow only a real hardware key? | ✅ **done** — refusal proven |
 | **S3b** | Is a real hardware key actually *accepted*? | 🔑 needs a key |
-| **S4** | Can a browser keep its session key across a restart? | ⚠ **partly done** — **Chrome only** |
-| **S4b** | Do the other browsers behave the same way? | ⚠ **2 of 3 engines done** — Chromium 6/6, **Gecko PASS**; Safari left |
+| **S4** | Can a browser keep its session key across a restart? | ✅ **done — all 3 engines** |
+| **S4b** | Do the other browsers behave the same way? | ✅ **done — Chromium 6/6, Gecko PASS, WebKit PASS** |
 | **S5** | Does asking for a stronger check actually force one? | ❌ **UNRESOLVED** — the condition never gated |
 | **S5b** | Can step-up be made to work at all? | ✅ **answered — rejected (ADR-013)** |
 | **S5c** | Does the replacement actually force a fresh check? | ✅ **done — 14/14, it works** |
@@ -49,7 +49,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S5f** | Can enrolment be made per-user with impersonation? | ✅ **done — impersonation ruled out; a link works** |
 | **S9** | Does a phishing proxy actually fail? | ✅ **done — YES, proven; counter-case needs approval** |
 | **S9b** | Is a BROAD relying-party ID actually exploitable? | ✅ **done — YES, measured. No `/etc/hosts` needed** |
-| **S4b** | Firefox and Safari — the last two engines | ⚠ **Firefox DONE (PASS)**; **Safari left** — 1 minute, or enable Allow Remote Automation and I automate it |
+| **S4b** | Firefox and Safari — the last two engines | ✅ **done — both PASS, with controls** |
 | **L1** | The API as a policy enforcement point: token verification | ✅ **done — 28/28, 7/7 mutants caught** |
 | **L1b** | Cloud-agnostic boundaries: config + ports | ✅ **done — ADR-015, 47/47, 6/6 mutants** |
 | **L2** | DPoP proof verification at the API | ✅ **done — 75/75, 13/13 mutants** |

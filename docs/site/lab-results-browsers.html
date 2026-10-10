@@ -74,6 +74,8 @@
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
 <li><a href="#1-the-results">1. The results</a></li>
 <li class="lvl3"><a href="#gecko-behaves-the-same-way-and-that-is-the-point">Gecko behaves the same way, and that is the point</a></li>
+<li class="lvl3"><a href="#webkit-the-engine-most-likely-to-say-no-and-it-said-yes">WebKit — the engine most likely to say no, and it said yes</a></li>
+<li class="lvl3"><a href="#what-the-full-result-is-and-what-it-is-not">What the full result is, and what it is not</a></li>
 <li class="lvl3"><a href="#the-two-engines-that-actually-matter-are-still-untested">The two engines that actually matter are still untested</a></li>
 <li><a href="#2-why-firefox-could-not-be-automated">2. Why Firefox could not be automated</a></li>
 <li class="lvl3"><a href="#why-a-fixed-profile-was-needed-at-all">Why a fixed profile was needed at all</a></li>
@@ -91,7 +93,7 @@
         <h1>Lab results: other browsers</h1>
         <p class="blurb">The S4b experiment: three Chromium browsers pass; Firefox and Safari remain manual.</p>
       </header>
-      <section id="overview"><p><strong>Status: 2 of 3 engines resolved. Chromium (3 browsers, 6/6) and Gecko (manual, PASS). Safari remains.</strong></p>
+      <section id="overview"><p><strong>Status: RESOLVED — ALL THREE ENGINES PASS.</strong> Chromium (Chrome, Edge, Brave — 6/6 each), <strong>Gecko (Firefox 157, manual, PASS)</strong>, <strong>WebKit (Safari 26.6.2, manual, PASS)</strong>. Every run carried its own control.</p>
 <p>This slice exists because S4 was reported as &ldquo;resolved&rdquo; when <strong>only Chrome</strong> had been tested. That
 deserved correcting: Chrome, Edge and Brave share one engine, so one engine had been tested and the
 result was being described as browser behaviour.</p>
@@ -134,8 +136,8 @@ result was being described as browser behaviour.</p>
 <tr>
 <td><strong>Safari</strong> 26.6.2</td>
 <td><strong>WebKit</strong></td>
-<td>—</td>
-<td>⚪ <strong>not automated — manual</strong></td>
+<td><strong>manual</strong> (<code>manual.html</code>)</td>
+<td>✅ <strong>PASS — key survived, same key, control passed</strong></td>
 </tr>
 </tbody>
 </table></div>
@@ -162,6 +164,30 @@ its own storage and eviction behaviour</strong> — and it behaves the same way.
 this behaviour is a property of browser storage generally rather than of one implementation.</p>
 <p>The manual page is the record: it reports the browser&rsquo;s own <code>User-Agent</code>, so the claim is tied to a
 version rather than to whatever happened to be installed.</p>
+<h3 id="webkit-the-engine-most-likely-to-say-no-and-it-said-yes">WebKit — the engine most likely to say no, and it said yes</h3>
+<p><strong>Safari was the one expected to fail.</strong> This document said so before the test: Safari is <em>&ldquo;the browser
+most likely to evict&rdquo;</em> stored data, and it was the single reason this experiment could not be closed.
+It passes, with its control:</p>
+<div class="codehilite"><pre><span></span><code>Safari 26.6.2 — AppleWebKit/605.1.15
+The session key survived.
+It still works: produced a 64-byte signature.
+It is the SAME key, not a fresh one — so it genuinely came off disk.
+Control passed: a fresh key is correctly rejected.
+</code></pre></div>
+
+<h3 id="what-the-full-result-is-and-what-it-is-not">What the full result is, and what it is not</h3>
+<p><strong>All three engines keep the key across a full quit and relaunch, and it is provably the same key.</strong>
+Chromium, Gecko and WebKit were built independently, by different organisations, for different
+platforms — so this is no longer a statement about one implementation that happened to be tested
+three times. <strong>Cleared storage is the only eviction event the design has to survive, and it survives
+a restart on every engine a user is likely to have.</strong></p>
+<p><strong>What it does NOT say</strong>, and the register is careful about this: it does not test a laptop that is
+powered off uncleanly, a browser updated mid-session, a profile migrated between machines, or an
+operating system that reclaims disk under pressure. <strong>A restart is not every way a browser loses
+data.</strong> It is the way that was suspected, and it is now known not to happen.</p>
+<p>The other finding stands unchanged and is the more interesting one: <strong><code>persist()</code> is refused on every
+browser tested, and the key survives anyway.</strong> The API guards against eviction, not against restarts —
+so the design should not depend on that promise being honoured.</p>
 <p>Across all three Chromium browsers, <code>persist()</code> was refused (<code>false</code>) and the key survived anyway,
 which is the same finding as S4: <strong>that API guards against eviction, not against restarts.</strong></p>
 <h3 id="the-two-engines-that-actually-matter-are-still-untested">The two engines that actually matter are still untested</h3>

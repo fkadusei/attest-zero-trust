@@ -1,6 +1,6 @@
 # S4b Results — other browsers
 
-**Status: 2 of 3 engines resolved. Chromium (3 browsers, 6/6) and Gecko (manual, PASS). Safari remains.**
+**Status: RESOLVED — ALL THREE ENGINES PASS.** Chromium (Chrome, Edge, Brave — 6/6 each), **Gecko (Firefox 157, manual, PASS)**, **WebKit (Safari 26.6.2, manual, PASS)**. Every run carried its own control.
 
 This slice exists because S4 was reported as "resolved" when **only Chrome** had been tested. That
 deserved correcting: Chrome, Edge and Brave share one engine, so one engine had been tested and the
@@ -16,7 +16,7 @@ result was being described as browser behaviour.
 | **Edge** 154.0.4258.53 | Chromium | automated | **6/6** |
 | **Brave** 154.0.8037.58 | Chromium | automated | **6/6** |
 | **Firefox** 157.0.1 | **Gecko** | **manual** (`manual.html`) | ✅ **PASS — key survived, same key, control passed** |
-| **Safari** 26.6.2 | **WebKit** | — | ⚪ **not automated — manual** |
+| **Safari** 26.6.2 | **WebKit** | **manual** (`manual.html`) | ✅ **PASS — key survived, same key, control passed** |
 
 Every check in each run: the key survives a full quit and relaunch, still works, is provably the
 **same** key rather than a fresh one, and the **control** — a newly generated key — is correctly
@@ -48,6 +48,37 @@ this behaviour is a property of browser storage generally rather than of one imp
 
 The manual page is the record: it reports the browser's own `User-Agent`, so the claim is tied to a
 version rather than to whatever happened to be installed.
+
+### WebKit — the engine most likely to say no, and it said yes
+
+**Safari was the one expected to fail.** This document said so before the test: Safari is *"the browser
+most likely to evict"* stored data, and it was the single reason this experiment could not be closed.
+It passes, with its control:
+
+```
+Safari 26.6.2 — AppleWebKit/605.1.15
+The session key survived.
+It still works: produced a 64-byte signature.
+It is the SAME key, not a fresh one — so it genuinely came off disk.
+Control passed: a fresh key is correctly rejected.
+```
+
+### What the full result is, and what it is not
+
+**All three engines keep the key across a full quit and relaunch, and it is provably the same key.**
+Chromium, Gecko and WebKit were built independently, by different organisations, for different
+platforms — so this is no longer a statement about one implementation that happened to be tested
+three times. **Cleared storage is the only eviction event the design has to survive, and it survives
+a restart on every engine a user is likely to have.**
+
+**What it does NOT say**, and the register is careful about this: it does not test a laptop that is
+powered off uncleanly, a browser updated mid-session, a profile migrated between machines, or an
+operating system that reclaims disk under pressure. **A restart is not every way a browser loses
+data.** It is the way that was suspected, and it is now known not to happen.
+
+The other finding stands unchanged and is the more interesting one: **`persist()` is refused on every
+browser tested, and the key survives anyway.** The API guards against eviction, not against restarts —
+so the design should not depend on that promise being honoured.
 
 Across all three Chromium browsers, `persist()` was refused (`false`) and the key survived anyway,
 which is the same finding as S4: **that API guards against eviction, not against restarts.**
