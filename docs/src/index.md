@@ -9,17 +9,26 @@ term is explained where it first appears, and collected in the [glossary](#gloss
 
 !!! warning "Where this project actually stands"
 
-    **The design is complete, and two of its load-bearing claims have been tested. No production code
-    exists yet.**
+    **There is a working implementation, and its security claims are evidenced rather than asserted.
+    It is not a production deployment.**
 
-    A local lab runs the identity provider and its database, and two things have been demonstrated
-    rather than asserted: that **only genuine hardware keys can register for privileged access**, and
-    that a **stolen session token is genuinely inert** because it is bound to a key the thief does not
-    have. Both are written up in [what we tested](verification.md).
+    That distinction is the honest one, and it cuts both ways, so both halves are stated plainly.
 
-    Everything else here is design, not deployment. The pages that say "we will" rather than "we do"
-    are deliberately written that way, and the unproven list on that page is longer than the proven
-    one.
+    **What exists.** A running API and admin console — 21 source modules, about 3,700 lines, behind
+    216 tests — enforcing DPoP-bound tokens, per-request Cedar authorization, and PostgreSQL
+    row-level security. It runs locally and behind a real domain with TLS. Eighteen controlled
+    experiments have been run against it, and **39 claims are recorded as Verified** in the
+    [evidence register](evidence.md) — meaning each one came from an experiment that had a working
+    control, not from reading documentation.
+
+    **What does not exist.** Any deployment to a cloud provider, any redundancy, any monitoring, any
+    restore-from-backup drill. It is one node on one machine, and the [limits](limits.md) page is
+    explicit about what that leaves out. Nothing here has faced a penetration test or an independent
+    reviewer.
+
+    So: read the [what we tested](verification.md) page as evidence about specific mechanisms, not as
+    a claim that the system is secure. **Ten things are listed there as explicitly Unverified**, and
+    those are the ones most likely to be wrong.
 
 ## What the application does
 

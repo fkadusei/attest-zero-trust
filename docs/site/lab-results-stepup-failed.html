@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lab results: the experiment that failed — Attest documentation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="description" content="S5 tested whether asking for a stronger check forces one. It did not. Superseded by S5b, and kept as written." />
+<link rel="stylesheet" href="docs.css" />
+<script src="search-index.js"></script>
+<script src="docs-search.js" defer></script>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<button class="themebtn" id="theme" type="button" title="Switch light and dark">Light</button>
+<button class="navtoggle" id="navtoggle" type="button" aria-label="Toggle contents">☰</button>
+<div class="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">AT</span>
+      <div><b>Attest</b><span>Zero Trust, explained</span></div>
+    </div>
+    <div class="docsearch">
+      <input type="search" placeholder="Search all pages…" aria-label="Search all pages" autocomplete="off" />
+      <div class="ds-results" hidden></div>
+    </div>
+    <nav aria-label="Documentation">
+      <div class="navgroup">
+<div class="navtitle">Guide</div>
+<ul>
+<li><a href="index.html">Start here</a></li>
+<li><a href="problem.html">The problem it removes</a></li>
+<li><a href="zero-trust.html">The big picture</a></li>
+<li><a href="passwordless.html">Sign-in, end to end</a></li>
+<li><a href="sessions.html">After sign-in</a></li>
+<li><a href="recovery.html">Recovery, the weak link</a></li>
+<li><a href="operating.html">Running the identity provider</a></li>
+<li><a href="limits.html">Limits and non-goals</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Evidence</div>
+<ul>
+<li><a href="evidence.html">Evidence register</a></li>
+<li><a href="verification.html">What we tested</a></li>
+<li><a href="decisions.html">Decisions and why</a></li>
+</ul></div>
+<div class="navgroup">
+<div class="navtitle">Reference</div>
+<ul>
+<li><a href="plan.html">Architecture and plan</a></li>
+<li><a href="application.html">The application</a></li>
+<li><a href="identity.html">Identity in detail</a></li>
+<li><a href="authorization.html">Sessions and authorization</a></li>
+<li><a href="threat-model.html">Threat model</a></li>
+<li><a href="adr.html">Decision register</a></li>
+<li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
+<li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
+<li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
+<li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup-failed.html" class="current">Lab results: the experiment that failed</a></li>
+<li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
+<li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
+<li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
+<li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
+<li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
+<li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-mutation.html">Lab results: breaking the code to test the tests</a></li>
+<li><a href="lab-results-s1b.html">Lab results: the DPoP header through a proxy</a></li>
+<li><a href="lab-results-session.html">Lab results: the redirect loop</a></li>
+<li><a href="lab-results-origin-diff.html">Lab results: the passkey works</a></li>
+<li><a href="lab-results-real-origin.html">Lab results: a real origin</a></li>
+<li><a href="lab-results-console-e2e.html">Lab results: the console end to end</a></li>
+<li><a href="lab-results-broad-rpid.html">Lab results: when it breaks</a></li>
+</ul></div>
+    </nav>
+    <div class="onthispage"><div class="navtitle">On this page</div><ul>
+<li><a href="#1-what-was-asked">1. What was asked</a></li>
+<li><a href="#2-the-answer">2. The answer</a></li>
+<li class="lvl3"><a href="#the-decisive-test">The decisive test</a></li>
+<li class="lvl3"><a href="#what-was-ruled-out">What was ruled out</a></li>
+<li class="lvl3"><a href="#what-i-could-not-determine">What I could not determine</a></li>
+<li><a href="#3-five-real-hazards-found-along-the-way">3. Five real hazards found along the way</a></li>
+<li><a href="#4-what-this-means-for-the-design">4. What this means for the design</a></li>
+<li class="lvl3"><a href="#options-none-yet-chosen">Options, none yet chosen</a></li>
+<li><a href="#5-what-was-not-tested">5. What was NOT tested</a></li>
+<li><a href="#6-reproducing">6. Reproducing</a></li>
+</ul></div>
+  </aside>
+
+  <main>
+    <div class="crumbs"><a href="index.html">Docs</a><span>/</span><span>Reference</span><span>/</span><b>Lab results: the experiment that failed</b></div>
+    <article>
+      <header class="pagehead">
+        <h1>Lab results: the experiment that failed</h1>
+        <p class="blurb">S5 tested whether asking for a stronger check forces one. It did not. Superseded by S5b, and kept as written.</p>
+      </header>
+      <section id="overview"><p><strong>Status: SUPERSEDED by S5b — the mechanism is REJECTED (ADR-013).</strong></p>
+<p>The mechanism the plan depended on did <strong>not</strong> work in this configuration. This is written up as a
+failure because presenting it as anything else would be dishonest, and because a negative result that
+is recorded is worth more than a positive one that is assumed.</p>
+<p><strong>Read S5b next.</strong> It resolved this by finding that the component carries <strong>CVE-2026-97176</strong> — an
+unfixed, unmitigated bypass of exactly the check this experiment was trying to prove. The hypothesis
+recorded below (<code>loa-max-age</code> not parsed) was tested and <strong>disproved</strong>.</p>
+<p>Tested against Keycloak <strong>26.8.0</strong>.</p>
+<hr></section>
+<section id="1-what-was-asked"><h2>1. What was asked</h2>
+<p>Some actions should require the user to prove themselves again, right then — exporting a list of who
+can see what, or an administrator looking across all customers. The plan assumes this works via
+Keycloak&rsquo;s <strong>ACR → Level of Authentication</strong> mapping: the application asks for a higher level, and
+Keycloak forces whatever extra credential that level requires.</p>
+<p>If Keycloak instead notices the existing session and waves the request through, &ldquo;step-up&rdquo; is a button
+that does nothing while appearing to work. That is the failure this experiment was built to catch.</p>
+</section>
+<section id="2-the-answer"><h2>2. The answer</h2>
+<p><strong>It waved the request through.</strong> A subflow configured to require a second factor at level 2 executed
+regardless of whether level 1 or level 2 was requested — and regardless of whether anything was
+requested at all.</p>
+<h3 id="the-decisive-test">The decisive test</h3>
+<p>The clearest measurement was to turn the subflow off and on and watch the same login:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>State of the step-up subflow</th>
+<th>Outcome of a normal sign-in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Enabled (<code>CONDITIONAL</code>)</td>
+<td><strong>Prompted for a second factor</strong> — login does not complete</td>
+</tr>
+<tr>
+<td>Disabled</td>
+<td><strong>Code issued</strong> — login completes cleanly</td>
+</tr>
+<tr>
+<td>Enabled again</td>
+<td><strong>Prompted again</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>So the subflow is definitely the thing prompting. It is simply never being <em>gated</em>.</p>
+<h3 id="what-was-ruled-out">What was ruled out</h3>
+<p>This was not a configuration typo, which was the first suspicion:</p>
+<ul>
+<li>The condition&rsquo;s configuration <strong>was correct and persisted</strong>, read back from the server as
+  <code>{"loa-condition-level": "2", "loa-max-age": "300"}</code>.</li>
+<li>The realm&rsquo;s ACR mapping <strong>was correct</strong>: <code>{"low": "1", "silver": "2"}</code>.</li>
+<li>Every documented way of asking for a level produced the identical result: no request, <code>acr_values=low</code>,
+  <code>acr_values=silver</code>, and the OIDC <code>claims</code> parameter with an essential <code>acr</code> of either value.
+  <strong>Five request shapes, one outcome.</strong></li>
+</ul>
+<h3 id="what-i-could-not-determine">What I could not determine</h3>
+<p><strong>Whether this is my flow arrangement or the feature itself.</strong> I have one strong hypothesis and no
+proof of it:</p>
+<blockquote>
+<p>Keycloak&rsquo;s condition is documented as executing &ldquo;only if the configured LOA <strong>or a higher one has
+been requested</strong>&rdquo;. When no level is requested, that reads as &ldquo;do not execute&rdquo; — but Keycloak may
+instead treat an unrequested level as <em>the maximum</em>, which would make the condition always
+satisfied. That would explain the no-<code>acr_values</code> case. It does <strong>not</strong> explain why requesting the
+<em>lower</em> level still triggered it, unless the ACR-name-to-level mapping is silently ignored. I could
+not get far enough to separate those two.</p>
+</blockquote>
+<p>The honest position: <strong>the mechanism does not work as documented here, and I do not know why.</strong></p>
+</section>
+<section id="3-five-real-hazards-found-along-the-way"><h2>3. Five real hazards found along the way</h2>
+<p>These cost genuine time and would cost it again. All are recorded in the handoff.</p>
+<ol>
+<li>
+<p><strong>You cannot modify a built-in flow.</strong> Keycloak replies <code>It is illegal to add sub-flow to a built in
+   flow</code>, so copying is the only route.</p>
+</li>
+<li>
+<p><strong>A <code>CONDITIONAL</code> subflow placed at the top level of the browser flow silently destroys the flow.</strong>
+   The auth endpoint returns HTTP 400 with a page reading <strong>&ldquo;Invalid username or password&rdquo;</strong> — before
+   anyone has typed anything. It looks like bad credentials and is actually a malformed flow. Bisecting
+   one change at a time found it; guessing would not have. The subflow must be nested inside the
+   existing <code>forms</code> subflow.</p>
+</li>
+<li>
+<p><strong><code>http.cookiejar</code> cannot drive a Keycloak login.</strong> Keycloak marks its login cookies <code>Secure</code>, and
+   for a bare hostname like <code>localhost</code> cookiejar rewrites the domain to <code>localhost.local</code> — so over
+   plain HTTP the cookies are never sent back. Every login fails with <strong>&ldquo;Restart login cookie not
+   found&rdquo;</strong>, which reads like an expired session. Managing <code>name=value</code> pairs directly fixes it.</p>
+</li>
+<li>
+<p><strong>The flat executions list mixes every nesting level together.</strong> Matching &ldquo;an OTP form, at some
+   depth&rdquo; also hit the built-in 2FA subflow&rsquo;s OTP form and demoted it from <code>ALTERNATIVE</code> to <code>REQUIRED</code>,
+   breaking the flow with the same misleading credentials error. Ask each flow for <em>its own</em> children.</p>
+</li>
+<li>
+<p><strong>The LoA condition needs two config keys, not one.</strong> With only <code>loa-condition-level</code> set, the
+   server logs <code>ERROR LoAUtil: Invalid max age configured for condition 'loa2'. Fallback to 0</code>. That
+   error appears <strong>only in the container logs</strong> — nothing in the API response or the login page hints
+   at it. <strong>Check the server log when a Keycloak flow misbehaves</strong>; it was the only place the real
+   problem appeared.</p>
+</li>
+</ol>
+</section>
+<section id="4-what-this-means-for-the-design"><h2>4. What this means for the design</h2>
+<p>The plan&rsquo;s step-up design is not safe to build on as written. Specifically:</p>
+<ul>
+<li><code>docs/identity-and-passkeys.md</code> §8 claims step-up is solved by ACR → LoA mapping and calls this
+  &ldquo;better than the original design&rdquo; because elevation is IdP-issued rather than a client-reported
+  timestamp. <strong>That claim is not supported.</strong> It should be marked unverified.</li>
+<li>Success criterion S6 and the plan&rsquo;s Phase 4 both assume working step-up. They are not blocked, but
+  they cannot assume this mechanism.</li>
+</ul>
+<h3 id="options-none-yet-chosen">Options, none yet chosen</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep investigating the LoA arrangement</td>
+<td>One more focused session. The hypothesis above is testable: set the condition level to 1 and see whether it <em>still</em> always fires. If it does, the condition is simply not evaluated and the search is for the right structural arrangement</td>
+</tr>
+<tr>
+<td>Force re-authentication instead</td>
+<td><code>prompt=login</code> with <code>max_age=0</code> re-runs the whole flow. Blunter, definitely works, worse experience — and it proves <em>freshness</em> rather than <em>strength</em></td>
+</tr>
+<tr>
+<td>Do step-up in the application</td>
+<td>Require a fresh WebAuthn assertion at the moment of the sensitive action and verify it server-side. Most control, most custom code, and it conflicts with the &ldquo;let the IdP own the ceremony&rdquo; principle</td>
+</tr>
+<tr>
+<td>Accept and document</td>
+<td>Treat step-up as unsolved for now and build the sensitive actions with a second approver instead, which the plan already wants for the highest-risk operations</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recommendation: one more focused session on the first option</strong>, because the hypothesis is cheap to
+test and the payoff — a working, standards-based step-up — is large. If that fails, take the second
+option and be explicit that it proves freshness rather than strength.</p>
+</section>
+<section id="5-what-was-not-tested"><h2>5. What was NOT tested</h2>
+<ul>
+<li>Whether re-authenticating satisfies a level once achieved (the &ldquo;not yet satisfied&rdquo; half of the
+  documented behaviour) — unreachable while the condition never gates.</li>
+<li>Whether the <code>acr</code> claim appears in tokens at all under this configuration. It does not appear for
+  direct-access-grant tokens, which was itself a finding.</li>
+<li>Any completion of the second factor: <strong>OTP credentials cannot be created through
+  <code>/users/{id}/credentials</code></strong> in this build (HTTP 404), so completing a step-up was never reached.</li>
+</ul>
+</section>
+<section id="6-reproducing"><h2>6. Reproducing</h2>
+<div class="codehilite"><pre><span></span><code>./.venv/bin/python<span class="w"> </span>lab/keycloak/scripts/stepup_spike.py<span class="w">     </span><span class="c1"># rebuilds the realm from scratch</span>
+docker<span class="w"> </span>logs<span class="w"> </span>attest-lab-keycloak<span class="w"> </span>--tail<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LoAUtil<span class="w">   </span><span class="c1"># the one useful diagnostic</span>
+</code></pre></div>
+
+<p>The script builds everything in a throwaway realm (<code>attest-stepup-lab</code>), so no shared configuration
+is disturbed. It currently reports 1/3, which is the honest result.</p></section>
+    </article>
+    <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-browsers.html"><span>Previous</span><b>Lab results: other browsers</b></a><a class="pn next" href="lab-results-stepup.html"><span>Next</span><b>Lab results: step-up rejected</b></a></nav>
+    <footer>
+      <p><b>Attest</b> — a Zero Trust, passwordless compliance platform. Design complete; one
+      verification spike done; no production deployment yet.</p>
+      <p>Generated from Markdown by <code>scripts/build_docs.py</code>. These pages are
+      self-contained and work offline; search uses a committed index.</p>
+    </footer>
+  </main>
+</div>
+<button class="totop" id="totop" type="button">↑ Top</button>
+<script>
+(function () {
+  var root = document.documentElement;
+  var tbtn = document.getElementById('theme');
+  var saved = null; try { saved = localStorage.getItem('docs-theme'); } catch (e) {}
+  if (saved) root.setAttribute('data-theme', saved);
+  function sync() { tbtn.textContent = root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light'; }
+  sync();
+  tbtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('docs-theme', next); } catch (e) {}
+    sync();
+  });
+
+  document.querySelectorAll('.codehilite').forEach(function (block) {
+    var pre = block.querySelector('pre'); if (!pre) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        b.textContent = 'copied'; setTimeout(function () { b.textContent = 'copy'; }, 1200);
+      }, function () { b.textContent = 'press Cmd-C'; });
+    });
+    block.appendChild(b);
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll('.onthispage a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window && links.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) { a.classList.remove('active'); });
+        if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+      });
+    }, { rootMargin: '-8% 0px -82% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+
+  var bar = document.getElementById('progress');
+  function onScroll() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? Math.min(100, (window.scrollY / h) * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  document.getElementById('totop').addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var nb = document.getElementById('navtoggle'), sb = document.getElementById('sidebar');
+  nb.addEventListener('click', function () { sb.classList.toggle('open'); });
+  sb.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && window.innerWidth < 1000) sb.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

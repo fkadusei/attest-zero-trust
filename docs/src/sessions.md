@@ -243,17 +243,29 @@ place rather than being redundant.
 
 ## What is still unproven
 
-The design above is complete. Not all of it has been demonstrated, and it would be dishonest to
-imply otherwise:
+Not all of the above has been demonstrated, and it would be dishonest to imply otherwise. Two things
+that used to sit in this list are now settled, and are recorded here rather than deleted, because a
+list that only shrinks is a list nobody can audit.
 
-- The **end-to-end proof check** — that a real token and voucher survive the journey through our edge
-  and are correctly verified at the API — has **not been tested yet**. This is the highest-priority
-  experiment outstanding, because a header silently dropped in transit would break the binding
-  without breaking anything visible.
-- Whether the browser can **reliably keep a non-extractable key** across restarts in all major
-  browsers is **untested**. Safari is the one to watch.
-- The **revocation delay** has not been measured end to end. Target: under sixty seconds.
+**Settled since this page was written:**
 
-The [verification page](verification.md) tracks these, and the [authorisation reference](../authorization-and-sessions.md)
-carries the precise configuration. What *has* been proven is the hardware-key enforcement at sign-in —
-see [what we tested](verification.md) and the [raw lab results](../../lab/keycloak/SPIKE-3-RESULTS.md).
+- **The end-to-end proof check.** This was described here as "the highest-priority experiment
+  outstanding, because a header silently dropped in transit would break the binding without breaking
+  anything visible." It has now been run: the `DPoP` header survives a real proxy chain, 200/200. See
+  [S1b](lab-results-s1b.md).
+- **Whether browsers keep a non-extractable key across restarts.** Untested when written, with Safari
+  named as the one to watch. All three engines now pass. See [S4b](lab-results-browsers.md).
+
+**Still open:**
+
+- The **revocation delay** has not been measured end to end. Target: under sixty seconds. Token
+  expiry alone is far too slow to be the answer, so this is the one that decides whether revocation
+  is a control or an aspiration.
+- Whether the binding survives **CloudFront → ALB → API Gateway** specifically. Cloudflare's edge
+  preserves it, which proves the mechanism is not inherently fragile — but those are different
+  products, and the tempting fix for a stripped header would be to disable the check.
+
+The [verification page](verification.md) tracks all of these with links to the raw results, and the
+[authorisation reference](../authorization-and-sessions.md) carries the precise configuration. The
+hardware-key enforcement at sign-in is itself proven — see
+[the hardware-key results](lab-results-hardware-keys.md).

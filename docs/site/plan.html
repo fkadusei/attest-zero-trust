@@ -54,9 +54,11 @@
 <li><a href="threat-model.html">Threat model</a></li>
 <li><a href="adr.html">Decision register</a></li>
 <li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup-failed.html">Lab results: the experiment that failed</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
@@ -661,7 +663,7 @@ default browser flow sets <code>Username Password Form</code> to <code>REQUIRED<
 password login to <code>attest-privileged</code> <em>succeeded</em>. Removing the password factor is genuine flow
 surgery (copy the browser flow, drop the password form, wire the passkey authenticator, bind it to
 the realm) and must be built and regression-tested — see
-<a href="lab-results.html">SPIKE-3-RESULTS.md §5</a>. Budget for it; do not assume a
+<a href="lab-results-hardware-keys.html">SPIKE-3-RESULTS.md §5</a>. Budget for it; do not assume a
 toggle.
 <strong>This phase delivers the headline requirement.</strong> It does not yet satisfy S3 — Keycloak binds the
 token, but our API is not yet verifying proofs.</p>

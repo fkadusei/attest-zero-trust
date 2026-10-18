@@ -54,9 +54,11 @@
 <li><a href="threat-model.html">Threat model</a></li>
 <li><a href="adr.html" class="current">Decision register</a></li>
 <li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup-failed.html">Lab results: the experiment that failed</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
@@ -190,7 +192,7 @@ corresponding threat).</p>
 <hr>
 <h3 id="adr-003-aaguid-allowlist-and-cross-platform-attachment-for-privileged-enrolment">ADR-003 — AAGUID allowlist and cross-platform attachment for privileged enrolment</h3>
 <p><strong>Status:</strong> Accepted — <strong>VERIFIED by Spike #3</strong> against Keycloak 26.8.0
-(<a href="lab-results.html">results</a>). Enforcement is real, not aspirational.</p>
+(<a href="lab-results-hardware-keys.html">results</a>). Enforcement is real, not aspirational.</p>
 <p><strong>Context:</strong> A synced passkey is phishing-resistant but moves the trust root from the device to the
 user&rsquo;s cloud account. NIST SP 800-63Bsup1 exists precisely because syncable authenticators change the
 assurance calculus. Privileged users must not be reachable via a synced credential.</p>
@@ -596,7 +598,7 @@ in front.</p>
 <hr>
 <h3 id="spike-3-aaguid-allowlist-enforcement-semantics-resolved">Spike #3 — AAGUID allowlist enforcement semantics — <strong>RESOLVED</strong></h3>
 <p><strong>Result: the control is genuinely enforced, and <code>direct</code> attestation is what makes it meaningful.</strong>
-Full matrix and method in <a href="lab-results.html">SPIKE-3-RESULTS.md</a>.</p>
+Full matrix and method in <a href="lab-results-hardware-keys.html">SPIKE-3-RESULTS.md</a>.</p>
 <p>Established, in a controlled matrix with two controls:</p>
 <ul>
 <li>The <strong>allowlist is enforced at enrolment</strong> — a non-approved authenticator is rejected (B vs C).</li>

@@ -222,6 +222,17 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **Documentation drifts in the UNDERSTATING direction too, and nobody notices because it
+  feels humble.** Two pages said "four experiments have been done" and "no production code exists"
+  while the repository held 21 modules, 216 tests and eighteen written-up experiments. The stale
+  "What is NOT yet proven" list still named phishing proxies, Firefox/Safari, and end-to-end token
+  binding — **all three had been proven since**, and one of them was the project's headline claim.
+  A reader would have come away believing far less than was true. Understating is still inaccurate,
+  and it is harder to catch than overstating because it looks like appropriate caution.
+- **Two experiment write-ups were never published at all** — `SPIKE-3` (the hardware-key matrix,
+  the first spike and the one the whole privileged requirement rests on) and `SPIKE-5` (the one
+  that FAILED, which the prose kept referring to). A results document sitting in `lab/` is not
+  evidence a reader can check. Register the page, then link it.
 - **A test in the wrong scope passes for the wrong reason, or does not run at all.** Three
   attempts to place one object-storage test: in the shared contract it failed for the in-memory
   adapter (whose ref is `tenant/id-uuid`, where a separator is *meaningful*, not dangerous); in

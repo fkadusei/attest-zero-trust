@@ -4,12 +4,20 @@ A design document that claims a control works is worth very little until somethi
 it. This page records what has actually been run, what it proved, and — just as importantly — what it
 did not.
 
-!!! warning "Four experiments are done. One of them failed."
+!!! warning "Eighteen write-ups. One experiment failed, and one found the opposite of what it hoped."
 
-    It would be easy to read this page as "the security is verified". It is not. Two specific claims —
-    that hardware keys can be enforced, and that token binding is real and implementable — have been
-    demonstrated with controlled experiments. Everything in the list further down is not, and that
-    list is longer.
+    It would be easy to read this page as "the security is verified". It is not, and the difference
+    matters.
+
+    What **is** true: eighteen controlled experiments and investigations have been run against a working
+    implementation,
+    and **39 individual claims** are recorded as Verified in the [evidence register](evidence.md) —
+    each one from a run with a working control. That is a much stronger position than a design
+    document, and it is why this page exists.
+
+    What is **not** true: that a system passing these experiments is secure. The remaining gaps are
+    listed at the bottom of this page, and several of them — a physical hardware key, an independent
+    reviewer, any deployment at all — are the ones most likely to change the answer.
 
 ## How verification works here
 
@@ -19,6 +27,39 @@ be wrong early, when being wrong is inexpensive.
 
 The reasoning is simple. Some assumptions, if wrong, force a redesign. Those are worth testing before
 any code is written, not after. Others are cheap to change later and can wait.
+
+## Every experiment, at a glance
+
+Five are told in full below, because they changed the design. **They are not the whole set.**
+Eighteen have write-ups, and each answered a question that would otherwise have stayed a guess.
+Every row links to its own page, so nothing here has to be taken on trust.
+
+| # | Question it answered | Outcome |
+|---|---|---|
+| [**S1**](lab-results-dpop.md) | Is `DPoP` token binding real and enforceable? | Yes — enforced, and our verifier was prototyped against it |
+| [**S1b**](lab-results-s1b.md) | Does the `DPoP` header survive a real proxy chain? | Yes — Cloudflare, 200/200 |
+| [**S3**](lab-results-hardware-keys.md) | Does the provider **enforce** a hardware-key allowlist? | Yes — and an authenticator that declines to attest is refused |
+| [**S4**](lab-results-browser.md) | Does a real browser complete the ceremony? | Yes — Chromium, 6/6 |
+| [**S4b**](lab-results-browsers.md) | Do **Firefox and Safari** keep the key? | Yes — all three engines |
+| [**S5**](lab-results-stepup-failed.md) | Does asking for a **stronger check** force one? | **No — mechanism rejected** (ADR-013). Superseded by S5b |
+| [**S5b**](lab-results-stepup.md) | Can step-up authentication be made to work? | Yes |
+| [**S5c**](lab-results-freshness.md) | Does re-authentication force a genuinely **fresh** check? | Yes — bounded, not unbounded |
+| [**S5d**](lab-results-passkey-only.md) | Is the privileged realm actually passkey-only? | Yes — verified by policy *and* by test |
+| [**S5e**](lab-results-enrolment-window.md) | Is the enrolment window time-boxed, gated and audited? | Yes — all three |
+| [**S5f**](lab-results-enrolment-link.md) | Can enrolment work by shareable per-user link? | Yes — 19/19 |
+| [**S9**](lab-results-phishing.md) | Does a **phishing proxy** actually fail? | **Yes — 7/7. The headline claim** |
+| [**S9b**](lab-results-broad-rpid.md) | Is a broad relying-party ID exploitable? | No — and that finding removed an argument the design relied on |
+| [**Console E2E**](lab-results-console-e2e.md) | Does the whole sign-in work in a real browser? | Yes — 18/18 local, 17/17 on a real domain |
+| [**origin-diff**](lab-results-origin-diff.md) | Is the passkey origin-bound as the spec requires? | Yes — 5/5 authenticated |
+| [**SESSION**](lab-results-session.md) | Why did the console redirect-loop? | A missing client made an audience mapper silently do nothing |
+| [**Real origin**](lab-results-real-origin.md) | Does it work behind TLS on a real domain? | Yes — and `/admin` returns 404 at the edge |
+| [**Mutation**](lab-results-mutation.md) | Can the tests themselves be trusted? | Two suites were green with real properties broken — both fixed |
+
+Two of these deserve a warning before you read them, because their value is not the pass they earned.
+**S9b found that a broad relying-party ID was *not* exploitable**, which removed an argument the
+design had been leaning on. And **the SESSION investigation found a configuration that looked applied
+and did nothing** — the most expensive class of bug in this project, and the reason several of the
+write-ups spend more words on how a mistake was caught than on the result.
 
 ## The first: can we actually enforce hardware keys?
 
@@ -363,26 +404,37 @@ now beside the point: **a control an attacker can bypass is not a control, howev
 
 ## What is NOT yet proven
 
-This list is the honest counterpart to the section above. None of it is a surprise or a defect; it is
-simply work that has not been done.
+This is the honest counterpart to the rest of the page. **Several things that used to be on this list
+were resolved while the project ran**, and they are marked as such rather than quietly deleted — the
+fact that they were once open is part of the record.
 
-| Not proven | Why it matters | What it needs |
+| Not proven | Why it matters | Blocked on |
 |---|---|---|
-| That a **real** approved hardware key registers successfully | The virtual authenticator can only demonstrate refusal, because it cannot attest. The failure mode we know about is lockout, not bypass — but the happy path is unconfirmed | A physical security key |
-| What AAGUIDs real platform passkeys report | Determines which control is actually doing the rejecting in production | Testing across iCloud Keychain, Google Password Manager, Windows Hello |
-| That sign-in survives a **phishing proxy** | This is the headline claim of the whole project | A live relay test against the real flow |
-| That token binding works **end to end** | The *logic* is now proven, but not that the required header survives every network hop. A hop that strips it breaks the binding silently — and the tempting "fix" would be to disable the check | A header-survival test through the real edge, plus deployed infrastructure |
-| That **Firefox** and **Safari** keep the key — the two non-Chromium engines | Chromium (Chrome, Edge, Brave) is automated and passes 6/6, but all three share one engine, so that says nothing about Gecko or WebKit | A one-minute manual test each; a page is provided |
-| That a **browser** keeps its key across a full laptop restart | Chrome holds it correctly, but Safari is the browser most likely to throw stored data away, and it is widely used. If it evicts, users sign in more often — annoying, but safe, provided the safe fallback is actually implemented | A one-minute manual test; a page is provided |
-| That revocation takes effect in under a minute | Token expiry alone is far too slow to be the answer | A revocation-latency measurement |
-| That the identity provider **clusters** on our chosen platform | A single instance is not a viable production target | Two instances, session replication, failover |
-| The NIST analysis for syncable authenticators | Determines whether an assurance claim can be made publicly | Independent review, not self-certification |
+| A **physical hardware key** is accepted | Only *refusal* has been tested, because a virtual authenticator cannot attest. The failure mode we know about is lockout, not bypass — but the happy path is unconfirmed | A ~$25–70 key |
+| **Phishing over real TLS, DNS and a certificate** | S9's relay ran on loopback. The origin check does not depend on the certificate, so the result should hold — but that is reasoning, not measurement. **Cheap to settle now that the real domain exists** | A run, not a deployment |
+| The **`DPoP` header survives CloudFront → ALB → API Gateway** | A hop that strips it breaks binding **silently**. Cloudflare's edge provably preserves it, so the mechanism is not inherently fragile — but those are different products. **Partly answered** | AWS |
+| Our **permissions engine accepts our tokens** | It was built against a different issuer | AWS |
+| **Revocation latency** is under a minute | Claimed, never measured | AWS |
+| The login server **clusters** | A single instance is not a viable production target | AWS |
+| Behaviour of `prompt=login` when re-authentication is **impossible** | A user whose only credential was removed. Expected to lock out; unproven, and lockout paths deserve their own test | A lab user with no credential |
+| The NIST analysis for **syncable authenticators** | Determines whether an assurance claim can be made publicly | Independent review |
+| **Anything about the system in production** | No cloud deployment, no redundancy, no monitoring, no restore drill. The [limits](limits.md) page is explicit | A decision to ship |
 
-!!! note "Why the first row is the important one"
+!!! note "Rows that have LEFT this table"
 
-    Every other gap is engineering that can be scheduled. The first is the one where a wrong
-    assumption would mean the privileged-access requirement does not work as intended for real users,
-    and it needs hardware rather than more code.
+    Recorded, because a list that only ever shrinks is a list nobody can audit:
+
+    - **Firefox and Safari keep the session key** — was "a manual minute each". Now tested: all three
+      engines pass. See [the browser experiments](lab-results-browsers.md).
+    - **A browser keeps its key across a restart** — now tested on all three engines.
+    - **Token binding end to end** — was "not proven that the header survives every hop". The
+      Cloudflare chain now passes 200/200. See [S1b](lab-results-s1b.md).
+    - **Sign-in survives a phishing proxy** — was the headline unproven claim. S9 relayed a live
+      flow through a translating proxy and it failed as required, 7/7.
+    - **A real TLS environment** — the console's sign-in now runs on a real certificate and passes
+      17/17.
+    - **Freshness, passkey-only realms, step-up, the enrolment window and shareable enrolment links** —
+      each was an open design question; each now has a spike behind it.
 
 ## How this is reproducible
 
@@ -402,10 +454,16 @@ the workarounds required to drive a browser through a real WebAuthn ceremony.
 
 ## What this means for the rest of these pages
 
-Read the other pages as **design**: considered, documented, and in three important places demonstrated.
-Read this page as **evidence**, and take the unproven list seriously.
+Read the other pages as **design plus evidence**: considered, documented, and in eighteen places
+actually run. Read this page as the record of which is which.
 
-When someone asks whether the system is secure, the honest answer is that two of its load-bearing
-claims have been tested and hold, that the failures we were most worried about turned out not to
-exist, and that roughly a dozen other claims remain design work. That is a better position than most
-projects at this stage, and it is not the same as being finished.
+When someone asks whether the system is secure, the honest answer has four parts. **The mechanisms
+work**: hardware-key enforcement, token binding, per-request authorization, tenant isolation and
+phishing resistance have each been demonstrated under control. **The failures we most feared did not
+appear** — but the experiments also found real bugs that the design had not anticipated, several of
+them in configuration where a setting looked applied and did nothing. **The remaining gaps are
+specific and named** rather than vague. And **none of it covers production**, which is where the
+next set of surprises lives.
+
+That is a better position than most projects at this stage. It is not the same as being finished, and
+this page should never be read as saying so.

@@ -54,9 +54,11 @@
 <li><a href="threat-model.html">Threat model</a></li>
 <li><a href="adr.html">Decision register</a></li>
 <li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup-failed.html">Lab results: the experiment that failed</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
@@ -74,6 +76,7 @@
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
 <li><a href="#how-verification-works-here">How verification works here</a></li>
+<li><a href="#every-experiment-at-a-glance">Every experiment, at a glance</a></li>
 <li><a href="#the-first-can-we-actually-enforce-hardware-keys">The first: can we actually enforce hardware keys?</a></li>
 <li class="lvl3"><a href="#the-question">The question</a></li>
 <li class="lvl3"><a href="#how-it-was-tested">How it was tested</a></li>
@@ -114,11 +117,17 @@
 it. This page records what has actually been run, what it proved, and — just as importantly — what it
 did not.</p>
 <div class="admonition warning">
-<p class="admonition-title">Four experiments are done. One of them failed.</p>
-<p>It would be easy to read this page as &ldquo;the security is verified&rdquo;. It is not. Two specific claims —
-that hardware keys can be enforced, and that token binding is real and implementable — have been
-demonstrated with controlled experiments. Everything in the list further down is not, and that
-list is longer.</p>
+<p class="admonition-title">Eighteen write-ups. One experiment failed, and one found the opposite of what it hoped.</p>
+<p>It would be easy to read this page as &ldquo;the security is verified&rdquo;. It is not, and the difference
+matters.</p>
+<p>What <strong>is</strong> true: eighteen controlled experiments and investigations have been run against a working
+implementation,
+and <strong>39 individual claims</strong> are recorded as Verified in the <a href="evidence.html">evidence register</a> —
+each one from a run with a working control. That is a much stronger position than a design
+document, and it is why this page exists.</p>
+<p>What is <strong>not</strong> true: that a system passing these experiments is secure. The remaining gaps are
+listed at the bottom of this page, and several of them — a physical hardware key, an independent
+reviewer, any deployment at all — are the ones most likely to change the answer.</p>
 </div></section>
 <section id="how-verification-works-here"><h2>How verification works here</h2>
 <p>The project runs <strong>verification spikes</strong>: short, focused experiments that each answer one question
@@ -126,6 +135,117 @@ before the design is frozen. A spike is deliberately cheap and deliberately boun
 be wrong early, when being wrong is inexpensive.</p>
 <p>The reasoning is simple. Some assumptions, if wrong, force a redesign. Those are worth testing before
 any code is written, not after. Others are cheap to change later and can wait.</p>
+</section>
+<section id="every-experiment-at-a-glance"><h2>Every experiment, at a glance</h2>
+<p>Five are told in full below, because they changed the design. <strong>They are not the whole set.</strong>
+Eighteen have write-ups, and each answered a question that would otherwise have stayed a guess.
+Every row links to its own page, so nothing here has to be taken on trust.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Question it answered</th>
+<th>Outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="lab-results-dpop.html"><strong>S1</strong></a></td>
+<td>Is <code>DPoP</code> token binding real and enforceable?</td>
+<td>Yes — enforced, and our verifier was prototyped against it</td>
+</tr>
+<tr>
+<td><a href="lab-results-s1b.html"><strong>S1b</strong></a></td>
+<td>Does the <code>DPoP</code> header survive a real proxy chain?</td>
+<td>Yes — Cloudflare, 200/200</td>
+</tr>
+<tr>
+<td><a href="lab-results-hardware-keys.html"><strong>S3</strong></a></td>
+<td>Does the provider <strong>enforce</strong> a hardware-key allowlist?</td>
+<td>Yes — and an authenticator that declines to attest is refused</td>
+</tr>
+<tr>
+<td><a href="lab-results-browser.html"><strong>S4</strong></a></td>
+<td>Does a real browser complete the ceremony?</td>
+<td>Yes — Chromium, 6/6</td>
+</tr>
+<tr>
+<td><a href="lab-results-browsers.html"><strong>S4b</strong></a></td>
+<td>Do <strong>Firefox and Safari</strong> keep the key?</td>
+<td>Yes — all three engines</td>
+</tr>
+<tr>
+<td><a href="lab-results-stepup-failed.html"><strong>S5</strong></a></td>
+<td>Does asking for a <strong>stronger check</strong> force one?</td>
+<td><strong>No — mechanism rejected</strong> (ADR-013). Superseded by S5b</td>
+</tr>
+<tr>
+<td><a href="lab-results-stepup.html"><strong>S5b</strong></a></td>
+<td>Can step-up authentication be made to work?</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><a href="lab-results-freshness.html"><strong>S5c</strong></a></td>
+<td>Does re-authentication force a genuinely <strong>fresh</strong> check?</td>
+<td>Yes — bounded, not unbounded</td>
+</tr>
+<tr>
+<td><a href="lab-results-passkey-only.html"><strong>S5d</strong></a></td>
+<td>Is the privileged realm actually passkey-only?</td>
+<td>Yes — verified by policy <em>and</em> by test</td>
+</tr>
+<tr>
+<td><a href="lab-results-enrolment-window.html"><strong>S5e</strong></a></td>
+<td>Is the enrolment window time-boxed, gated and audited?</td>
+<td>Yes — all three</td>
+</tr>
+<tr>
+<td><a href="lab-results-enrolment-link.html"><strong>S5f</strong></a></td>
+<td>Can enrolment work by shareable per-user link?</td>
+<td>Yes — 19/19</td>
+</tr>
+<tr>
+<td><a href="lab-results-phishing.html"><strong>S9</strong></a></td>
+<td>Does a <strong>phishing proxy</strong> actually fail?</td>
+<td><strong>Yes — 7/7. The headline claim</strong></td>
+</tr>
+<tr>
+<td><a href="lab-results-broad-rpid.html"><strong>S9b</strong></a></td>
+<td>Is a broad relying-party ID exploitable?</td>
+<td>No — and that finding removed an argument the design relied on</td>
+</tr>
+<tr>
+<td><a href="lab-results-console-e2e.html"><strong>Console E2E</strong></a></td>
+<td>Does the whole sign-in work in a real browser?</td>
+<td>Yes — 18/18 local, 17/17 on a real domain</td>
+</tr>
+<tr>
+<td><a href="lab-results-origin-diff.html"><strong>origin-diff</strong></a></td>
+<td>Is the passkey origin-bound as the spec requires?</td>
+<td>Yes — 5/5 authenticated</td>
+</tr>
+<tr>
+<td><a href="lab-results-session.html"><strong>SESSION</strong></a></td>
+<td>Why did the console redirect-loop?</td>
+<td>A missing client made an audience mapper silently do nothing</td>
+</tr>
+<tr>
+<td><a href="lab-results-real-origin.html"><strong>Real origin</strong></a></td>
+<td>Does it work behind TLS on a real domain?</td>
+<td>Yes — and <code>/admin</code> returns 404 at the edge</td>
+</tr>
+<tr>
+<td><a href="lab-results-mutation.html"><strong>Mutation</strong></a></td>
+<td>Can the tests themselves be trusted?</td>
+<td>Two suites were green with real properties broken — both fixed</td>
+</tr>
+</tbody>
+</table></div>
+<p>Two of these deserve a warning before you read them, because their value is not the pass they earned.
+<strong>S9b found that a broad relying-party ID was <em>not</em> exploitable</strong>, which removed an argument the
+design had been leaning on. And <strong>the SESSION investigation found a configuration that looked applied
+and did nothing</strong> — the most expensive class of bug in this project, and the reason several of the
+write-ups spend more words on how a mistake was caught than on the result.</p>
 </section>
 <section id="the-first-can-we-actually-enforce-hardware-keys"><h2>The first: can we actually enforce hardware keys?</h2>
 <h3 id="the-question">The question</h3>
@@ -512,69 +632,81 @@ authentication actually occurred and is unaffected by a flaw in how a <em>level<
 </div>
 </section>
 <section id="what-is-not-yet-proven"><h2>What is NOT yet proven</h2>
-<p>This list is the honest counterpart to the section above. None of it is a surprise or a defect; it is
-simply work that has not been done.</p>
+<p>This is the honest counterpart to the rest of the page. <strong>Several things that used to be on this list
+were resolved while the project ran</strong>, and they are marked as such rather than quietly deleted — the
+fact that they were once open is part of the record.</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
 <th>Not proven</th>
 <th>Why it matters</th>
-<th>What it needs</th>
+<th>Blocked on</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>That a <strong>real</strong> approved hardware key registers successfully</td>
-<td>The virtual authenticator can only demonstrate refusal, because it cannot attest. The failure mode we know about is lockout, not bypass — but the happy path is unconfirmed</td>
-<td>A physical security key</td>
+<td>A <strong>physical hardware key</strong> is accepted</td>
+<td>Only <em>refusal</em> has been tested, because a virtual authenticator cannot attest. The failure mode we know about is lockout, not bypass — but the happy path is unconfirmed</td>
+<td>A ~$25–70 key</td>
 </tr>
 <tr>
-<td>What AAGUIDs real platform passkeys report</td>
-<td>Determines which control is actually doing the rejecting in production</td>
-<td>Testing across iCloud Keychain, Google Password Manager, Windows Hello</td>
+<td><strong>Phishing over real TLS, DNS and a certificate</strong></td>
+<td>S9&rsquo;s relay ran on loopback. The origin check does not depend on the certificate, so the result should hold — but that is reasoning, not measurement. <strong>Cheap to settle now that the real domain exists</strong></td>
+<td>A run, not a deployment</td>
 </tr>
 <tr>
-<td>That sign-in survives a <strong>phishing proxy</strong></td>
-<td>This is the headline claim of the whole project</td>
-<td>A live relay test against the real flow</td>
+<td>The <strong><code>DPoP</code> header survives CloudFront → ALB → API Gateway</strong></td>
+<td>A hop that strips it breaks binding <strong>silently</strong>. Cloudflare&rsquo;s edge provably preserves it, so the mechanism is not inherently fragile — but those are different products. <strong>Partly answered</strong></td>
+<td>AWS</td>
 </tr>
 <tr>
-<td>That token binding works <strong>end to end</strong></td>
-<td>The <em>logic</em> is now proven, but not that the required header survives every network hop. A hop that strips it breaks the binding silently — and the tempting &ldquo;fix&rdquo; would be to disable the check</td>
-<td>A header-survival test through the real edge, plus deployed infrastructure</td>
+<td>Our <strong>permissions engine accepts our tokens</strong></td>
+<td>It was built against a different issuer</td>
+<td>AWS</td>
 </tr>
 <tr>
-<td>That <strong>Firefox</strong> and <strong>Safari</strong> keep the key — the two non-Chromium engines</td>
-<td>Chromium (Chrome, Edge, Brave) is automated and passes 6/6, but all three share one engine, so that says nothing about Gecko or WebKit</td>
-<td>A one-minute manual test each; a page is provided</td>
+<td><strong>Revocation latency</strong> is under a minute</td>
+<td>Claimed, never measured</td>
+<td>AWS</td>
 </tr>
 <tr>
-<td>That a <strong>browser</strong> keeps its key across a full laptop restart</td>
-<td>Chrome holds it correctly, but Safari is the browser most likely to throw stored data away, and it is widely used. If it evicts, users sign in more often — annoying, but safe, provided the safe fallback is actually implemented</td>
-<td>A one-minute manual test; a page is provided</td>
-</tr>
-<tr>
-<td>That revocation takes effect in under a minute</td>
-<td>Token expiry alone is far too slow to be the answer</td>
-<td>A revocation-latency measurement</td>
-</tr>
-<tr>
-<td>That the identity provider <strong>clusters</strong> on our chosen platform</td>
+<td>The login server <strong>clusters</strong></td>
 <td>A single instance is not a viable production target</td>
-<td>Two instances, session replication, failover</td>
+<td>AWS</td>
 </tr>
 <tr>
-<td>The NIST analysis for syncable authenticators</td>
+<td>Behaviour of <code>prompt=login</code> when re-authentication is <strong>impossible</strong></td>
+<td>A user whose only credential was removed. Expected to lock out; unproven, and lockout paths deserve their own test</td>
+<td>A lab user with no credential</td>
+</tr>
+<tr>
+<td>The NIST analysis for <strong>syncable authenticators</strong></td>
 <td>Determines whether an assurance claim can be made publicly</td>
-<td>Independent review, not self-certification</td>
+<td>Independent review</td>
+</tr>
+<tr>
+<td><strong>Anything about the system in production</strong></td>
+<td>No cloud deployment, no redundancy, no monitoring, no restore drill. The <a href="limits.html">limits</a> page is explicit</td>
+<td>A decision to ship</td>
 </tr>
 </tbody>
 </table></div>
 <div class="admonition note">
-<p class="admonition-title">Why the first row is the important one</p>
-<p>Every other gap is engineering that can be scheduled. The first is the one where a wrong
-assumption would mean the privileged-access requirement does not work as intended for real users,
-and it needs hardware rather than more code.</p>
+<p class="admonition-title">Rows that have LEFT this table</p>
+<p>Recorded, because a list that only ever shrinks is a list nobody can audit:</p>
+<ul>
+<li><strong>Firefox and Safari keep the session key</strong> — was &ldquo;a manual minute each&rdquo;. Now tested: all three
+  engines pass. See <a href="lab-results-browsers.html">the browser experiments</a>.</li>
+<li><strong>A browser keeps its key across a restart</strong> — now tested on all three engines.</li>
+<li><strong>Token binding end to end</strong> — was &ldquo;not proven that the header survives every hop&rdquo;. The
+  Cloudflare chain now passes 200/200. See <a href="lab-results-s1b.html">S1b</a>.</li>
+<li><strong>Sign-in survives a phishing proxy</strong> — was the headline unproven claim. S9 relayed a live
+  flow through a translating proxy and it failed as required, 7/7.</li>
+<li><strong>A real TLS environment</strong> — the console&rsquo;s sign-in now runs on a real certificate and passes
+  17/17.</li>
+<li><strong>Freshness, passkey-only realms, step-up, the enrolment window and shareable enrolment links</strong> —
+  each was an open design question; each now has a spike behind it.</li>
+</ul>
 </div>
 </section>
 <section id="how-this-is-reproducible"><h2>How this is reproducible</h2>
@@ -591,12 +723,17 @@ bash<span class="w"> </span>scripts/run-matrix.sh<span class="w">               
 the workarounds required to drive a browser through a real WebAuthn ceremony.</p>
 </section>
 <section id="what-this-means-for-the-rest-of-these-pages"><h2>What this means for the rest of these pages</h2>
-<p>Read the other pages as <strong>design</strong>: considered, documented, and in three important places demonstrated.
-Read this page as <strong>evidence</strong>, and take the unproven list seriously.</p>
-<p>When someone asks whether the system is secure, the honest answer is that two of its load-bearing
-claims have been tested and hold, that the failures we were most worried about turned out not to
-exist, and that roughly a dozen other claims remain design work. That is a better position than most
-projects at this stage, and it is not the same as being finished.</p></section>
+<p>Read the other pages as <strong>design plus evidence</strong>: considered, documented, and in eighteen places
+actually run. Read this page as the record of which is which.</p>
+<p>When someone asks whether the system is secure, the honest answer has four parts. <strong>The mechanisms
+work</strong>: hardware-key enforcement, token binding, per-request authorization, tenant isolation and
+phishing resistance have each been demonstrated under control. <strong>The failures we most feared did not
+appear</strong> — but the experiments also found real bugs that the design had not anticipated, several of
+them in configuration where a setting looked applied and did nothing. <strong>The remaining gaps are
+specific and named</strong> rather than vague. And <strong>none of it covers production</strong>, which is where the
+next set of surprises lives.</p>
+<p>That is a better position than most projects at this stage. It is not the same as being finished, and
+this page should never be read as saying so.</p></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="evidence.html"><span>Previous</span><b>Evidence register</b></a><a class="pn next" href="decisions.html"><span>Next</span><b>Decisions and why</b></a></nav>
     <footer>

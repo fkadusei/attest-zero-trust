@@ -54,9 +54,11 @@
 <li><a href="threat-model.html" class="current">Threat model</a></li>
 <li><a href="adr.html">Decision register</a></li>
 <li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup-failed.html">Lab results: the experiment that failed</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
@@ -350,7 +352,7 @@ real security improvement over the previous design.</p>
 <p><strong>Residual caveat — NOW RESOLVED BY SPIKE #3.</strong> The earlier concern was that an authenticator which
 <em>declines to attest</em> (reporting an all-zeros AAGUID) might be silently admitted, defeating the
 allowlist. <strong>It is not admitted — it is rejected.</strong> Verified in a controlled matrix
-(<a href="lab-results.html">SPIKE-3-RESULTS.md</a>). The remaining caveat is the inverse:
+(<a href="lab-results-hardware-keys.html">SPIKE-3-RESULTS.md</a>). The remaining caveat is the inverse:
 because enforcement is real, a legitimate user whose authenticator cannot attest will be <em>locked
 out</em>, so the failure mode is availability rather than bypass. And note that the allowlist is only
 meaningful under <code>attestationConveyancePreference: direct</code> — under <code>none</code> the AAGUID is self-asserted

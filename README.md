@@ -3,9 +3,15 @@
 A multi-tenant B2B SaaS application built on Zero Trust principles, with **passwordless,
 phishing-resistant authentication** (FIDO2/WebAuthn passkeys) as its identity foundation.
 
-> **Status: design complete. Six verification experiments run — three hold, one holds for Chromium
-> only, one failed, and one resolved by rejecting the mechanism it tested. No production code yet.**
+> **Status: a working implementation with evidence behind its security claims — not a production
+> deployment. No cloud deployment, no redundancy, no monitoring, and no independent review yet.**
 > MIT licensed.
+>
+> **Eighteen controlled experiments have been run** against a working API and console (21 modules,
+> ~3,700 lines, 216 tests). **39 claims are recorded as Verified** — each from a run that had a
+> working control — and **10 are listed as explicitly Unverified**. One experiment failed and was
+> resolved by rejecting the mechanism it tested; several found real bugs in configuration that
+> looked applied and did nothing.
 >
 > **The authoritative summary of what is and is not established is [EVIDENCE.md](EVIDENCE.md).** It
 > records every load-bearing claim with its evidence and a confidence level, and names the places

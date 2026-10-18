@@ -54,9 +54,11 @@
 <li><a href="threat-model.html">Threat model</a></li>
 <li><a href="adr.html">Decision register</a></li>
 <li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
 <li><a href="lab-results-browsers.html">Lab results: other browsers</a></li>
+<li><a href="lab-results-stepup-failed.html">Lab results: the experiment that failed</a></li>
 <li><a href="lab-results-stepup.html">Lab results: step-up rejected</a></li>
 <li><a href="lab-results-freshness.html">Lab results: forcing a fresh check</a></li>
 <li><a href="lab-results-passkey-only.html">Lab results: passkey-only, actually</a></li>
@@ -94,15 +96,22 @@ authenticates people and decides what they may do, and why it does those things 
 term is explained where it first appears, and collected in the <a href="#glossary">glossary</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Where this project actually stands</p>
-<p><strong>The design is complete, and two of its load-bearing claims have been tested. No production code
-exists yet.</strong></p>
-<p>A local lab runs the identity provider and its database, and two things have been demonstrated
-rather than asserted: that <strong>only genuine hardware keys can register for privileged access</strong>, and
-that a <strong>stolen session token is genuinely inert</strong> because it is bound to a key the thief does not
-have. Both are written up in <a href="verification.html">what we tested</a>.</p>
-<p>Everything else here is design, not deployment. The pages that say &ldquo;we will&rdquo; rather than &ldquo;we do&rdquo;
-are deliberately written that way, and the unproven list on that page is longer than the proven
-one.</p>
+<p><strong>There is a working implementation, and its security claims are evidenced rather than asserted.
+It is not a production deployment.</strong></p>
+<p>That distinction is the honest one, and it cuts both ways, so both halves are stated plainly.</p>
+<p><strong>What exists.</strong> A running API and admin console — 21 source modules, about 3,700 lines, behind
+216 tests — enforcing DPoP-bound tokens, per-request Cedar authorization, and PostgreSQL
+row-level security. It runs locally and behind a real domain with TLS. Eighteen controlled
+experiments have been run against it, and <strong>39 claims are recorded as Verified</strong> in the
+<a href="evidence.html">evidence register</a> — meaning each one came from an experiment that had a working
+control, not from reading documentation.</p>
+<p><strong>What does not exist.</strong> Any deployment to a cloud provider, any redundancy, any monitoring, any
+restore-from-backup drill. It is one node on one machine, and the <a href="limits.html">limits</a> page is
+explicit about what that leaves out. Nothing here has faced a penetration test or an independent
+reviewer.</p>
+<p>So: read the <a href="verification.html">what we tested</a> page as evidence about specific mechanisms, not as
+a claim that the system is secure. <strong>Ten things are listed there as explicitly Unverified</strong>, and
+those are the ones most likely to be wrong.</p>
 </div></section>
 <section id="what-the-application-does"><h2>What the application does</h2>
 <p>Each customer is a <strong>tenant</strong>: an isolated slice of the system holding that customer&rsquo;s evidence.
