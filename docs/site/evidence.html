@@ -460,6 +460,16 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <td><strong>Verified</strong></td>
 </tr>
 <tr>
+<td><strong><code>jwks.ts</code> had no tests at all, so its DoS bound was unasserted</strong> — with the cooldown at 0, every unauthenticated request carrying an invented <code>kid</code> forces an outbound fetch to the identity provider</td>
+<td><code>apps/api/test/jwks.test.ts</code>: a counting key server asserts a burst does <strong>not</strong> fetch per request, plus a control proving the counter moves. <strong>2/2 mutations caught</strong></td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>Nothing asserted on the ref <code>put()</code> returns</strong>, so removing the object-storage id sanitising left the suite green</td>
+<td>A test feeding six hostile ids, asserting the ref is one path segment. Filesystem <strong>caught</strong>; the S3 survivor was probed and is correct — S3 stores <code>..</code> literally, measured against s3mock</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
 <td><strong>Two security properties could be broken without any test failing</strong>: a same-length wrong CSRF token was never sent (only a 5-char one, refused by a length pre-check), and the real OIDC client was never instantiated (<code>console.test.ts</code> injects a stub) — so making the ID-token nonce check return <code>true</code> unconditionally left all 26 console tests green</td>
 <td>Mutation testing of the console and PDP, with a reusable harness. Both closed; the OIDC client now has its own 13-test file and <strong>4/4 mutations are caught</strong></td>
 <td><strong>Verified</strong></td>

@@ -236,6 +236,22 @@ documentation implies.
   the key LITERALLY and `GET tenants/other-tenant/secret` 404s. S3 has no filesystem, so `..`
   is a character. The survivor is correct, and the sanitising is defence in depth against
   stores that *do* normalise. Ten minutes of probing instead of a test that asserts nothing real.
+- **A test in the wrong scope passes for the wrong reason, or does not run at all.** Placing
+  one object-storage test took three attempts: in the shared contract it failed for the
+  in-memory adapter (whose ref is `tenant/id-uuid`, where a separator is *meaningful*, not
+  dangerous); in an S3-specific block it silently ALWAYS skipped, because the skip predicate
+  read a variable only assigned inside a factory that has not run at module-load time; and in
+  the right block it needed a different label because `name` was out of scope. **A skipped test
+  looks exactly like a passing one in the summary line** — check `ℹ skipped`, not just `ℹ pass`.
+- **Probe the third-party behaviour before calling a surviving mutant a gap.** The S3 adapter
+  sanitises the caller's artifact id; removing that survived. Rather than force a test, the
+  store was probed directly: `PUT tenants/acme/../../other-tenant/secret` stores the key
+  LITERALLY and `GET tenants/other-tenant/secret` returns 404. S3 has no filesystem, so `..` is
+  a character. The survivor is correct, and the sanitising is defence in depth against stores
+  that DO normalise. Ten minutes of probing beat a test asserting nothing real.
+- **An edit script that prints only on success cannot be debugged.** A two-part script
+  (HANDOFF then EVIDENCE) failed its first part and produced no output at all, so it read as
+  "nothing to do". Print each step as it happens, and exit naming the step that failed.
 - **A reproducibility check is only a check if the toolchain is pinned.** `build_docs.py --check`
   compares the COMMITTED site against a fresh build — a good idea that was quietly impossible to
   honour, because `requirements-docs.txt` floated `markdown>=3.6`. It resolved to **3.11 locally and
