@@ -178,28 +178,33 @@ the check failing. The check was validated by breaking the *enforcement*, not th
 | Behaviour of `prompt=login` when re-authentication is **impossible** | A user whose only credential was removed. Expected to lock out; unproven, and lockout paths deserve their own test | A lab user with no credential |
 | Whether the **privileged flow requires a passkey** | It does **not** today — see §5.8 | S5d |
 
-### 4a. A named risk found by the standards analysis (S6)
+### 4a. What the standards analysis (S6) changed, and what it did not establish
 
-Not a claim and not an experiment — a **risk with a citation**, recorded here because the register is
-where things must not be forgotten.
+A hostile review of the S6 analysis found that **its first draft overclaimed**, and that two of the
+overclaims had propagated into this register. Recorded here because this is the file that is supposed
+to be right.
 
-The customer realm sets WebAuthn user verification to **`preferred`**. NIST SP 800-63B-4 Appendix B
-(normative) says: *"If the user is not verified, agencies **SHALL** treat the authenticator as a
-single-factor cryptographic authenticator."* **Nothing in `apps/api/src/` inspects UV, `amr`, or any
-equivalent claim**, so an assertion without user verification would be handled identically to one
-with it.
+**Corrected in this file.** An earlier version of this section said the customer's authenticator "is a
+hardware key" — which contradicted §4 (a physical key being accepted is **Unverified**) and §5.2. It
+also implied privileged **access** required a key, when S3 tested **enrolment** and §5.8 records that
+the privileged **step-up** flow yields *"verified freshness and, today, no strength"*. Both are fixed
+above; §4 and §5.8 were right and the new text was the bug.
 
-**Consequence:** a customer whose authenticator does not perform user verification may be
-authenticating with one factor while the system treats the sign-in as multi-factor. This does **not**
-affect the privileged realm, where user verification is `required` and the authenticator is a hardware
-key.
+**Three findings that are now named risks, each with a citation a reviewer can check.** Full analysis
+and quotations: `lab/keycloak/SPIKE-6-STANDARDS.md`.
 
-**Status: OPEN.** Three ways to close it — set `required` (usability cost), inspect the claim and
-refuse AAL2-shaped operations (engineering), or downgrade the public wording to "phishing-resistant"
-rather than "multi-factor" (honest, possibly sufficient). **Not chosen; this needs a human decision,
-not the author's.**
+| Risk | State |
+|---|---|
+| **The AAGUID allowlist has no attestation trust anchor.** Keycloak validates the attestation chain against a truststore; none is configured in this repo, so the check is either unanchored (a fabricated chain would pass) or it rejects genuine YubiKeys. Which one is **unknown** | **OPEN — highest priority.** Blocks any "hardware key required" claim |
+| **Customer sign-in may be single-factor without our knowing.** The customer realm sets user verification to `preferred`; Keycloak accepts a `UV=0` assertion under that policy and does not act on it, where §3.1.7.2 says such an assertion **SHALL** be treated as single-factor. No experiment has produced a `UV=0` sign-in, so the risk is conditional | **OPEN — needs a decision, not the author's** |
+| **A second policy surface is unconfigured.** This repo sets only `webAuthnPolicyPasswordless*`; `webAuthnPolicy*` keeps Keycloak defaults including an empty AAGUID list, so a `webauthn`-type credential would bypass the allowlist. Reachability not established | **OPEN** |
 
-Full analysis, with quotations a reviewer can check: `lab/keycloak/SPIKE-6-STANDARDS.md`.
+**And one finding that is a product problem, not a standards problem.** Appendix B.6 lists "unauthorized
+access to the sync fabric and recovery": if a customer's Apple or Google account is compromised and
+recovered, the attacker produces a valid, user-verified, phishing-resistant assertion, and our audit
+log records the customer's name. **A passkey event is evidence that an account authenticated, not that
+the named human did.** For a product whose value is the integrity of "who did what", **this is the most
+serious item on the page**, and nothing in the design addresses it.
 
 ---
 

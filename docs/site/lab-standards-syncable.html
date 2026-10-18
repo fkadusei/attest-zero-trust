@@ -77,16 +77,23 @@
     </nav>
     <div class="onthispage"><div class="navtitle">On this page</div><ul>
 <li><a href="#1-the-primary-source">1. The primary source</a></li>
-<li><a href="#2-the-decisive-sentence">2. The decisive sentence</a></li>
+<li><a href="#2-what-the-standard-says-about-syncing">2. What the standard says about syncing</a></li>
 <li><a href="#3-what-our-configuration-actually-is">3. What our configuration actually is</a></li>
-<li><a href="#4-what-we-may-claim-and-what-we-may-not">4. What we may claim, and what we may not</a></li>
+<li><a href="#4-what-we-may-claim-corrected">4. What we may claim — CORRECTED</a></li>
 <li class="lvl3"><a href="#we-may-say">We may say</a></li>
-<li class="lvl3"><a href="#we-must-not-say">We must not say</a></li>
-<li><a href="#5-two-findings-that-a-reviewer-should-attack-first">5. Two findings that a reviewer should attack first</a></li>
-<li class="lvl3"><a href="#finding-1-preferred-user-verification-means-we-may-be-accepting-single-factor-without-knowing">Finding 1 — preferred user verification means we may be accepting single factor without knowing</a></li>
-<li class="lvl3"><a href="#finding-2-we-do-not-use-the-backup-eligible-flag-and-that-is-probably-right">Finding 2 — we do not use the Backup Eligible flag, and that is probably right</a></li>
-<li><a href="#6-what-remains-for-a-human-reviewer">6. What remains for a human reviewer</a></li>
-<li><a href="#7-what-changed-as-a-result-of-this-analysis">7. What changed as a result of this analysis</a></li>
+<li class="lvl3"><a href="#we-must-not-say">We must NOT say</a></li>
+<li><a href="#5-findings">5. Findings</a></li>
+<li class="lvl3"><a href="#f1-the-aaguid-allowlist-has-no-attestation-trust-anchor">F1 — The AAGUID allowlist has no attestation trust anchor</a></li>
+<li class="lvl3"><a href="#f2-cross-platform-is-not-enforcement">F2 — cross-platform is not enforcement</a></li>
+<li class="lvl3"><a href="#f3-we-configured-one-of-two-policy-surfaces">F3 — We configured one of two policy surfaces</a></li>
+<li class="lvl3"><a href="#f4-nists-actual-threat-table-is-what-this-document-should-discuss">F4 — NIST’s actual threat table is what this document should discuss</a></li>
+<li class="lvl3"><a href="#f5-aal3-shaped-is-not-shape-accurate">F5 — “AAL3-shaped” is not shape-accurate</a></li>
+<li class="lvl3"><a href="#f6-user-verification-real-mechanism-wrong-layer-and-one-fix-that-is-impossible">F6 — User verification: real mechanism, wrong layer, and one fix that is impossible</a></li>
+<li class="lvl3"><a href="#f7-the-configuration-script-can-brick-the-admin-realm-mid-run">F7 — The configuration script can brick the admin realm mid-run</a></li>
+<li><a href="#6-what-the-review-did-not-overturn">6. What the review did not overturn</a></li>
+<li><a href="#7-what-the-review-changed-and-the-pattern-behind-it">7. What the review changed, and the pattern behind it</a></li>
+<li><a href="#8-what-remains-for-a-human-reviewer">8. What remains for a human reviewer</a></li>
+<li><a href="#9-what-changed-in-the-code-as-a-result-of-s6">9. What changed in the code as a result of S6</a></li>
 </ul></div>
   </aside>
 
@@ -97,57 +104,76 @@
         <h1>Reference: what the standard says about synced passkeys</h1>
         <p class="blurb">The NIST analysis behind our claim boundary, quoted so a reviewer can check it.</p>
       </header>
-      <section id="overview"><p><strong>Status: ANALYSIS COMPLETE — awaiting independent review. This document is the reviewer&rsquo;s input.</strong></p>
-<p>S6 asked a precise question: the standards treat device-bound and synced passkeys differently, there
-is a specific document about the synced kind, and we need to know what it says about <strong>our
-configuration</strong> before claiming anything publicly.</p>
-<p>This is that analysis. Every claim is traced to a quotation from the primary source, so a reviewer can
-check it without trusting the author. <strong>It has not been independently reviewed, and until it has, the
-claims below are ours and not an assessment.</strong> That is the whole point of the slice.</p>
+      <section id="overview"><p><strong>Status: ANALYSIS COMPLETE AND MATERIALLY CORRECTED — awaiting independent HUMAN review.</strong></p>
+<p>S6 asked what the standards say about <em>synced</em> passkeys, and what we may claim publicly. This is the
+analysis.</p>
+<p><strong>An earlier draft of it overclaimed in several places, and a hostile review caught it.</strong> Section 7
+records what the review found and what changed, because the correction is the most useful part of the
+document. The short version: the analysis audited itself against NIST and <strong>not</strong> against this
+project&rsquo;s own list of failure patterns, and it repeated three of them.</p>
+<p>Every quotation is traced to the primary source so a reviewer can check it without trusting the
+author. <strong>This is not an assessment.</strong> It is the input to one.</p>
 <hr></section>
 <section id="1-the-primary-source"><h2>1. The primary source</h2>
-<p><strong>NIST SP 800-63B-4</strong>, <em>Digital Identity Guidelines: Authentication and Lifecycle Management</em>, published
-2025-08-26. Two parts matter:</p>
+<p><strong>NIST SP 800-63B-4</strong>, <em>Digital Identity Guidelines: Authentication and Lifecycle Management</em>,
+2025-08-26.</p>
 <ul>
-<li><strong>§2 (AAL)</strong> — what each assurance level requires of an authenticator.</li>
-<li><strong>Appendix B, &ldquo;Syncable Authenticators&rdquo;</strong> — marked <strong>normative</strong>, and the document S6 was about.</li>
+<li><strong>§2.3</strong> AAL3; <strong>§2.3.2</strong> &ldquo;Authenticator and Verifier Requirements&rdquo;; <strong>§2.3.3</strong> Reauthentication.</li>
+<li><strong>§3.1.6.1</strong> Single-Factor Cryptographic Authenticators; <strong>§3.1.7.1</strong> Multi-Factor Cryptographic
+  Authenticators; <strong>§3.1.7.2</strong> Multi-Factor Cryptographic Verifiers.</li>
+<li><strong>Appendix B, &ldquo;Syncable Authenticators&rdquo;</strong> — <strong>normative</strong>.</li>
 </ul>
-<p>Retrieved from <a href="https://pages.nist.gov/800-63-4/sp800-63b.html">https://pages.nist.gov/800-63-4/sp800-63b.html</a> and
+<p>Sources: <a href="https://pages.nist.gov/800-63-4/sp800-63b.html">https://pages.nist.gov/800-63-4/sp800-63b.html</a> and
 <a href="https://pages.nist.gov/800-63-4/sp800-63b/syncable/">https://pages.nist.gov/800-63-4/sp800-63b/syncable/</a>.</p>
 <blockquote>
-<p>A note on scope. SP 800-63B is written for US federal agencies, but it is the reference auditors
-reach for outside government too. Nothing here is a certification, and this document does not
-claim compliance.</p>
+<p>Scope. SP 800-63B is written for US federal agencies. It is the reference auditors reach for outside
+government too, but nothing here is a certification and this document does not claim compliance.</p>
 </blockquote>
 <hr>
 </section>
-<section id="2-the-decisive-sentence"><h2>2. The decisive sentence</h2>
-<p>From Appendix B, &ldquo;Cloning Authentication Keys&rdquo;:</p>
+<section id="2-what-the-standard-says-about-syncing"><h2>2. What the standard says about syncing</h2>
+<p><strong>§2.3.2, on AAL3 — the clearest statement:</strong></p>
 <blockquote>
-<p>&ldquo;Syncing authentication keys inherently means that the key can be exported. <strong>Authentication at AAL2
-may be supported subject to the above requirements. However, syncing violates the non-exportability
-requirements of AAL3.</strong> Similar protocols using keys not stored in an exportable manner that meet
-the other requirements of AAL3 may be used.&rdquo;</p>
+<p>&ldquo;Since syncable authenticators (described in Appendix B) require the private key to be exportable,
+syncable authenticators <strong>SHALL NOT</strong> be used at AAL3.&rdquo;</p>
 </blockquote>
-<p>Read with §2.3.3 (AAL3 requirements):</p>
+<p>The same section, positively:</p>
 <blockquote>
 <p>&ldquo;The cryptographic authenticator used at AAL3 <strong>SHALL</strong> have a non-exportable private key and
 <strong>SHALL</strong> provide phishing resistance…&rdquo;</p>
 </blockquote>
-<p>and §3.1.7.1 (multi-factor cryptographic authenticators):</p>
+<p><strong>Appendix B.2, &ldquo;Cloning Authentication Keys&rdquo;:</strong></p>
 <blockquote>
-<p>&ldquo;Exportable authentication keys (usable at AAL2 or below) <strong>SHOULD</strong> be stored in appropriate
-storage… Non-exportable authentication keys (usable at AAL3 or below) <strong>SHALL</strong> be stored in an
-isolated execution environment that is protected by hardware…&rdquo;</p>
+<p>&ldquo;Syncing authentication keys inherently means that the key can be exported. Authentication at AAL2
+may be supported subject to the above requirements. However, syncing violates the non-exportability
+requirements of AAL3. Similar protocols using keys not stored in an exportable manner that meet the
+other requirements of AAL3 may be used.&rdquo;</p>
 </blockquote>
-<p><strong>The conclusion is not ambiguous: a synced passkey can never be an AAL3 authenticator.</strong> Not because
-it is weak, but because sync is export by definition.</p>
-<p>This is the single most important fact for our claims, and it is the reason the two-realm split is
-worth having.</p>
+<p><strong>§3.1.6.1 (single-factor)</strong> and <strong>§3.1.7.1 (multi-factor)</strong>, quoted separately rather than stitched:</p>
+<blockquote>
+<p><strong>§3.1.6.1:</strong> &ldquo;Exportable authentication keys (usable at AAL2 or below) <strong>SHOULD</strong> be stored in
+appropriate storage… Non-exportable authentication keys (usable at AAL3 or below) <strong>SHALL</strong> be
+stored in an isolated execution environment that is protected by hardware…&rdquo;</p>
+<p><strong>§3.1.7.1:</strong> &ldquo;Non-exportable authentication keys, suitable for use at AAL3, <strong>SHALL</strong> be stored in
+an isolated execution environment that is protected by hardware…&rdquo;</p>
+</blockquote>
+<p><strong>So a synced passkey cannot be an AAL3 authenticator.</strong> Not because it is weak — because sync is
+export by definition. That part is unambiguous and does not depend on our configuration.</p>
+<p><strong>But <code>subject to the above requirements</code> is doing real work, and the earlier draft dropped it.</strong>
+Appendix B.2 imposes seven obligations on an AAL2 syncable deployment: approved cryptography; keys
+encrypted at 112-bit strength in the sync fabric; private-key operations performed on-device; access
+control so only the authenticated user reaches the keys; <strong>AAL2-equivalent MFA gating access to the
+sync fabric</strong>; the requirements <strong>documented and communicated, including on public-facing websites</strong>;
+and a UI showing what is synced where.</p>
+<p><strong>We satisfy none of these deliberately, because we are not the sync fabric.</strong> &ldquo;The standard permits
+synced passkeys at AAL2&rdquo; is therefore a statement about <em>what the standard permits</em>, <strong>not</strong> about what
+we have built. The distinction matters because that sentence is exactly what a DPO will read as an
+AAL2 claim.</p>
 <hr>
 </section>
 <section id="3-what-our-configuration-actually-is"><h2>3. What our configuration actually is</h2>
-<p>Read from <code>lab/keycloak/scripts/configure-realms.py</code>, which asserts each setting persisted:</p>
+<p>Read from <code>lab/keycloak/scripts/configure-realms.py</code>, which asserts each setting persisted. <strong>These are
+the <code>webAuthnPolicyPasswordless*</code> keys only — see F3.</strong></p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
@@ -160,17 +186,17 @@ worth having.</p>
 <tr>
 <td>Attestation conveyance</td>
 <td><code>none</code></td>
-<td><strong><code>direct</code></strong></td>
+<td><code>direct</code></td>
 </tr>
 <tr>
 <td>Authenticator attachment</td>
 <td><em>not specified</em></td>
-<td><strong><code>cross-platform</code></strong></td>
+<td><code>cross-platform</code></td>
 </tr>
 <tr>
 <td>User verification</td>
 <td><code>preferred</code></td>
-<td><strong><code>required</code></strong></td>
+<td><code>required</code></td>
 </tr>
 <tr>
 <td>Discoverable credential</td>
@@ -180,122 +206,236 @@ worth having.</p>
 <tr>
 <td>AAGUID allowlist</td>
 <td><code>[]</code> — any authenticator</td>
-<td><strong>YubiKey 5 series only</strong></td>
+<td>YubiKey 5 series</td>
 </tr>
 <tr>
 <td>Synced passkey possible?</td>
 <td><strong>Yes, by design</strong></td>
-<td><strong>No</strong></td>
+<td><strong>Intended: no</strong></td>
+</tr>
+<tr>
+<td>RP ID</td>
+<td><code>localhost</code> (hardcoded; production value only in a comment)</td>
+<td>same</td>
 </tr>
 </tbody>
 </table></div>
 <p>The privileged realm asks for a <strong>cross-platform</strong> authenticator matching a <strong>hardware AAGUID</strong>, with
-<strong>attestation</strong> and <strong>user verification required</strong>. That is a device-bound key from a known
-manufacturer. The customer realm asks for almost nothing, deliberately, so that ordinary people can
-enrol the passkey their phone or laptop already provides.</p>
-<p><strong>So the split is aligned with the standard&rsquo;s own boundary</strong>, and not by accident: the privileged
-realm is where we can make an AAL3-shaped claim, and the customer realm is where we must not.</p>
+<strong>attestation</strong>, and <strong>user verification required</strong>. As a <em>request to an honest browser</em>, that is what
+the design intends.</p>
+<p><strong>As an enforced control it is weaker than it looks</strong> — and that is what the review found. F1 and F2.</p>
 <hr>
 </section>
-<section id="4-what-we-may-claim-and-what-we-may-not"><h2>4. What we may claim, and what we may not</h2>
+<section id="4-what-we-may-claim-corrected"><h2>4. What we may claim — CORRECTED</h2>
+<p>An earlier draft said &ldquo;privileged access requires a hardware-bound authenticator… This is tested
+(S3)&rdquo;. <strong>That was wrong, and wrong in the direction that matters most.</strong> What the evidence supports:</p>
 <h3 id="we-may-say">We may say</h3>
 <ul>
-<li>&ldquo;<strong>Privileged access requires a hardware-bound authenticator</strong>, enforced by an AAGUID allowlist and
-  an attachment restriction, and the enrolment is refused if either is not satisfied.&rdquo; — <em>This is
-  tested (S3), and it is what the standard asks for at AAL3.</em></li>
-<li>&ldquo;<strong>Synced passkeys are permitted only for customer accounts</strong>, where the assurance target is AAL2.
-  The standard explicitly permits synced authenticators up to AAL2.&rdquo;</li>
-<li>&ldquo;<strong>Sign-in is phishing-resistant</strong> in both realms.&rdquo; <em>Attested by S9, and structural: WebAuthn
-  credentials are scoped to the relying-party origin.</em></li>
+<li><strong>&ldquo;Enrolment into the privileged realm refuses an authenticator whose AAGUID is not on the allowlist,
+  and refuses a built-in authenticator.&rdquo;</strong> Tested (S3), with controls. <strong>Note what it is not: a
+  statement about enrolment, not about access.</strong></li>
+<li><strong>&ldquo;Privileged sign-in is passkey-only.&rdquo;</strong> Tested (S5d), by policy and by test.</li>
+<li><strong>&ldquo;Synced passkeys are permitted for customer accounts, where the assurance target is AAL2&rdquo;</strong> — but
+  read §2 above: the standard permits this <em>conditionally</em>, and we are not the party satisfying those
+  conditions.</li>
+<li><strong>&ldquo;WebAuthn credentials are scoped to the relying-party origin, which is the mechanism behind
+  phishing resistance.&rdquo;</strong> Structural, and tested on loopback (S9).</li>
 </ul>
-<h3 id="we-must-not-say">We must not say</h3>
+<h3 id="we-must-not-say">We must NOT say</h3>
 <ul>
-<li>&ldquo;<strong>AAL3 compliant</strong>&rdquo;, &ldquo;NIST AAL3 certified&rdquo;, or anything similar. We have not performed a FIPS 140
-  validation of the authenticators we accept, we have not had the configuration assessed, and AAL3
-  requires more than WebAuthn settings. <strong>This remains true even though our WebAuthn configuration is
-  consistent with AAL3&rsquo;s authenticator requirements.</strong></li>
-<li>&ldquo;<strong>AAL2 compliant</strong>&rdquo; as a blanket statement about the system, for the reason in the next section.</li>
-<li>Anything at all about the <em>device the customer uses</em>, because we do not inspect it.</li>
+<li><strong>&ldquo;Privileged access requires a hardware key&rdquo;, or &ldquo;you used your key just now&rdquo;.</strong> EVIDENCE §5.8
+  records that the privileged <strong>step-up</strong> flow is password plus WebAuthn as a <strong>conditional second
+  factor</strong>, and yields <em>&ldquo;verified freshness and, today, no strength&rdquo;</em>. <strong>No physical hardware key has
+  ever completed a sign-in in this lab</strong> — EVIDENCE lists acceptance of a real key as Unverified.</li>
+<li><strong>&ldquo;AAL3 compliant&rdquo;, &ldquo;AAL3-shaped&rdquo;, or &ldquo;NIST AAL3&rdquo;.</strong> See F5 for the four separate reasons.</li>
+<li><strong>&ldquo;A physical hardware key is accepted.&rdquo;</strong> Only refusal has been tested.</li>
+<li><strong>&ldquo;Sign-in is phishing-resistant&rdquo;</strong> unqualified. S9 ran on <strong>loopback</strong>; real-TLS phishing is
+  Unverified; the property depends on <strong>RP-ID width</strong>, and the RP ID is hardcoded to <code>localhost</code>. The
+  enrolment link (bearer token) and enrolment window (password) are not origin-bound at all.</li>
+<li><strong>&ldquo;Verified by search.&rdquo;</strong> EVIDENCE reserves <strong>Verified</strong> for an experiment with a control. A grep is
+  neither. A claim resting on one is at best <strong>Documented</strong>.</li>
 </ul>
 <hr>
 </section>
-<section id="5-two-findings-that-a-reviewer-should-attack-first"><h2>5. Two findings that a reviewer should attack first</h2>
-<p>These are the parts most likely to be wrong, and they are the reason this document exists.</p>
-<h3 id="finding-1-preferred-user-verification-means-we-may-be-accepting-single-factor-without-knowing">Finding 1 — <code>preferred</code> user verification means we may be accepting single factor without knowing</h3>
-<p>SP 800-63B Appendix B, &ldquo;Implementation Requirements&rdquo;, on the WebAuthn <strong>User Verified (UV)</strong> flag:</p>
+<section id="5-findings"><h2>5. Findings</h2>
+<h3 id="f1-the-aaguid-allowlist-has-no-attestation-trust-anchor">F1 — The AAGUID allowlist has no attestation trust anchor</h3>
+<p>Keycloak treats the AAGUID as meaningful only after requiring a non-<code>none</code> attestation statement, and
+it validates the chain against a <strong>truststore</strong> (<code>WebAuthnRegisterFactory</code> →
+<code>KeycloakTrustAnchorRepository</code>). With none configured it falls back to
+<code>NullCertPathTrustworthinessVerifier</code>.</p>
+<p><strong>This repository configures no truststore: grep across <code>lab/keycloak/</code> finds <code>AcceptableAaguids</code> and
+zero hits for trust store, trust anchor, or truststore.</strong> Yubico&rsquo;s FIDO attestation root is not in the
+JRE <code>cacerts</code>.</p>
+<p>So the control is either <strong>unanchored</strong> (a fabricated <code>x5c</code> chain would satisfy it) or it <strong>rejects
+genuine YubiKeys</strong> — which matches the lockout failure mode EVIDENCE already names. <strong>We do not know
+which.</strong></p>
+<p>This is the same class as <strong>CVE-2026-6856</strong>, where packed self-attestation bypassed <code>AcceptableAaguids</code>
+(fixed in 26.6.2; this lab runs 26.8.0 and is not exposed) — that CVE is not a live risk here, but it
+is proof the failure mode is real.</p>
+<p><strong>State: unestablished, and it is the load-bearing part of the only enrolment control we have.</strong> This
+cannot be closed by configuration alone; it needs a pinned Yubico FIDO root <strong>and</strong> a demonstration
+that a forged chain fails.</p>
+<h3 id="f2-cross-platform-is-not-enforcement">F2 — <code>cross-platform</code> is not enforcement</h3>
+<p>Keycloak&rsquo;s own source says <code>authenticatorAttachment</code> is <strong>client-reported and not cryptographically
+verified</strong> — it is not in the attestation object. The privileged policy&rsquo;s <code>cross-platform</code> requirement
+is a request to an honest browser, not a control.</p>
+<p><strong>What this changes:</strong> the earlier draft&rsquo;s &ldquo;refused if either is not satisfied&rdquo; was wrong. Only the
+AAGUID comparison has server-side enforcement, and F1 is about whether <em>that</em> is anchored.</p>
+<h3 id="f3-we-configured-one-of-two-policy-surfaces">F3 — We configured one of two policy surfaces</h3>
+<p><code>webAuthnPolicyPasswordless*</code> governs <strong>passwordless</strong> sign-in. Keycloak also has <code>webAuthnPolicy*</code>,
+which governs a <strong><code>webauthn</code>-type credential used as a second factor</strong>. <strong>This repository sets zero
+non-passwordless <code>webAuthnPolicy*</code> keys</strong>, so that surface keeps Keycloak&rsquo;s defaults — including an
+<strong>empty acceptable-AAGUID list</strong>.</p>
+<p>Two consequences. Any path accepting a <code>webauthn</code>-type credential <strong>bypasses the allowlist</strong>. And an
+allowlist is a <strong>registration-time filter</strong>: tightening it does not retroactively revoke credentials
+already stored.</p>
+<p>Whether such a path is reachable today depends on which flows are enabled, which this analysis has
+<strong>not</strong> established.</p>
+<h3 id="f4-nists-actual-threat-table-is-what-this-document-should-discuss">F4 — NIST&rsquo;s actual threat table is what this document should discuss</h3>
+<p>Appendix B.6 ships <strong>Table 5</strong>. The earlier draft examined only the two optional WebAuthn flags (BE/BS)
+and declared a non-finding — the wrong artefact. The real threats, and why they matter <strong>for this
+product specifically</strong>:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Threat (Appendix B.6)</th>
+<th>Why it matters here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Unauthorized key use, or loss of control</strong> — syncable authenticators may be <strong>shared</strong> between users</td>
+<td>An approval trail that says &ldquo;Alice approved&rdquo; can be produced by anyone Alice shares her key with. <strong>Undetectable by the relying party</strong></td>
+</tr>
+<tr>
+<td><strong>Sync fabric compromise</strong></td>
+<td>Our customers&rsquo; Apple/Google account security becomes part of our authentication chain, invisibly</td>
+</tr>
+<tr>
+<td><strong>Unauthorized access to the sync fabric and recovery</strong> — synced keys are reachable via cloud account recovery, &ldquo;which represent a potential weakness&rdquo;</td>
+<td><strong>The sharpest problem.</strong> An attacker who recovers a customer&rsquo;s iCloud or Google account produces a valid, phishing-resistant, user-verified assertion. <strong>Our log says &ldquo;Alice signed in&rdquo;.</strong> A passkey event is evidence that <em>that account</em> authenticated, not that the named human did. <strong>Nothing in this design addresses attribution</strong></td>
+</tr>
+<tr>
+<td><strong>Revocation</strong> — RP-specific keys cannot be centrally revoked like PKI certificates</td>
+<td>We cannot revoke at the sync fabric; we can revoke our credential record and wait for token expiry — which S8 records as <strong>unmeasured</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>This is the section a compliance reviewer reads first.</strong> For a product whose value is the integrity
+of &ldquo;who did what&rdquo;, F4&rsquo;s third row is more serious than everything else in this document.</p>
+<h3 id="f5-aal3-shaped-is-not-shape-accurate">F5 — &ldquo;AAL3-shaped&rdquo; is not shape-accurate</h3>
+<p>Even granting the allowlist, AAL3 also requires:</p>
+<ul>
+<li><strong>FIPS 140 L1+ for authenticators.</strong> An AAGUID encodes a <em>model</em>, not a validation status. The
+  FIPS-series key has <strong>its own AAGUID</strong>, so unless the allowlisted value is the FIPS variant, the realm
+  may be configured to reject the only AAL3-eligible keys.</li>
+<li><strong>FIPS 140 L1+ for verifiers.</strong> This document&rsquo;s earlier draft discussed only authenticator FIPS. AAL3
+  constrains the <em>verifier&rsquo;s</em> cryptography too — self-hosted Keycloak on a stock JVM.</li>
+<li><strong>Authentication intent.</strong> The User Present flag is client-asserted, exactly like UV.</li>
+<li><strong>12h overall / 15m inactivity reauthentication.</strong> Never checked; Keycloak&rsquo;s default idle is 30m.</li>
+</ul>
+<p><strong>&ldquo;AAL3-flavoured authenticator selection&rdquo;</strong> is the most this configuration supports. &ldquo;AAL3-shaped&rdquo;
+implies the shape is right and one corner is wrong. <strong>Four corners are wrong.</strong></p>
+<h3 id="f6-user-verification-real-mechanism-wrong-layer-and-one-fix-that-is-impossible">F6 — User verification: real mechanism, wrong layer, and one fix that is impossible</h3>
+<p>The customer realm sets user verification to <code>preferred</code>. Appendix B.3:</p>
 <blockquote>
 <p>&ldquo;Verifiers <strong>SHALL</strong> indicate that UV is preferred and <strong>SHALL</strong> inspect responses to confirm the
 value of the UV flag. This indicates whether the authenticator can be treated as a multi-factor
-cryptographic authenticator. <strong>If the user is not verified, agencies SHALL treat the authenticator
-as a single-factor cryptographic authenticator.</strong>&ldquo;</p>
+cryptographic authenticator. <strong>If the user is not verified, agencies SHALL treat the authenticator as
+a single-factor cryptographic authenticator.</strong>&ldquo;</p>
 </blockquote>
-<p>Our customer realm sets user verification to <strong><code>preferred</code></strong>, and <strong>nothing in <code>apps/api/src/</code> inspects
-UV, <code>amr</code>, or any equivalent claim.</strong> Verified by search: there are no references.</p>
-<p>What that means in the worst case: a customer whose authenticator does not perform user verification
-may be authenticating with <strong>one factor</strong>, and we have no way to tell. NIST says such an assertion
-<strong>SHALL</strong> be treated as single-factor. AAL2 requires two distinct factors. <strong>We may therefore be
-presenting a single-factor sign-in as AAL2-equivalent.</strong></p>
-<p><strong>This does not affect the privileged realm</strong>, where UV is <code>required</code> and the authenticator is
-hardware.</p>
-<p><strong>Two pieces of our own evidence make this stronger, not weaker.</strong></p>
-<p>First, the S3 spike explicitly recorded that <em>&ldquo;the passwordless policy already defaults to
-<code>required</code>&ldquo;</em> — and the customer realm <strong>overrides that default down to <code>preferred</code></strong>. So this is not
-an unexamined Keycloak default; it is a choice we made, and the spike noted the default being
-departed from.</p>
-<p>Second, <strong>every virtual authenticator in this project&rsquo;s harnesses is created with
-<code>isUserVerified: true</code></strong> (<code>console-e2e.mjs</code>, <code>client-isolation.mjs</code>, <code>userhandle-probe.mjs</code>). The
-non-verified path has therefore <strong>never been exercised by any experiment we have run</strong>. We do not know
-whether a UV-less assertion completes sign-in in this configuration — we know only that the
-configuration permits it and that we would not be able to tell.</p>
-<p>That is the honest state: <strong>permitted, unexercised, undetected.</strong></p>
-<p><strong>What would fix it</strong>, in increasing order of effort:</p>
+<p>and §3.1.7.2:</p>
+<blockquote>
+<p>&ldquo;If such a flag is present and indicates that an activation factor was not used, the authentication
+<strong>SHALL</strong> be treated as single-factor.&rdquo;</p>
+</blockquote>
+<p><strong>The mechanism is real, and it is stronger than the earlier draft knew.</strong> In Keycloak&rsquo;s
+<code>WebAuthnAuthenticator</code>, <code>isUVFlagChecked</code> is set only when the policy is <code>required</code>. Under <code>preferred</code>
+the server <strong>accepts a <code>UV=0</code> assertion and does not act on it.</strong> A customer may therefore authenticate
+with <strong>one factor</strong> while the system treats the sign-in as multi-factor.</p>
+<p><strong>But three things in the earlier draft were wrong:</strong></p>
 <ol>
-<li>Set the customer realm&rsquo;s user verification to <code>required</code>. Cheap, but it locks out authenticators
-   that cannot verify — which is a real usability cost and may be why it was set to <code>preferred</code>.</li>
-<li>Inspect the <code>amr</code> claim or the UV flag in the access token and <strong>refuse AAL2-shaped operations</strong>
-   when verification did not happen. Requires knowing what Keycloak actually emits.</li>
-<li>Accept it, and downgrade the claim: &ldquo;sign-in is phishing-resistant&rdquo; rather than &ldquo;sign-in is
-   multi-factor&rdquo;. This is honest and may be enough for the product.</li>
+<li><strong>Wrong layer.</strong> The UV flag exists in the WebAuthn assertion, which only Keycloak sees. <strong>It is not
+   in the access token</strong>, so &ldquo;inspect the UV flag in the access token&rdquo; was <strong>impossible to implement</strong>,
+   and checking <code>apps/api/src</code> was checking the wrong place.</li>
+<li><strong>Wrong remedy framing.</strong> NIST <strong>requires</strong> <code>preferred</code> — <em>&ldquo;Verifiers SHALL indicate that UV is
+   preferred&rdquo;</em>. The deviation is the <strong>missing inspection</strong>, not the setting. Setting <code>required</code> would
+   be a departure from prescribed behaviour, not an implementation of it. It is also the only
+   server-side enforcement Keycloak offers, so calling it &ldquo;cheap&rdquo; understated it.</li>
+<li><strong>Wrong strength of claim.</strong> Nothing has shown a real authenticator returning <code>UV=0</code> in a
+   <code>residentKey: required</code> flow. Honest browsers usually <em>do</em> UV under <code>preferred</code>; the live threat is a
+   <strong>hostile client that suppresses it</strong>. The earlier draft&rsquo;s &ldquo;evidenced risk&rdquo; was <strong>Assumed</strong>.</li>
 </ol>
-<p><strong>This analysis does not choose between them.</strong> That is a decision, not a finding.</p>
-<h3 id="finding-2-we-do-not-use-the-backup-eligible-flag-and-that-is-probably-right">Finding 2 — we do not use the Backup Eligible flag, and that is probably right</h3>
-<p>SP 800-63B Appendix B on <strong>Backup Eligible (BE)</strong>:</p>
-<blockquote>
-<p>&ldquo;The Backup Eligible flag indicates whether the authenticator can be synced… Verifiers <strong>MAY</strong> use
-this flag to establish policies that restrict the use of syncable authenticators. This flag is
-necessary to distinguish authenticators that are device-bound from those that may be cloned.&rdquo;</p>
-</blockquote>
-<p>and on <strong>Backup State (BS)</strong>:</p>
-<blockquote>
-<p>&ldquo;Agencies <strong>SHOULD NOT</strong> condition acceptance based on this flag for public-facing applications due
-to user experience concerns.&rdquo;</p>
-</blockquote>
-<p>We inspect <strong>neither</strong>. For the privileged realm that is fine, and arguably deliberate: an AAGUID
-allowlist plus <code>cross-platform</code> is <strong>stronger</strong> than a BE check, because it constrains <em>which</em>
-authenticator rather than merely whether it can sync. For the customer realm, BE would be the wrong
-tool — the standard permits syncing there.</p>
-<p><strong>So this is a non-finding, recorded so a reviewer can see it was considered rather than missed.</strong></p>
+<p><strong>State: a real gap at the Keycloak layer, conditional, unmeasured.</strong></p>
+<h3 id="f7-the-configuration-script-can-brick-the-admin-realm-mid-run">F7 — The configuration script can brick the admin realm mid-run</h3>
+<p><code>configure-realms.py</code> writes <code>["not-a-guid"]</code> into the <strong>live</strong> privileged realm&rsquo;s allowlist to prove
+the setting is writable, then restores it. An interruption between those two points leaves a realm that
+accepts <strong>no authenticator at all</strong>. <strong>Undisclosed until now</strong> — and worth fixing regardless of what
+the standards say.</p>
 <hr>
 </section>
-<section id="6-what-remains-for-a-human-reviewer"><h2>6. What remains for a human reviewer</h2>
-<p>The things this document cannot do for itself:</p>
+<section id="6-what-the-review-did-not-overturn"><h2>6. What the review did not overturn</h2>
+<p>Recorded so a reviewer knows what survived: the AAL3/exportability reading in §2 is correct and
+well-cited; refusing to claim AAL3 or a blanket AAL2 is right; and the <strong>two-realm architecture itself
+is sound</strong>. The objection is to the <em>evidence</em> for calling it AAL3-shaped, not to the split.</p>
+<hr>
+</section>
+<section id="7-what-the-review-changed-and-the-pattern-behind-it"><h2>7. What the review changed, and the pattern behind it</h2>
+<p>Two independent adversarial passes ran. The first checked every quotation against the source; the
+second attacked the reasoning and then checked <strong>Keycloak&rsquo;s source</strong>, which this document should have
+done itself instead of grepping <code>apps/api/src</code>.</p>
+<p><strong>Quotation defects fixed:</strong> §2.3.3 cited where §2.3.2 was meant; a &ldquo;§3.1.7.1&rdquo; quote that was actually
+§3.1.6.1, reordered across an ellipsis; a Backup Eligible quote truncated mid-sentence.</p>
+<p><strong>Substantive defects fixed:</strong> the §4 hardware-key claim (→ §4, F1–F2); the missing attestation trust
+anchor (F1); the second policy surface (F3); the absent threat table (F4); &ldquo;AAL3-shaped&rdquo; (F5); the
+mislocated and over-strong user-verification finding (F6); the undisclosed script behaviour (F7).</p>
+<p><strong>The pattern is the important part.</strong> Each substantive defect is one this project has <strong>already
+named</strong> in EVIDENCE §2a, and the document repeated three of them:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>EVIDENCE §2a pattern</th>
+<th>How this document repeated it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A check that cannot fail</strong></td>
+<td>&ldquo;Verified by search&rdquo; — a grep presented at experiment strength</td>
+</tr>
+<tr>
+<td><strong>The wrong subject</strong></td>
+<td>Enrolment tested, <strong>access</strong> claimed; the passwordless policy described, <strong>the realm</strong> claimed</td>
+</tr>
+<tr>
+<td><strong>Self-vouching</strong></td>
+<td>The configuration script&rsquo;s success message treated as evidence of a security property</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>The document was audited against NIST. It was not audited against that list.</strong> That is the finding
+worth keeping, and it applies to the next document too.</p>
+<hr>
+</section>
+<section id="8-what-remains-for-a-human-reviewer"><h2>8. What remains for a human reviewer</h2>
 <ol>
-<li><strong>Check the quotations against the source.</strong> They were copied from the HTML edition; a reviewer
-   should confirm they match the PDF of record, and that the section numbering is right.</li>
-<li><strong>Decide Finding 1.</strong> Set UV to <code>required</code>, inspect the claim, or downgrade the wording. The
-   author should not make this call alone, because the author is the one who chose <code>preferred</code>.</li>
-<li><strong>Confirm the AAL framing is one an auditor would accept.</strong> SP 800-63B is a US federal document;
-   whether a SOC 2 or ISO 27001 assessor treats it as the reference is a question about <em>them</em>, not
-   about the standard.</li>
-<li><strong>Check the FIPS 140 position.</strong> AAL3 requires validated cryptographic modules. Whether the YubiKey
-   5 series we allowlist is validated in the configuration we permit is <strong>not established here</strong>, and
-   it is a prerequisite for any AAL3 claim.</li>
+<li><strong>Establish the trust-anchor position (F1).</strong> Until it is resolved, &ldquo;hardware key required&rdquo; cannot
+   be said. Needs a pinned Yubico root and a forged-chain test.</li>
+<li><strong>Decide F6.</strong> Accept and downgrade the wording to &ldquo;phishing-resistant&rdquo;; investigate what can be
+   enforced at the verifier; or treat customer sign-in as single-factor and say so. <strong>The author should
+   not choose, because the author set <code>preferred</code>.</strong></li>
+<li><strong>Determine whether the <code>webauthn</code> credential surface (F3) is reachable</strong>, then configure or disable
+   it.</li>
+<li><strong>Answer F4&rsquo;s attribution question.</strong> An evidence system whose log says &ldquo;Alice did this&rdquo; when the
+   actor may be whoever holds Alice&rsquo;s sync fabric is a product problem before it is a standards
+   problem. <strong>This document does not solve it.</strong></li>
+<li><strong>Confirm the quotations against the PDF of record</strong>, and whether an auditor accepts the AAL framing
+   at all.</li>
 </ol>
 </section>
-<section id="7-what-changed-as-a-result-of-this-analysis"><h2>7. What changed as a result of this analysis</h2>
-<p>Nothing in the code. This slice produces a claim boundary, not a fix — with one exception to consider
-as a follow-up: <strong>the <code>preferred</code> UV setting in the customer realm is now a named, evidenced risk</strong>
-rather than an unexamined default, and it is recorded in <code>EVIDENCE.md</code> so it cannot be forgotten.</p></section>
+<section id="9-what-changed-in-the-code-as-a-result-of-s6"><h2>9. What changed in the code as a result of S6</h2>
+<p><strong>Nothing.</strong> S6 produces a claim boundary. The one code-adjacent consequence is <strong>F7</strong>, which is a bug
+worth fixing regardless.</p></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results.html"><span>Previous</span><b>Lab results: hardware keys</b></a><a class="pn next" href="lab-results-hardware-keys.html"><span>Next</span><b>Lab results: enforcing hardware keys</b></a></nav>
     <footer>

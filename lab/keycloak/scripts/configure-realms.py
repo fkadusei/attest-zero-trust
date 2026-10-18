@@ -333,19 +333,43 @@ def main():
     # Does Keycloak reject a malformed AAGUID, or accept anything?
     print("=== AAGUID format validation probe ===")
     _, realm_repr = api(tok, "GET", "/attest-privileged")
-    realm_repr["webAuthnPolicyPasswordlessAcceptableAaguids"] = ["not-a-guid"]
-    status, err = api(tok, "PUT", "/attest-privileged", realm_repr)
-    if status in (204, 200):
-        _, back = api(tok, "GET", "/attest-privileged")
-        stored = back.get("webAuthnPolicyPasswordlessAcceptableAaguids")
-        print(f"  malformed AAGUID ACCEPTED (no validation). Stored as: {stored!r}")
-        print("  -> allowlist entries are not format-checked; typos fail OPEN or silently")
-        # restore
-        realm_repr["webAuthnPolicyPasswordlessAcceptableAaguids"] = [YUBIKEY_5_SERIES]
+
+    # This probe writes a DELIBERATELY BROKEN allowlist into the live, passkey-only privileged
+    # realm. Between the write and the restore, that realm accepts NO authenticator at all — so
+    # an interruption here (an exception, Ctrl-C, a dropped connection) would leave the admin
+    # console unloggable.
+    #
+    # The restore is therefore in a `finally`, and it is VERIFIED rather than assumed: a restore
+    # that silently failed is the exact class of bug this project keeps finding. If it cannot be
+    # confirmed, this returns non-zero and says so loudly, because a caller that ignored it would
+    # be leaving a bricked realm behind.
+    # `.get`, not `[]`: the realm representation OMITS this key when the realm has never set it,
+    # so indexing raises KeyError — which a live run did, on the first attempt at this fix.
+    original = realm_repr.get("webAuthnPolicyPasswordlessAcceptableAaguids", [YUBIKEY_5_SERIES])
+    restored = False
+    try:
+        realm_repr["webAuthnPolicyPasswordlessAcceptableAaguids"] = ["not-a-guid"]
+        status, err = api(tok, "PUT", "/attest-privileged", realm_repr)
+        if status in (204, 200):
+            _, back = api(tok, "GET", "/attest-privileged")
+            stored = back.get("webAuthnPolicyPasswordlessAcceptableAaguids")
+            print(f"  malformed AAGUID ACCEPTED (no validation). Stored as: {stored!r}")
+            print("  -> allowlist entries are not format-checked; typos fail OPEN or silently")
+        else:
+            print(f"  malformed AAGUID REJECTED: {status} {err}")
+    finally:
+        realm_repr["webAuthnPolicyPasswordlessAcceptableAaguids"] = original
         api(tok, "PUT", "/attest-privileged", realm_repr)
-        print("  (restored valid allowlist)")
-    else:
-        print(f"  malformed AAGUID REJECTED: {status} {err}")
+        _, back = api(tok, "GET", "/attest-privileged")
+        restored = back.get("webAuthnPolicyPasswordlessAcceptableAaguids") == original
+        if restored:
+            print("  (restored valid allowlist)")
+        else:
+            print("  !! RESTORE FAILED — the privileged realm may accept no authenticator")
+
+    if not restored:
+        print("  ABORT: refusing to report success with a possibly-bricked realm")
+        return 1
 
     print()
     print("RESULT:", "PASS — settings persist" if all_ok else "FAIL — see above")

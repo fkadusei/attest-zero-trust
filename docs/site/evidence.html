@@ -84,7 +84,7 @@
 <li class="lvl3"><a href="#the-standing-rule-this-produced">The standing rule this produced</a></li>
 <li><a href="#3-documented-believed-not-tested-by-us">3. Documented — believed, not tested by us</a></li>
 <li><a href="#4-unverified-named-so-they-cannot-be-forgotten">4. Unverified — named so they cannot be forgotten</a></li>
-<li class="lvl3"><a href="#4a-a-named-risk-found-by-the-standards-analysis-s6">4a. A named risk found by the standards analysis (S6)</a></li>
+<li class="lvl3"><a href="#4a-what-the-standards-analysis-s6-changed-and-what-it-did-not-establish">4a. What the standards analysis (S6) changed, and what it did not establish</a></li>
 <li><a href="#5-where-confidence-is-genuinely-lower-than-it-looks">5. Where confidence is genuinely lower than it looks</a></li>
 <li><a href="#6-things-we-have-read-only-in-summary">6. Things we have read only in summary</a></li>
 <li><a href="#6a-is-the-test-harness-itself-trustworthy">6a. Is the test harness itself trustworthy?</a></li>
@@ -705,23 +705,45 @@ the check failing. The check was validated by breaking the <em>enforcement</em>,
 </tr>
 </tbody>
 </table></div>
-<h3 id="4a-a-named-risk-found-by-the-standards-analysis-s6">4a. A named risk found by the standards analysis (S6)</h3>
-<p>Not a claim and not an experiment — a <strong>risk with a citation</strong>, recorded here because the register is
-where things must not be forgotten.</p>
-<p>The customer realm sets WebAuthn user verification to <strong><code>preferred</code></strong>. NIST SP 800-63B-4 Appendix B
-(normative) says: <em>&ldquo;If the user is not verified, agencies <strong>SHALL</strong> treat the authenticator as a
-single-factor cryptographic authenticator.&rdquo;</em> <strong>Nothing in <code>apps/api/src/</code> inspects UV, <code>amr</code>, or any
-equivalent claim</strong>, so an assertion without user verification would be handled identically to one
-with it.</p>
-<p><strong>Consequence:</strong> a customer whose authenticator does not perform user verification may be
-authenticating with one factor while the system treats the sign-in as multi-factor. This does <strong>not</strong>
-affect the privileged realm, where user verification is <code>required</code> and the authenticator is a hardware
-key.</p>
-<p><strong>Status: OPEN.</strong> Three ways to close it — set <code>required</code> (usability cost), inspect the claim and
-refuse AAL2-shaped operations (engineering), or downgrade the public wording to &ldquo;phishing-resistant&rdquo;
-rather than &ldquo;multi-factor&rdquo; (honest, possibly sufficient). <strong>Not chosen; this needs a human decision,
-not the author&rsquo;s.</strong></p>
-<p>Full analysis, with quotations a reviewer can check: <code>lab/keycloak/SPIKE-6-STANDARDS.md</code>.</p>
+<h3 id="4a-what-the-standards-analysis-s6-changed-and-what-it-did-not-establish">4a. What the standards analysis (S6) changed, and what it did not establish</h3>
+<p>A hostile review of the S6 analysis found that <strong>its first draft overclaimed</strong>, and that two of the
+overclaims had propagated into this register. Recorded here because this is the file that is supposed
+to be right.</p>
+<p><strong>Corrected in this file.</strong> An earlier version of this section said the customer&rsquo;s authenticator &ldquo;is a
+hardware key&rdquo; — which contradicted §4 (a physical key being accepted is <strong>Unverified</strong>) and §5.2. It
+also implied privileged <strong>access</strong> required a key, when S3 tested <strong>enrolment</strong> and §5.8 records that
+the privileged <strong>step-up</strong> flow yields <em>&ldquo;verified freshness and, today, no strength&rdquo;</em>. Both are fixed
+above; §4 and §5.8 were right and the new text was the bug.</p>
+<p><strong>Three findings that are now named risks, each with a citation a reviewer can check.</strong> Full analysis
+and quotations: <code>lab/keycloak/SPIKE-6-STANDARDS.md</code>.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>The AAGUID allowlist has no attestation trust anchor.</strong> Keycloak validates the attestation chain against a truststore; none is configured in this repo, so the check is either unanchored (a fabricated chain would pass) or it rejects genuine YubiKeys. Which one is <strong>unknown</strong></td>
+<td><strong>OPEN — highest priority.</strong> Blocks any &ldquo;hardware key required&rdquo; claim</td>
+</tr>
+<tr>
+<td><strong>Customer sign-in may be single-factor without our knowing.</strong> The customer realm sets user verification to <code>preferred</code>; Keycloak accepts a <code>UV=0</code> assertion under that policy and does not act on it, where §3.1.7.2 says such an assertion <strong>SHALL</strong> be treated as single-factor. No experiment has produced a <code>UV=0</code> sign-in, so the risk is conditional</td>
+<td><strong>OPEN — needs a decision, not the author&rsquo;s</strong></td>
+</tr>
+<tr>
+<td><strong>A second policy surface is unconfigured.</strong> This repo sets only <code>webAuthnPolicyPasswordless*</code>; <code>webAuthnPolicy*</code> keeps Keycloak defaults including an empty AAGUID list, so a <code>webauthn</code>-type credential would bypass the allowlist. Reachability not established</td>
+<td><strong>OPEN</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>And one finding that is a product problem, not a standards problem.</strong> Appendix B.6 lists &ldquo;unauthorized
+access to the sync fabric and recovery&rdquo;: if a customer&rsquo;s Apple or Google account is compromised and
+recovered, the attacker produces a valid, user-verified, phishing-resistant assertion, and our audit
+log records the customer&rsquo;s name. <strong>A passkey event is evidence that an account authenticated, not that
+the named human did.</strong> For a product whose value is the integrity of &ldquo;who did what&rdquo;, <strong>this is the most
+serious item on the page</strong>, and nothing in the design addresses it.</p>
 <hr>
 </section>
 <section id="5-where-confidence-is-genuinely-lower-than-it-looks"><h2>5. Where confidence is genuinely lower than it looks</h2>
