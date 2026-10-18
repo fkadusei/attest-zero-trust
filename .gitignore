@@ -21,3 +21,6 @@ lab/keycloak/.npm-cache/
 
 # Generated lab credentials. Never committed: see lab/keycloak/scripts/lab_env.py
 lab/.env
+
+# The docs venv, pinned to Python 3.12 (the build output depends on the interpreter)
+.venv-docs/

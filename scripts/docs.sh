@@ -12,8 +12,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PY="./.venv/bin/python"
-[ -x "$PY" ] || PY="python3"
+# The docs build is pinned to Python 3.12, because the rendered HTML depends on the
+# interpreter minor and not only on the library versions:
+#
+#   Python 3.12 + markdown 3.11.1  ->  <strong>is</strong>     (correct)
+#   Python 3.14 + markdown 3.11.1  ->  </em><em>is</em><em>   (mis-rendered)
+#
+# build_docs.py refuses to run on anything else, so pick a 3.12 interpreter rather than
+# producing bytes that another machine will report as STALE.
+if [ -x ".venv-docs/bin/python" ] && .venv-docs/bin/python -c 'import sys; raise SystemExit(0 if sys.version_info[:2]==(3,12) else 1)' 2>/dev/null; then
+  PY="./.venv-docs/bin/python"
+elif [ -x ".venv/bin/python" ] && .venv/bin/python -c 'import sys; raise SystemExit(0 if sys.version_info[:2]==(3,12) else 1)' 2>/dev/null; then
+  PY="./.venv/bin/python"
+elif command -v python3.12 >/dev/null 2>&1; then
+  PY="python3.12"
+else
+  PY="./.venv/bin/python"   # let build_docs.py explain why it refuses
+fi
 
 PIDFILE=".docs-server.pid"
 

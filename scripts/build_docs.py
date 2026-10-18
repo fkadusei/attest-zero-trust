@@ -159,6 +159,41 @@ def rel(path: Path) -> str:
 MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.S)
 FENCE_RE = re.compile(r"^(`{3,}|~{3,})", re.M)
 
+# ---------------------------------------------------------------------------
+# THE BUILD IS PINNED TO A PYTHON MINOR, BECAUSE THE OUTPUT DEPENDS ON IT.
+#
+# `--check` compares the COMMITTED site against a fresh build. That is only meaningful if
+# the build is reproducible, and it was not — for a reason that took a CI failure and a
+# clean-venv reproduction to find:
+#
+#   Python 3.12 + markdown 3.11.1  ->  <strong>is</strong>      (correct)
+#   Python 3.14 + markdown 3.11.1  ->  </em><em>is</em><em>    (mis-rendered)
+#
+# SAME library version. Same source. Different interpreter, different bytes. The Markdown
+# of `**is**` inside a blockquote renders differently, so a site built under one Python is
+# permanently "STALE" against a build under another.
+#
+# Pinning the packages alone did not fix it; pinning the interpreter does. CI uses 3.12,
+# so the committed site MUST be built with 3.12 — and this refuses to pretend otherwise
+# rather than silently producing bytes that will fail the check somewhere else.
+# ---------------------------------------------------------------------------
+EXPECTED_PYTHON = (3, 12)
+
+
+def _enforce_python() -> None:
+    import sys
+    have = sys.version_info[:2]
+    if have != EXPECTED_PYTHON:
+        want = ".".join(str(n) for n in EXPECTED_PYTHON)
+        got = ".".join(str(n) for n in have)
+        raise SystemExit(
+            f"build_docs.py must run on Python {want} (this is Python {got}).\n"
+            f"The rendered HTML depends on the interpreter, not just the library versions,\n"
+            f"so a site built on {got} will be reported STALE by a build on {want}.\n"
+            f"Use: python3.12 scripts/build_docs.py   (or scripts/docs.sh with python3.12)"
+        )
+
+
 MD_EXTENSIONS = [
     "extra",           # tables, fenced_code, attr_list, def_list, abbr, footnotes
     "admonition",
@@ -586,6 +621,7 @@ def build() -> Built:
 
 
 def main() -> int:
+    _enforce_python()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true",
                     help="exit non-zero if docs/site is stale")
