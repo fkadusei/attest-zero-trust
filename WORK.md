@@ -95,36 +95,37 @@ signing in constantly, or worse, quietly skipping the check.
   session, so sign in again. Never fall back to an unchecked pass. That is the exact silent downgrade
   this project exists to prevent.
 
-**Still open:** Safari (the browser most likely to evict) is untested, and so is a full laptop reboot.
-`lab/browser/manual.html` makes Safari a one-minute manual job.
+**Still open:** a **full laptop reboot** (as opposed to a browser restart). Everything else in S4 is
+settled.
 
 ---
 
-## ⚠ S4b — Do the other browsers behave the same way? — **CHROMIUM DONE**
+## ✅ S4b — Do the other browsers behave the same way? — **ALL THREE ENGINES PASS**
 
-**Result:** all three Chromium browsers pass **6/6** each — Chrome, Edge and Brave. A full quit and
-relaunch later, the key is still there, still works, is provably the *same* key, and a freshly
-generated key is correctly rejected.
+**Result:** every engine tested keeps the key across a full quit and relaunch, and it is provably the
+*same* key.
 
-| Browser | Engine | Result |
-|---|---|---|
-| Chrome / Edge / Brave | Chromium | ✅ **6/6 each** |
-| **Firefox** | **Gecko** | ⚪ not automated — **manual, ~1 minute** |
-| **Safari** | **WebKit** | ⚪ not automated — **manual, ~1 minute** |
+| Browser | Engine | Method | Result |
+|---|---|---|---|
+| Chrome / Edge / Brave | Chromium | automated | ✅ **6/6 each** |
+| **Firefox 157.0.1** | **Gecko** | manual | ✅ **PASS + control** |
+| **Safari 26.6.2** | **WebKit** | manual | ✅ **PASS + control** |
 
-**The two that matter are still untested.** Chromium is one engine in three skins; Gecko and WebKit
-are genuinely different. So the honest state is **one of three engines automated**, not "browsers
-done".
+**WebKit was the one expected to fail, and it passed.** Safari is the browser most likely to evict
+stored data, and it was the single reason this slice stayed open. It holds, with its control.
 
-**Firefox automation was attempted and abandoned.** Puppeteer failed with `session.subscribe timed
-out` under three configurations; Mozilla's own driver (fetched standalone, since Homebrew is
-root-owned here) created a session and then discarded the browsing context. Three attempts across two
-tools, then time-boxed — the same discipline applied to S5b.
+**Chromium is one engine in three skins; Gecko and WebKit are genuinely different.** So this is no
+longer "one engine tested three times" — it is evidence that the behaviour belongs to browser storage
+generally.
 
-**Safari is blocked for politeness, not technical reasons:** it is open with the user's windows, a
-real restart test means quitting it, and remote automation is a setting for the user to change.
+**Firefox still cannot be automated, and that is a real tooling gap, not a shortcut.**
+`geckodriver 0.37.1` **is the latest release** (2026-07-20) and cannot drive Firefox 157 — it fails to
+parse the version string (`Failed to get binary version`, `Invalid symbol 45, offset 11`). Puppeteer
+was abandoned earlier for the same task with `session.subscribe timed out`. Three attempts across two
+tools, then time-boxed.
 
-**To close it out** — one command, then a minute per browser:
+**The manual page is the deliberate fallback** — and it reports the browser's own `User-Agent`, so the
+claim is tied to a version rather than to whatever happened to be installed:
 
 ```bash
 python3 -m http.server 8099 --directory lab/browser
@@ -402,7 +403,7 @@ Full write-up: `lab/keycloak/SPIKE-9-RESULTS.md`.
 
 ---
 
-## ⚠ S1b — Does the proof survive the journey?
+## ✅ S1b — Does the proof survive the journey? — **ANSWERED for Cloudflare; AWS chain still open**
 
 **In plain words.** When your browser makes a request it attaches a small signed note. Our servers sit
 behind several layers of plumbing — a content delivery network, a load balancer, an API gateway.
@@ -411,9 +412,21 @@ Any one of those could quietly drop that note. If it did, every request would fa
 "fix" under pressure would be to switch the check off — exactly the disaster this design exists to
 prevent.
 
-**Needs:** AWS access.
+**Answered:** Cloudflare's edge **preserves** both the proof header and the `DPoP` authorization
+scheme. A DPoP-bound request through `https://attest.210security.com` returns **`200`**, with the
+identical request sent direct as the control. `cf-ray` was present, so it genuinely traversed the edge.
+See `lab/browser/S1B-RESULTS.md`.
 
-**Time:** about a day.
+**Not answered:** CloudFront → ALB → API Gateway. Different products, still needs AWS.
+
+**A control earned its keep here.** The first run failed with `401 malformed`, and the obvious reading
+— *"Cloudflare strips the DPoP header"* — was about to be written down as verified. **The control
+failed identically with no proxy in the path.** The real cause was a probe bug: the proof was not
+binding `ath` to the token. Without the control this would have been a confident, false finding.
+
+**Remaining needs:** AWS access for the AWS chain specifically.
+
+**Time:** about a day for the AWS half.
 
 ---
 
