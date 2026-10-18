@@ -54,6 +54,7 @@
 <li><a href="threat-model.html">Threat model</a></li>
 <li><a href="adr.html">Decision register</a></li>
 <li><a href="lab-results.html">Lab results: hardware keys</a></li>
+<li><a href="lab-standards-syncable.html">Reference: what the standard says about synced passkeys</a></li>
 <li><a href="lab-results-hardware-keys.html">Lab results: enforcing hardware keys</a></li>
 <li><a href="lab-results-dpop.html">Lab results: token binding</a></li>
 <li><a href="lab-results-browser.html">Lab results: browser keys</a></li>
@@ -83,6 +84,7 @@
 <li class="lvl3"><a href="#the-standing-rule-this-produced">The standing rule this produced</a></li>
 <li><a href="#3-documented-believed-not-tested-by-us">3. Documented — believed, not tested by us</a></li>
 <li><a href="#4-unverified-named-so-they-cannot-be-forgotten">4. Unverified — named so they cannot be forgotten</a></li>
+<li class="lvl3"><a href="#4a-a-named-risk-found-by-the-standards-analysis-s6">4a. A named risk found by the standards analysis (S6)</a></li>
 <li><a href="#5-where-confidence-is-genuinely-lower-than-it-looks">5. Where confidence is genuinely lower than it looks</a></li>
 <li><a href="#6-things-we-have-read-only-in-summary">6. Things we have read only in summary</a></li>
 <li><a href="#6a-is-the-test-harness-itself-trustworthy">6a. Is the test harness itself trustworthy?</a></li>
@@ -703,6 +705,24 @@ the check failing. The check was validated by breaking the <em>enforcement</em>,
 </tr>
 </tbody>
 </table></div>
+<h3 id="4a-a-named-risk-found-by-the-standards-analysis-s6">4a. A named risk found by the standards analysis (S6)</h3>
+<p>Not a claim and not an experiment — a <strong>risk with a citation</strong>, recorded here because the register is
+where things must not be forgotten.</p>
+<p>The customer realm sets WebAuthn user verification to <strong><code>preferred</code></strong>. NIST SP 800-63B-4 Appendix B
+(normative) says: <em>&ldquo;If the user is not verified, agencies <strong>SHALL</strong> treat the authenticator as a
+single-factor cryptographic authenticator.&rdquo;</em> <strong>Nothing in <code>apps/api/src/</code> inspects UV, <code>amr</code>, or any
+equivalent claim</strong>, so an assertion without user verification would be handled identically to one
+with it.</p>
+<p><strong>Consequence:</strong> a customer whose authenticator does not perform user verification may be
+authenticating with one factor while the system treats the sign-in as multi-factor. This does <strong>not</strong>
+affect the privileged realm, where user verification is <code>required</code> and the authenticator is a hardware
+key.</p>
+<p><strong>Status: OPEN.</strong> Three ways to close it — set <code>required</code> (usability cost), inspect the claim and
+refuse AAL2-shaped operations (engineering), or downgrade the public wording to &ldquo;phishing-resistant&rdquo;
+rather than &ldquo;multi-factor&rdquo; (honest, possibly sufficient). <strong>Not chosen; this needs a human decision,
+not the author&rsquo;s.</strong></p>
+<p>Full analysis, with quotations a reviewer can check: <code>lab/keycloak/SPIKE-6-STANDARDS.md</code>.</p>
+<hr>
 </section>
 <section id="5-where-confidence-is-genuinely-lower-than-it-looks"><h2>5. Where confidence is genuinely lower than it looks</h2>
 <p>Recorded because the instruction is explicit: <strong>say when you are not certain.</strong></p>

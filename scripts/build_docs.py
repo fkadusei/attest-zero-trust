@@ -106,6 +106,8 @@ PAGES: list[Page] = [
          "Formal records, open questions and the verification item list."),
     Page("lab-results", str(LAB_RESULTS.relative_to(ROOT)), "Reference", "Lab results: hardware keys",
          "The Spike #3 experiment, reproducible step by step."),
+    Page("lab-standards-syncable", "lab/keycloak/SPIKE-6-STANDARDS.md", "Reference", "Reference: what the standard says about synced passkeys",
+         "The NIST analysis behind our claim boundary, quoted so a reviewer can check it."),
     Page("lab-results-hardware-keys", "lab/keycloak/SPIKE-3-RESULTS.md", "Reference", "Lab results: enforcing hardware keys",
          "The AAGUID allowlist and attachment enforcement, with controls that isolate each variable."),
     Page("lab-results-dpop", "lab/keycloak/SPIKE-1-RESULTS.md", "Reference", "Lab results: token binding",

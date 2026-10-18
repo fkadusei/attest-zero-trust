@@ -178,6 +178,31 @@ the check failing. The check was validated by breaking the *enforcement*, not th
 | Behaviour of `prompt=login` when re-authentication is **impossible** | A user whose only credential was removed. Expected to lock out; unproven, and lockout paths deserve their own test | A lab user with no credential |
 | Whether the **privileged flow requires a passkey** | It does **not** today — see §5.8 | S5d |
 
+### 4a. A named risk found by the standards analysis (S6)
+
+Not a claim and not an experiment — a **risk with a citation**, recorded here because the register is
+where things must not be forgotten.
+
+The customer realm sets WebAuthn user verification to **`preferred`**. NIST SP 800-63B-4 Appendix B
+(normative) says: *"If the user is not verified, agencies **SHALL** treat the authenticator as a
+single-factor cryptographic authenticator."* **Nothing in `apps/api/src/` inspects UV, `amr`, or any
+equivalent claim**, so an assertion without user verification would be handled identically to one
+with it.
+
+**Consequence:** a customer whose authenticator does not perform user verification may be
+authenticating with one factor while the system treats the sign-in as multi-factor. This does **not**
+affect the privileged realm, where user verification is `required` and the authenticator is a hardware
+key.
+
+**Status: OPEN.** Three ways to close it — set `required` (usability cost), inspect the claim and
+refuse AAL2-shaped operations (engineering), or downgrade the public wording to "phishing-resistant"
+rather than "multi-factor" (honest, possibly sufficient). **Not chosen; this needs a human decision,
+not the author's.**
+
+Full analysis, with quotations a reviewer can check: `lab/keycloak/SPIKE-6-STANDARDS.md`.
+
+---
+
 ## 5. Where confidence is genuinely lower than it looks
 
 Recorded because the instruction is explicit: **say when you are not certain.**

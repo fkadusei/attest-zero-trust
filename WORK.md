@@ -69,7 +69,7 @@ Short, focused experiments. Each answers one question that would be expensive to
 | **S1b-AWS** | The same question for CloudFront → ALB → API Gateway | ⏸ needs AWS; Cloudflare does NOT answer it |
 | **ACCESS** | Cloudflare Access in front of the admin surface | ✅ **DECIDED — keep the tunnel rules. No admin access from the internet.** Refusing `/admin` and `/realms/master` at the edge is stricter than putting a login in front of them, and nothing legitimate needs them through Cloudflare |
 | **A1** | A real domain and TLS | ⏸ optional — see the results for what it would add |
-| **S6** | What do the standards say about "synced" passkeys? | 👤 needs a reviewer |
+| **S6** | What do the standards say about "synced" passkeys? | 🔎 analysis done, **needs a reviewer** |
 | **S7** | Can the login server run as more than one copy? | ⚠ needs AWS, **costs money** |
 | **S8** | How fast does "sign this person out" actually work? | ⚠ needs AWS |
 
