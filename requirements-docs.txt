@@ -1,11 +1,22 @@
-#
-#   ./.venv/bin/pip install -r requirements-docs.txt
-#   ./.venv/bin/python scripts/build_docs.py
-#   python3 -m venv .venv
 # Documentation toolchain.
-# Only two packages, both pure Python: the Markdown renderer and the syntax
-# highlighter. Diagrams additionally need Node (see tools/), but that is
-# optional — the build degrades to a visible notice if diagrams are missing.
-PyYAML
-Pygments>=2.17
-markdown>=3.6
+#
+# PINNED EXACTLY, AND THAT IS THE POINT.
+#
+# `scripts/build_docs.py --check` compares the COMMITTED site against a fresh build.
+# That is only a meaningful check if the build is reproducible — and it was not:
+#
+#   markdown>=3.6 resolved to 3.11 locally and 3.11.1 in CI, and the two render the
+#   same Markdown differently:
+#
+#     markdown 3.11    ->  <em>is</em>
+#     markdown 3.11.1  ->  <strong>is</strong>
+#
+#   One patch release changed the bytes, so `docs/site` built with one version is
+#   "STALE" against the other. CI failed deterministically on a page nobody had edited.
+#
+# A floating toolchain makes "the committed site matches its sources" a promise the
+# project cannot keep. These are pinned to the versions the committed site was built
+# with; bump them deliberately, and rebuild in the SAME commit.
+markdown==3.11.1
+Pygments==2.21.0
+PyYAML==6.0.3

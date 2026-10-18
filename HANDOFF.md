@@ -222,6 +222,17 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A reproducibility check is only a check if the toolchain is pinned.** `build_docs.py --check`
+  compares the COMMITTED site against a fresh build — a good idea that was quietly impossible to
+  honour, because `requirements-docs.txt` floated `markdown>=3.6`. It resolved to **3.11 locally and
+  3.11.1 in CI**, and one patch release renders the same Markdown differently:
+  `**is**` became `<em>is</em>` under 3.11 and `<strong>is</strong>` under 3.11.1. CI then failed
+  deterministically on a page nobody had edited, with the message "STALE". **The toolchain is now
+  pinned exactly**; bump it deliberately and rebuild in the same commit.
+- **"It passes locally" is not evidence when the local toolchain is unpinned.** The check passed on
+  my machine because my venv happened to hold the version the site was built with. Reproducing CI's
+  environment — a clean venv from the same requirements file — is what found it, and it took one
+  command.
 - **A suite can be green, thorough-looking, and never execute the line that matters.** Two
   security properties in this project were breakable without any test failing: the CSRF tests only
   ever sent a token of the WRONG LENGTH (refused by a cheap pre-check, so the constant-time compare
