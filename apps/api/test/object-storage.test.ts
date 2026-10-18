@@ -49,6 +49,7 @@ function contract(
       await cleanup?.();
     });
 
+
     it("round-trips bytes and reports their SHA-256", async () => {
       const { ref, sha256 } = await storage.put(ACME, "artifact-1", bytes("hello evidence"), "text/plain");
       assert.match(sha256, /^[0-9a-f]{64}$/);
@@ -266,6 +267,69 @@ describe("filesystem storage, specifics", () => {
     );
   });
 
+  /**
+   * MUTATION-TESTING FOUND THIS MISSING.
+   *
+   * `put()` sanitises the caller-supplied artifact id before using it in a storage key.
+   * Removing that sanitising left the whole suite green, because nothing asserted on the
+   * REF that `put()` returns — and the ref is the thing later reads are built from.
+   *
+   * If the id is used raw, `put()` hands back a ref containing `../`, and every subsequent
+   * `get()` on that ref builds a key that appears to walk out of the tenant prefix. Whether
+   * a given S3-compatible store RESOLVES `..` or treats it literally is the store's
+   * business — the adapter must not depend on the answer.
+   */
+  it("never returns a ref that contains traversal, whatever the artifact id says", async () => {
+    const hostile = [
+      "../../other-tenant/secret",
+      "..",
+      "a/b/c",
+      "with space",
+      "%2e%2e%2f",
+      "..\\..\\win",
+      "normal-id",
+    ];
+    for (const artifactId of hostile) {
+      const { ref } = await store.put(ACME, artifactId, bytes("x"), "text/plain");
+      // The property is that the ref is ONE segment: no separator, so it cannot be read
+      // as a path, and not a bare `.`/`..`, which some stores would resolve. A literal
+      // `..` INSIDE a longer segment is harmless — `encodeURIComponent` turns the slashes
+      // into `_2F`, so `../../x` becomes `.._2F.._2Fx`, a single opaque name.
+      assert.ok(
+        !ref.includes("/") && !ref.includes("\\") && ref !== "." && ref !== "..",
+        `artifact id ${JSON.stringify(artifactId)} produced ref ${JSON.stringify(ref)} — a ref must be one opaque segment`,
+      );
+      // And the object it wrote must still be readable, so the sanitising did not merely
+      // break the write.
+      const got = await store.get(ACME, ref);
+      assert.ok(got, "the object that put() just wrote must be readable");
+      assert.equal(Buffer.from(got.bytes).toString(), "x");
+    }
+  });
+
+  /**
+   * MUTATION-TESTING FOUND THIS MISSING.
+   *
+   * The adapter sanitises the caller-supplied artifact id before it becomes a filename.
+   * Removing that sanitising left the suite green, because nothing asserted on the REF that
+   * `put()` returns — and the ref is what every later read is built from.
+   *
+   * Path-based adapters only. The in-memory store keys a Map, so its ref is
+   * `tenant/id-uuid` and a separator there is meaningful rather than dangerous.
+   */
+  it("returns a ref that is ONE path segment, whatever the artifact id says", async () => {
+    const hostile = ["../../other-tenant/secret", "..", "a/b/c", "with space", "..\\\\..\\\\win", "normal-id"];
+    for (const artifactId of hostile) {
+      const { ref } = await store.put(ACME, artifactId, bytes("x"), "text/plain");
+      assert.ok(
+        !ref.includes("/") && !ref.includes("\\\\") && ref !== "." && ref !== "..",
+        `artifact id ${JSON.stringify(artifactId)} produced ref ${JSON.stringify(ref)} — a stored ref must be one path segment`,
+      );
+      const got = await store.get(ACME, ref);
+      assert.ok(got, "the object that put() just wrote must be readable");
+      assert.equal(Buffer.from(got.bytes).toString(), "x", "and the object must still be readable");
+    }
+  });
   it("keeps every tenant's artifacts in a directory of its own", async () => {
     await store.put(ACME, "iso", bytes("acme"), "text/plain");
     await store.put(GLOBEX, "iso", bytes("globex"), "text/plain");

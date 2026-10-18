@@ -79,6 +79,13 @@
 <li><a href="#3-pdp-cedarts-3-of-4-caught-and-the-survivor-is-correct">3. pdp-cedar.ts — 3 of 4 caught, and the survivor is correct</a></li>
 <li><a href="#what-this-round-says-about-the-suites">What this round says about the suites</a></li>
 <li><a href="#next-round">Next round</a></li>
+<li><a href="#round-2-jwksts-and-the-object-storage-adapters">Round 2 — jwks.ts and the object-storage adapters</a></li>
+<li><a href="#4-jwksts-no-tests-existed-and-the-dos-bound-was-unasserted">4. jwks.ts — no tests existed, and the DoS bound was unasserted</a></li>
+<li><a href="#5-object-storage-three-layered-defences-and-what-a-surviving-mutant-means">5. Object storage — three layered defences, and what a surviving mutant means</a></li>
+<li class="lvl3"><a href="#the-two-path-survivors-are-the-layered-defences-and-the-double-is-caught">The two path survivors are the layered defences, and the double is caught</a></li>
+<li class="lvl3"><a href="#the-artifact-id-gap-was-real-and-was-found-by-mutating">The artifact-id gap was real, and was found by mutating</a></li>
+<li class="lvl3"><a href="#the-s3-survivor-is-correct-and-that-was-measured-rather-than-assumed">The S3 survivor is correct, and that was measured rather than assumed</a></li>
+<li><a href="#what-round-2-says">What round 2 says</a></li>
 </ul></div>
   </aside>
 
@@ -213,7 +220,137 @@ way to know is to break the line and watch.</p>
 </section>
 <section id="next-round"><h2>Next round</h2>
 <p><code>jwks.ts</code> (cache and rotation) and the object-storage adapters have no recorded mutation results.
-<code>server.ts</code> and <code>policies</code> have documented survivors that are already explained.</p></section>
+<code>server.ts</code> and <code>policies</code> have documented survivors that are already explained.</p>
+<hr>
+</section>
+<section id="round-2-jwksts-and-the-object-storage-adapters"><h2>Round 2 — <code>jwks.ts</code> and the object-storage adapters</h2>
+</section>
+<section id="4-jwksts-no-tests-existed-and-the-dos-bound-was-unasserted"><h2>4. <code>jwks.ts</code> — no tests existed, and the DoS bound was unasserted</h2>
+<p>60 lines wrapping <code>jose</code>&rsquo;s remote key set. Most of it is the library&rsquo;s job, so re-testing
+<code>jose</code> would be noise. But <strong>two settings in it are ours</strong>, and both are security-relevant:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>What it bounds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cooldownDuration</code></td>
+<td>30s</td>
+<td>how often an unknown <code>kid</code> can force a refetch</td>
+</tr>
+<tr>
+<td><code>cacheMaxAge</code></td>
+<td>600s</td>
+<td>how stale the key set may be before rotation is seen</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>If the cooldown were 0, every unauthenticated request carrying an invented <code>kid</code> would
+trigger an outbound fetch</strong> to the identity provider — the one service that must stay up
+for anyone to log in. Nothing tested that it was bounded.</p>
+<p><code>apps/api/test/jwks.test.ts</code> now does, with a counting HTTP server:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mutation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the cooldown is <strong>DISABLED</strong></td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>the key cache is <strong>DISABLED</strong></td>
+<td><strong>caught</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>The control matters as much as the test.</strong> A test asserting &ldquo;few fetches&rdquo; passes trivially
+if nothing is ever fetched, so the suite also asserts that with <code>cooldownDurationSec: 0</code> the
+same burst <strong>does</strong> produce repeated fetches. If that control ever stops firing, the bounded
+test above has stopped measuring anything.</p>
+</section>
+<section id="5-object-storage-three-layered-defences-and-what-a-surviving-mutant-means"><h2>5. Object storage — three layered defences, and what a surviving mutant means</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mutation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>filesystem: tenant id not encoded</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>filesystem: the ref allowlist accepts <code>..</code> and slashes</td>
+<td>survived</td>
+</tr>
+<tr>
+<td>filesystem: the resolved path is not checked for containment</td>
+<td>survived</td>
+</tr>
+<tr>
+<td>filesystem: the artifact id used raw</td>
+<td><strong>caught</strong> <em>(after a test was added)</em></td>
+</tr>
+<tr>
+<td>s3: the tenant id is not encoded</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>s3: the artifact id used raw</td>
+<td>survived <em>(correct — see below)</em></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="the-two-path-survivors-are-the-layered-defences-and-the-double-is-caught">The two path survivors are the layered defences, and the double is caught</h3>
+<p>Defences 2 and 3 are deliberately redundant. Each alone survives because the other still
+holds, which is the point of layering. <strong>The question that matters is whether removing BOTH
+goes red — and it does:</strong></p>
+<div class="codehilite"><pre><span></span><code>DEFENCES 2 AND 3 removed together -&gt; 1/1 caught
+</code></pre></div>
+
+<p>So the survivors are correct rather than blind. This is the same shape as the <code>server.ts</code>
+result: a surviving mutant is not automatically a gap.</p>
+<h3 id="the-artifact-id-gap-was-real-and-was-found-by-mutating">The artifact-id gap was real, and was found by mutating</h3>
+<p>Nothing asserted on the <strong>ref that <code>put()</code> returns</strong> — and the ref is what every later read
+is built from. Removing the sanitising left the whole suite green. A test now feeds six
+hostile ids (<code>../../other-tenant/secret</code>, <code>..</code>, <code>a/b/c</code>, <code>with space</code>, a Windows traversal,
+and a normal one) and asserts the ref is <strong>one path segment</strong>.</p>
+<p><strong>It belongs to the path-based adapters only.</strong> The in-memory store keys a Map, so its ref is
+<code>tenant/id-uuid</code> and a separator there is meaningful rather than dangerous. Writing the test
+in the shared contract first made it fail for in-memory — which is how that distinction
+surfaced.</p>
+<h3 id="the-s3-survivor-is-correct-and-that-was-measured-rather-than-assumed">The S3 survivor is correct, and that was measured rather than assumed</h3>
+<p>S3 has no filesystem, so <code>..</code> in a key is a character. Probed directly:</p>
+<div class="codehilite"><pre><span></span><code>PUT  tenants/acme/../../other-tenant/secret  -&gt; 200
+GET  tenants/acme/../../other-tenant/secret  -&gt; 'ESCAPED'
+GET  tenants/other-tenant/secret             -&gt; 404
+</code></pre></div>
+
+<p><strong>The key is stored literally; nothing escapes the prefix.</strong> So removing <code>safeId</code> does not
+break tenant isolation on this store. The sanitising is defence in depth aimed at
+S3-compatible implementations that <em>do</em> normalise <code>..</code> — and this evidence says s3mock is not
+one of them. Recorded as a known unasserted defence rather than a closed gap.</p>
+</section>
+<section id="what-round-2-says"><h2>What round 2 says</h2>
+<p>The harness earned its place twice in this round:</p>
+<ul>
+<li>It refused to report <strong>5 mutations as &ldquo;survived&rdquo;</strong> when my <code>find</code> strings did not match —
+  they had 6-space indentation and the code has 4. Exit-code reporting made that a loud
+  failure instead of a quiet &ldquo;the suite is fine&rdquo;.</li>
+<li>It refused to run at all when the <strong>control</strong> went red, which is what caught a test I had
+  written too strictly (<code>!ref.includes("..")</code> rejects a harmless literal <code>..</code> inside an
+  opaque segment).</li>
+</ul></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a><a class="pn next" href="lab-results-s1b.html"><span>Next</span><b>Lab results: the DPoP header through a proxy</b></a></nav>
     <footer>

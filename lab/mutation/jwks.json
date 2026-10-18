@@ -1,0 +1,14 @@
+[
+  {
+    "file": "apps/api/src/jwks.ts",
+    "find": "      cooldownDuration: (options.cooldownDurationSec ?? 30) * 1000,",
+    "replace": "      cooldownDuration: 0,",
+    "label": "the cooldown is DISABLED — every unknown kid forces a fetch"
+  },
+  {
+    "file": "apps/api/src/jwks.ts",
+    "find": "      cacheMaxAge: (options.cacheMaxAgeSec ?? 600) * 1000,",
+    "replace": "      cacheMaxAge: 0,",
+    "label": "the key cache is DISABLED — no caching at all"
+  }
+]

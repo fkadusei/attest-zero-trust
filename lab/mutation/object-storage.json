@@ -1,0 +1,38 @@
+[
+  {
+    "file": "apps/api/src/ports/filesystem-object-storage.ts",
+    "find": "    return path.join(this.#root, \"tenants\", encodeURIComponent(tenant.tenantId));",
+    "replace": "    return path.join(this.#root, \"tenants\", tenant.tenantId);",
+    "label": "DEFENCE 1 removed: tenant id not encoded into one path segment"
+  },
+  {
+    "file": "apps/api/src/ports/filesystem-object-storage.ts",
+    "find": "    if (!/^[A-Za-z0-9._-]+$/.test(ref) || ref === \".\" || ref === \"..\") {",
+    "replace": "    if (false) {",
+    "label": "DEFENCE 2 removed: the ref allowlist accepts `..` and slashes"
+  },
+  {
+    "file": "apps/api/src/ports/filesystem-object-storage.ts",
+    "find": "    if (resolved !== path.join(directory, path.basename(ref)) || !resolved.startsWith(directory + path.sep)) {",
+    "replace": "    if (false) {",
+    "label": "DEFENCE 3 removed: the resolved path is not checked for containment"
+  },
+  {
+    "file": "apps/api/src/ports/s3-object-storage.ts",
+    "find": "    return `tenants/${encodeURIComponent(tenant.tenantId)}/${ref}`;",
+    "replace": "    return `tenants/${tenant.tenantId}/${ref}`;",
+    "label": "S3: the tenant id is no longer encoded"
+  },
+  {
+    "file": "apps/api/src/ports/s3-object-storage.ts",
+    "find": "    const safeId = artifactId.replace(/[^A-Za-z0-9._-]/g, \"_\").slice(0, 120);",
+    "replace": "    const safeId = artifactId.slice(0, 120);",
+    "label": "S3: the artifact id is used raw instead of sanitised"
+  },
+  {
+    "file": "apps/api/src/ports/filesystem-object-storage.ts",
+    "find": "    const ref = `${encodeURIComponent(artifactId).replace(/[^A-Za-z0-9._-]/g, \"_\")}-${randomUUID()}`;",
+    "replace": "    const ref = `${artifactId}-${randomUUID()}`;",
+    "label": "filesystem: the artifact id is used raw instead of encoded and sanitised"
+  }
+]
