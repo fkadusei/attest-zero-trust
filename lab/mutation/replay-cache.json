@@ -1,0 +1,26 @@
+[
+  {
+    "file": "apps/api/src/ports/replay-cache.ts",
+    "find": "    if (this.#seen.has(jti)) return false;",
+    "replace": "    if (this.#seen.has(jti)) return true;",
+    "label": "a REPLAY is accepted — a consumed jti can be used again"
+  },
+  {
+    "file": "apps/api/src/ports/replay-cache.ts",
+    "find": "    this.#seen.set(jti, now + ttlMs);",
+    "replace": "    this.#seen.set(jti, now);",
+    "label": "the jti is remembered with an expiry of NOW — it is forgotten on the next sweep"
+  },
+  {
+    "file": "apps/api/src/ports/replay-cache.ts",
+    "find": "    return true;\n  }",
+    "replace": "    return false;\n  }",
+    "label": "every request is refused — the cache is useless but fail-closed"
+  },
+  {
+    "file": "apps/api/src/ports/replay-cache.ts",
+    "find": "      if (expiry <= now) this.#seen.delete(key);",
+    "replace": "      if (false) this.#seen.delete(key);",
+    "label": "the sweep never evicts — unbounded growth (memory, not correctness)"
+  }
+]

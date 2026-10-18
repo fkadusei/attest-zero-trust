@@ -86,6 +86,11 @@
 <li class="lvl3"><a href="#the-artifact-id-gap-was-real-and-was-found-by-mutating">The artifact-id gap was real, and was found by mutating</a></li>
 <li class="lvl3"><a href="#the-s3-survivor-is-correct-and-that-was-measured-rather-than-assumed">The S3 survivor is correct, and that was measured rather than assumed</a></li>
 <li><a href="#what-round-2-says">What round 2 says</a></li>
+<li><a href="#round-3-the-modules-that-still-had-no-mutation-results">Round 3 — the modules that still had no mutation results</a></li>
+<li class="lvl3"><a href="#6-portsreplay-cachets-4-of-4-caught">6. ports/replay-cache.ts — 4 of 4 caught</a></li>
+<li class="lvl3"><a href="#7-consoleroutests-3-of-3-caught">7. console/routes.ts — 3 of 3 caught</a></li>
+<li class="lvl3"><a href="#8-portsmemory-repositoryts-2-of-3-survivor-correct">8. ports/memory-repository.ts — 2 of 3, survivor correct</a></li>
+<li><a href="#coverage-after-three-rounds">Coverage after three rounds</a></li>
 </ul></div>
   </aside>
 
@@ -350,7 +355,108 @@ one of them. Recorded as a known unasserted defence rather than a closed gap.</p
 <li>It refused to run at all when the <strong>control</strong> went red, which is what caught a test I had
   written too strictly (<code>!ref.includes("..")</code> rejects a harmless literal <code>..</code> inside an
   opaque segment).</li>
-</ul></section>
+</ul>
+<hr>
+</section>
+<section id="round-3-the-modules-that-still-had-no-mutation-results"><h2>Round 3 — the modules that still had no mutation results</h2>
+<p>Inventory first: every <code>apps/api/src/**/*.ts</code> against every spec in <code>lab/mutation/</code>. Three
+modules had tests but had never been mutated.</p>
+<h3 id="6-portsreplay-cachets-4-of-4-caught">6. <code>ports/replay-cache.ts</code> — 4 of 4 caught</h3>
+<p>The DPoP single-use enforcement: 66 lines, and the whole of &ldquo;a <code>jti</code> may be used once&rdquo;.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mutation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a REPLAY is accepted</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>the <code>jti</code> is remembered with an expiry of NOW</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>every request is refused (fail-closed but useless)</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>the sweep never evicts (memory, not correctness)</td>
+<td><strong>caught</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>The second one is the interesting case: the entry is <em>stored</em>, so a naive &ldquo;is it remembered&rdquo;
+test would pass, but it is forgotten on the very next sweep. Something tests the interval,
+not just the insertion.</p>
+<h3 id="7-consoleroutests-3-of-3-caught">7. <code>console/routes.ts</code> — 3 of 3 caught</h3>
+<p>544 lines, and the first time any of it was mutated.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mutation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LOGOUT loses its CSRF check</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>EVIDENCE CREATION loses its CSRF check</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td><code>requireSession</code> treats a missing session as valid</td>
+<td><strong>caught</strong></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="8-portsmemory-repositoryts-2-of-3-survivor-correct">8. <code>ports/memory-repository.ts</code> — 2 of 3, survivor correct</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mutation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>findById</code> searches EVERY tenant&rsquo;s bucket</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td><code>list</code> returns EVERY tenant&rsquo;s records</td>
+<td><strong>caught</strong></td>
+</tr>
+<tr>
+<td>a CROSS-TENANT WRITE is accepted</td>
+<td>survived <em>(correct)</em></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Checked rather than assumed.</strong> The guard refuses a record whose <code>tenantId</code> differs from
+the scope it is written under. Following the write path in <code>server.ts</code>:</p>
+<ul>
+<li>the scope is <code>{ tenantId: auth.tenantId }</code> (from the verified token)</li>
+<li>the record is written as <code>{ tenantId: tenant.tenantId, ... }</code> — <strong>the same object</strong></li>
+</ul>
+<p>So the two can never differ, and the guard cannot fire through the API. The handler&rsquo;s own
+comment states the reason: <em>&ldquo;there is no request parameter that names one, so a caller cannot
+create a record in someone else&rsquo;s tenant because there is nothing to point at.&rdquo;</em></p>
+<p><strong>This is the third instance of the same shape</strong> (<code>server.ts</code>, <code>pdp-cedar.ts</code>, and now this):
+a surviving mutant whose property still holds because the state it guards cannot be
+constructed. The discipline that separates it from a real gap is <em>following the data to the
+call site</em>, not reading the guard in isolation.</p>
+</section>
+<section id="coverage-after-three-rounds"><h2>Coverage after three rounds</h2>
+<p>Every module with decision logic now has a mutation result. The exceptions are the ones with
+nothing to mutate: <code>errors.ts</code> (constructors), <code>index.ts</code> (wiring), and the <code>ports/*.ts</code>
+interfaces.</p></section>
     </article>
     <nav class="pager" aria-label="Page navigation"><a class="pn prev" href="lab-results-phishing.html"><span>Previous</span><b>Lab results: phishing resistance</b></a><a class="pn next" href="lab-results-s1b.html"><span>Next</span><b>Lab results: the DPoP header through a proxy</b></a></nav>
     <footer>

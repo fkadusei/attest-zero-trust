@@ -1,0 +1,20 @@
+[
+  {
+    "file": "apps/api/src/console/routes.ts",
+    "find": "    if (!session || !csrfTokenMatches(session.csrfToken, typeof body[\"csrf\"] === \"string\" ? (body[\"csrf\"] as string) : undefined)) {",
+    "replace": "    if (!session) {",
+    "label": "LOGOUT loses its CSRF check — a cross-site POST can sign the user out"
+  },
+  {
+    "file": "apps/api/src/console/routes.ts",
+    "find": "    if (!csrfTokenMatches(session.csrfToken, csrf)) {",
+    "replace": "    if (false) {",
+    "label": "EVIDENCE CREATION loses its CSRF check — a cross-site form can create evidence"
+  },
+  {
+    "file": "apps/api/src/console/routes.ts",
+    "find": "    if (!session) {\n      reply.redirect(\"/console/login\", 302);\n      return false;\n    }\n    return true;",
+    "replace": "    if (!session) {\n      return true;\n    }\n    return true;",
+    "label": "requireSession treats a MISSING session as valid"
+  }
+]

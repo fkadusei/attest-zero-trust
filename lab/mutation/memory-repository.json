@@ -1,0 +1,20 @@
+[
+  {
+    "file": "apps/api/src/ports/memory-repository.ts",
+    "find": "    if (record.tenantId !== tenant.tenantId) {",
+    "replace": "    if (false) {",
+    "label": "a CROSS-TENANT WRITE is accepted — the storage layer retargets silently"
+  },
+  {
+    "file": "apps/api/src/ports/memory-repository.ts",
+    "find": "    return this.#byTenant.get(tenant.tenantId)?.get(id);",
+    "replace": "    for (const bucket of this.#byTenant.values()) {\n      const found = bucket.get(id);\n      if (found) return found;\n    }\n    return undefined;",
+    "label": "findById searches EVERY tenant's bucket instead of only the caller's"
+  },
+  {
+    "file": "apps/api/src/ports/memory-repository.ts",
+    "find": "    const all = [...(this.#byTenant.get(tenant.tenantId)?.values() ?? [])].sort((a, b) =>",
+    "replace": "    const all = [...this.#byTenant.values()].flatMap((b) => [...b.values()]).sort((a, b) =>",
+    "label": "list returns EVERY tenant's records"
+  }
+]

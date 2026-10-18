@@ -198,3 +198,64 @@ The harness earned its place twice in this round:
 - It refused to run at all when the **control** went red, which is what caught a test I had
   written too strictly (`!ref.includes("..")` rejects a harmless literal `..` inside an
   opaque segment).
+
+---
+
+## Round 3 — the modules that still had no mutation results
+
+Inventory first: every `apps/api/src/**/*.ts` against every spec in `lab/mutation/`. Three
+modules had tests but had never been mutated.
+
+### 6. `ports/replay-cache.ts` — 4 of 4 caught
+
+The DPoP single-use enforcement: 66 lines, and the whole of "a `jti` may be used once".
+
+| Mutation | Result |
+|---|---|
+| a REPLAY is accepted | **caught** |
+| the `jti` is remembered with an expiry of NOW | **caught** |
+| every request is refused (fail-closed but useless) | **caught** |
+| the sweep never evicts (memory, not correctness) | **caught** |
+
+The second one is the interesting case: the entry is *stored*, so a naive "is it remembered"
+test would pass, but it is forgotten on the very next sweep. Something tests the interval,
+not just the insertion.
+
+### 7. `console/routes.ts` — 3 of 3 caught
+
+544 lines, and the first time any of it was mutated.
+
+| Mutation | Result |
+|---|---|
+| LOGOUT loses its CSRF check | **caught** |
+| EVIDENCE CREATION loses its CSRF check | **caught** |
+| `requireSession` treats a missing session as valid | **caught** |
+
+### 8. `ports/memory-repository.ts` — 2 of 3, survivor correct
+
+| Mutation | Result |
+|---|---|
+| `findById` searches EVERY tenant's bucket | **caught** |
+| `list` returns EVERY tenant's records | **caught** |
+| a CROSS-TENANT WRITE is accepted | survived *(correct)* |
+
+**Checked rather than assumed.** The guard refuses a record whose `tenantId` differs from
+the scope it is written under. Following the write path in `server.ts`:
+
+- the scope is `{ tenantId: auth.tenantId }` (from the verified token)
+- the record is written as `{ tenantId: tenant.tenantId, ... }` — **the same object**
+
+So the two can never differ, and the guard cannot fire through the API. The handler's own
+comment states the reason: *"there is no request parameter that names one, so a caller cannot
+create a record in someone else's tenant because there is nothing to point at."*
+
+**This is the third instance of the same shape** (`server.ts`, `pdp-cedar.ts`, and now this):
+a surviving mutant whose property still holds because the state it guards cannot be
+constructed. The discipline that separates it from a real gap is *following the data to the
+call site*, not reading the guard in isolation.
+
+## Coverage after three rounds
+
+Every module with decision logic now has a mutation result. The exceptions are the ones with
+nothing to mutate: `errors.ts` (constructors), `index.ts` (wiring), and the `ports/*.ts`
+interfaces.
