@@ -222,6 +222,25 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **An analysis you wrote yourself is the one you cannot audit.** I checked the S6 standards
+  analysis against NIST and never against **EVIDENCE §2a, this project's own list of failure
+  patterns** — and repeated three of them: *a check that cannot fail* ("Verified by search"), *the
+  wrong subject* (S3 tested enrolment, I claimed **access**; one policy described, the **realm**
+  claimed), and *self-vouching* (the config script's success message as evidence of a security
+  property). Two hostile passes found a wrong section number, a quote spliced from the wrong section,
+  a mid-sentence truncation, and **a live bug**. The document was accurate about NIST and wrong about
+  us. **Run every new document against the project's own defect list before anyone else reads it.**
+- **When a reviewer says "check the library's source", check the library's source.** I claimed
+  nothing inspected the user-verification flag because `grep apps/api/src` found nothing — the wrong
+  layer. Keycloak sets `isUVFlagChecked` only when the policy is `required`; the flag never leaves the
+  ceremony and is **not in the token**, so my proposed fix was unimplementable. One look at the
+  verifier's code would have replaced a wrong finding with a better one.
+- **A restore that is not in a `finally` is not a restore.** `configure-realms.py` wrote a
+  deliberately invalid allowlist into the live passkey-only admin realm and restored it inline; an
+  interruption would have left a realm accepting nothing. Fixing it surfaced two more bugs in the fix
+  itself — a `KeyError` (the realm representation omits the key when unset) and a `NameError` (my line
+  replacement had deleted the `GET` that defined the variable). **Run the dangerous path, then verify
+  the live state independently.**
 - **Documentation drifts in the UNDERSTATING direction too, and nobody notices because it
   feels humble.** Two pages said "four experiments have been done" and "no production code exists"
   while the repository held 21 modules, 216 tests and eighteen written-up experiments. The stale
