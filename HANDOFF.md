@@ -222,6 +222,16 @@ documentation implies.
   bare hostname like `localhost` cookiejar rewrites the domain to `localhost.local`, so over plain
   HTTP they are never sent back and every login fails with **"Restart login cookie not found"** — which
   reads like an expired session. Track `name=value` pairs yourself instead.
+- **A suite can be green, thorough-looking, and never execute the line that matters.** Two
+  security properties in this project were breakable without any test failing: the CSRF tests only
+  ever sent a token of the WRONG LENGTH (refused by a cheap pre-check, so the constant-time compare
+  never ran), and the real OIDC client was never instantiated because the console tests inject a stub.
+  Both suites looked complete. **Mutation testing is the only way to know**, and hand-editing does not
+  scale — `scripts/mutate.py` now does it, refusing to report a mutation that did not apply and
+  verifying every restore.
+- **Tests that stop one layer short are the characteristic failure.** The CSRF tests stopped at the
+  length check; the console tests stopped at the stub boundary. Both were written in good faith and
+  both missed the interesting case by exactly one step.
 - **Log the CAUSE of a refusal, not its category.** `{"reason":"malformed"}` cost three rounds:
   `malformed` covers an undecodable header, a missing `sub`, a missing `exp`, an unclassifiable JOSE
   error and an unexpected claim. The answer was `DPoP proof is missing the ath claim` — a bug in the

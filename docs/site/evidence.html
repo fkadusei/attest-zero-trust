@@ -63,6 +63,7 @@
 <li><a href="lab-results-enrolment-window.html">Lab results: the enrolment window</a></li>
 <li><a href="lab-results-enrolment-link.html">Lab results: enrolment by link</a></li>
 <li><a href="lab-results-phishing.html">Lab results: phishing resistance</a></li>
+<li><a href="lab-results-mutation.html">Lab results: breaking the code to test the tests</a></li>
 <li><a href="lab-results-s1b.html">Lab results: the DPoP header through a proxy</a></li>
 <li><a href="lab-results-session.html">Lab results: the redirect loop</a></li>
 <li><a href="lab-results-origin-diff.html">Lab results: the passkey works</a></li>
@@ -456,6 +457,11 @@ here, <strong>this file is right and the other one is a bug.</strong> Please rep
 <tr>
 <td><strong>Keycloak separates multiple <code>post.logout.redirect.uris</code> with <code>##</code></strong></td>
 <td>Space and newline are both rejected with <em>&ldquo;A post-logout redirect URI is not a valid URI&rdquo;</em> — an error about the URI, never about the separator</td>
+<td><strong>Verified</strong></td>
+</tr>
+<tr>
+<td><strong>Two security properties could be broken without any test failing</strong>: a same-length wrong CSRF token was never sent (only a 5-char one, refused by a length pre-check), and the real OIDC client was never instantiated (<code>console.test.ts</code> injects a stub) — so making the ID-token nonce check return <code>true</code> unconditionally left all 26 console tests green</td>
+<td>Mutation testing of the console and PDP, with a reusable harness. Both closed; the OIDC client now has its own 13-test file and <strong>4/4 mutations are caught</strong></td>
 <td><strong>Verified</strong></td>
 </tr>
 <tr>

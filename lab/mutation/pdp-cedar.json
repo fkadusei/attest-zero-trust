@@ -1,0 +1,26 @@
+[
+  {
+    "file": "apps/api/src/pdp-cedar.ts",
+    "find": "    if (diagnostics.errors.length > 0) {",
+    "replace": "    if (false) {",
+    "label": "an `allow` returned alongside evaluation ERRORS is honoured"
+  },
+  {
+    "file": "apps/api/src/pdp-cedar.ts",
+    "find": "      return { effect: \"Deny\", determiningPolicies: [\"cedar:evaluation-failure\"] };",
+    "replace": "      return { effect: \"Allow\", determiningPolicies: [\"cedar:evaluation-failure\"] };",
+    "label": "a FAILED evaluation grants access"
+  },
+  {
+    "file": "apps/api/src/pdp-cedar.ts",
+    "find": "      return { effect: \"Deny\", determiningPolicies: [\"cedar:unrepresentable-request\"] };",
+    "replace": "      return { effect: \"Allow\", determiningPolicies: [\"cedar:unrepresentable-request\"] };",
+    "label": "an UNREPRESENTABLE request grants access"
+  },
+  {
+    "file": "apps/api/src/pdp-cedar.ts",
+    "find": "      effect: decision === \"allow\" ? \"Allow\" : \"Deny\",",
+    "replace": "      effect: \"Allow\",",
+    "label": "EVERY decision becomes Allow"
+  }
+]

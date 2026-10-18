@@ -124,6 +124,8 @@ PAGES: list[Page] = [
          "Why impersonation cannot work, and the action-token link that does — verified by completing a real enrolment."),
     Page("lab-results-phishing", "lab/keycloak/SPIKE-9-RESULTS.md", "Reference", "Lab results: phishing resistance",
          "The headline claim, tested with a real adversary-in-the-middle relay."),
+    Page("lab-results-mutation", "lab/mutation/RESULTS.md", "Reference", "Lab results: breaking the code to test the tests",
+         "Two modules where a security property broke and the suite stayed green."),
     Page("lab-results-s1b", "lab/browser/S1B-RESULTS.md", "Reference", "Lab results: the DPoP header through a proxy",
          "Cloudflare preserves it — and the control that stopped a confident wrong answer."),
     Page("lab-results-session", "lab/browser/SESSION-RESULTS.md", "Reference", "Lab results: the redirect loop",

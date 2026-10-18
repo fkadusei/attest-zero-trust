@@ -303,6 +303,78 @@ describe("the admin console", { skip: labUp ? false : "Keycloak is not running" 
     assert.ok(res.body.includes(session.csrfToken), "the sign-out form needs the token");
   });
 
+  /**
+   * MUTATION-TESTING FOUND THIS TEST MISSING, AND IT WAS A REAL GAP.
+   *
+   * The two CSRF tests above and below send `csrf=wrong` — five characters. The real
+   * token is 43. So `csrfTokenMatches` rejects them at the CHEAP LENGTH PRE-CHECK and
+   * **never reaches the constant-time comparison**.
+   *
+   * The consequence: deleting the constant-time comparison entirely left the whole suite
+   * green. The property — "a well-formed but wrong token is refused" — genuinely broke,
+   * and nothing noticed. That is the opposite of the documented `server.ts` case, where
+   * a surviving mutant was fine because another layer kept the property intact.
+   *
+   * This test sends a token of the CORRECT LENGTH with ONE character changed, so it can
+   * only be refused by the comparison itself.
+   */
+  it("a same-length CSRF token with one character changed is refused", async () => {
+    const { cookie, sessionId } = await signIn();
+    const session = await sessions.get(sessionId);
+    assert.ok(session, "the session should exist");
+
+    const real = session.csrfToken;
+    // Flip the LAST character, so the length is identical and the difference is minimal —
+    // the hardest case for a comparison that is not actually constant-time or not
+    // actually reached.
+    const last = real.at(-1) ?? "A";
+    const flipped = last === "A" ? "B" : "A";
+    const nearMiss = real.slice(0, -1) + flipped;
+    assert.equal(nearMiss.length, real.length, "the token must be the same length");
+    assert.notEqual(nearMiss, real, "the token must actually differ");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/console/logout",
+      cookies: { attest_session: cookie },
+      payload: `csrf=${encodeURIComponent(nearMiss)}`,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+    });
+
+    // Refused, and the session SURVIVES — the point of CSRF here is that an attacker
+    // cannot act as the user, not merely that the response looks wrong.
+    assert.equal(res.statusCode, 302);
+    assert.equal(res.headers["location"], "/console/login", "a rejected sign-out goes back to sign-in");
+    assert.ok(
+      await sessions.get(sessionId),
+      "a wrong CSRF token must NOT destroy the session — otherwise the check is an attacker-triggered sign-out",
+    );
+  });
+
+  /**
+   * Sessions expire. Nothing tested it.
+   *
+   * Removing the expiry check from `InMemorySessionStore.get` left the suite green, which
+   * means an expired session would have been honoured indefinitely with no test objecting.
+   * Tested directly on the store rather than through HTTP, because the store is where the
+   * rule lives and a clock-based test through the console would need the whole stack to
+   * wait.
+   */
+  it("an EXPIRED session is treated as signed out, and is removed on sight", async () => {
+    const store = new InMemorySessionStore();
+    const created = await store.create({ accessToken: "t" }, 1);
+    assert.equal(await store.get(created.id), created, "it exists while fresh");
+
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
+    assert.equal(
+      await store.get(created.id),
+      undefined,
+      "an expired session must not be returned — accepting it would honour a credential past its stated life",
+    );
+    assert.equal(store.size, 0, "and it must be removed on sight, not left for a sweeper that may not run");
+  });
+
   // ---------------------------------------------------------------- create (L8)
   /** Build a multipart body by hand, so no extra dependency is needed. */
   function multipartBody(fields: Record<string, string>, file?: { name: string; bytes: string }): {

@@ -1,0 +1,20 @@
+[
+  {
+    "file": "apps/api/src/console/session.ts",
+    "find": "    if (session.expiresAtMs <= Date.now()) {",
+    "replace": "    if (false) {",
+    "label": "expired sessions are ACCEPTED (expiry check removed)"
+  },
+  {
+    "file": "apps/api/src/console/session.ts",
+    "find": "  return diff === 0;\n}",
+    "replace": "  return true;\n}",
+    "label": "CSRF token comparison ALWAYS MATCHES"
+  },
+  {
+    "file": "apps/api/src/console/session.ts",
+    "find": "  if (typeof presented !== \"string\" || presented.length !== expected.length) return false;",
+    "replace": "  if (typeof presented !== \"string\") return false;",
+    "label": "CSRF length pre-check removed (expected SURVIVOR: the hash compare still decides)"
+  }
+]

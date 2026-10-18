@@ -1,0 +1,26 @@
+[
+  {
+    "file": "apps/api/src/console/oidc.ts",
+    "find": "      return typeof claims[\"nonce\"] === \"string\" && claims[\"nonce\"] === expectedNonce;",
+    "replace": "      return true;",
+    "label": "ID-token nonce check ALWAYS PASSES (any flow's token is accepted)"
+  },
+  {
+    "file": "apps/api/src/console/oidc.ts",
+    "find": "    if (typeof idToken !== \"string\") return false;",
+    "replace": "    if (typeof idToken !== \"string\") return true;",
+    "label": "a MISSING ID token is accepted (no nonce to check, so no check)"
+  },
+  {
+    "file": "apps/api/src/console/oidc.ts",
+    "find": "    url.searchParams.set(\"state\", toRemember.state);",
+    "replace": "    // state removed",
+    "label": "`state` is NOT sent to the provider (CSRF on the redirect is lost)"
+  },
+  {
+    "file": "apps/api/src/console/oidc.ts",
+    "find": "    url.searchParams.set(\"nonce\", toRemember.nonce);",
+    "replace": "    // nonce removed",
+    "label": "`nonce` is NOT sent to the provider (so it can never come back)"
+  }
+]
